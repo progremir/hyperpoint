@@ -47,12 +47,11 @@ public final class Engine {
         }
     }
 
-    /// Menu: Re-apply Settings Now.
     public func reapplyAll() {
         reconcile(.manual, resendTapOrder: true)
     }
 
-    /// Menu: Pause Hyperpoint. Runtime state, not config, so a relaunch is never paused.
+    /// Runtime state, not config, so a relaunch is never paused.
     public func setPaused(_ paused: Bool) {
         guard paused != self.paused else { return }
         self.paused = paused

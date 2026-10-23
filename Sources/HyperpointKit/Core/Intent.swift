@@ -1,4 +1,3 @@
-/// What lives on one device or its HID service. Written whole on every apply.
 struct DeviceSetup: Equatable, Sendable {
     var keyMap: KeyMapSetup
 

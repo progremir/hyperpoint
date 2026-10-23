@@ -85,7 +85,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private static func time(_ date: Date) -> String { date.formatted(date: .omitted, time: .shortened) }
 }
 
-/// A menu item that runs a closure.
 @MainActor
 private final class ActionItem: NSMenuItem {
     private let run: @MainActor () -> Void

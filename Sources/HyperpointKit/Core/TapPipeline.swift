@@ -1,6 +1,5 @@
 import CoreGraphics
 
-/// The tap's whole configuration, derived from the same routes as the `hidutil` mappings.
 struct TapRules: Equatable, Sendable {
     var carriers: [KeyCode: CarrierMeaning]
 
@@ -26,8 +25,8 @@ enum TapVerdict: Equatable, Sendable {
     case drop
 }
 
-/// What the event tap does with an event: a value in, a verdict out, with the event rewritten in place. Every stage
-/// runs on fabricated CGEvents in tests, with no tap and no permission.
+/// A value in and a verdict out, with the event rewritten in place, so every stage runs on fabricated CGEvents in
+/// tests with no tap and no permission.
 struct TapPipeline {
     /// Every event Hyperpoint posts carries this in `eventSourceUserData`, and no stage touches such an event.
     static let syntheticMarker: Int64 = 0x4859_5052

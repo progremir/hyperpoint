@@ -25,7 +25,6 @@ struct Carrier: Hashable, Sendable {
 }
 
 enum CarrierMeaning: Equatable, Sendable {
-    /// While the carrier is down, these modifiers are held.
     case holdModifiers(Modifiers)
 }
 

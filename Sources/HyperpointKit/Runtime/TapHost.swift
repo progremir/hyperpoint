@@ -7,7 +7,6 @@ struct TapOrder: Equatable, Sendable {
     var rules: TapRules
 }
 
-/// Rare notes from the tap thread to the engine.
 enum TapSignal: Sendable {
     case installed
     case installFailed
@@ -27,7 +26,6 @@ final class TapHost {
 
     nonisolated init(signals: AsyncStream<TapSignal>.Continuation) { self.signals = signals }
 
-    /// Applies orders in arrival order until the stream ends.
     func follow(_ orders: AsyncStream<TapOrder>) async {
         for await order in orders { apply(order) }
     }

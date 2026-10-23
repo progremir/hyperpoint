@@ -55,7 +55,6 @@ struct SenderID: Hashable, Sendable {
     let rawValue: UInt64
 }
 
-/// A connected device, grouped from its IOHIDDevice interfaces.
 struct PresentDevice: Equatable, Sendable {
     var id: DeviceInstanceID
     var key: DeviceKey
@@ -96,7 +95,6 @@ extension DeviceMatch {
 }
 
 extension Config {
-    /// The profile for a device, or nil when it has none or the user ignored it.
     func profile(for properties: HIDProperties) -> DeviceProfile? {
         guard !ignored.contains(where: { $0.matches(properties) }) else { return nil }
         return devices.first { $0.match.matches(properties) }

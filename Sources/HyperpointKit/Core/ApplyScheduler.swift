@@ -1,4 +1,4 @@
-/// Why a device was invalidated. The apply is the same for every reason. The reason is for the journal.
+/// The apply is the same for every reason. The reason is for the journal.
 enum ApplyReason: String, Hashable, Sendable {
     case launch
     case connected
@@ -15,7 +15,6 @@ enum ApplyReason: String, Hashable, Sendable {
 struct ApplyScheduler: Sendable {
     struct Job: Equatable, Sendable {
         var reasons: Set<ApplyReason>
-        /// 1 for a fresh request, then 2, 3 and on while retrying after failures.
         var attempt: Int
     }
 
@@ -32,7 +31,6 @@ struct ApplyScheduler: Sendable {
         return true
     }
 
-    /// The next job, or nil when the worker should exit.
     mutating func nextJob() -> Job? {
         guard !queued.isEmpty else {
             running = false

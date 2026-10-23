@@ -52,7 +52,6 @@ public struct DeviceProfile: Codable, Equatable, Sendable {
     }
 }
 
-/// Names a device: its USB vendor and product, or the Mac's built-in keyboard.
 public enum DeviceMatch: Hashable, Sendable {
     case device(vendor: VendorID, product: ProductID)
     case builtIn
