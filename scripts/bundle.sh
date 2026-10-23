@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds, signs and installs Hyperpoint.app. TCC keys the Accessibility and Input Monitoring grants to the app's
+# TCC keys the Accessibility and Input Monitoring grants to the app's
 # designated requirement. An ad-hoc signature makes that a cdhash, which changes on every build and silently
 # revokes both grants, so this script signs with a stable identity and refuses to install anything else.
 set -euo pipefail
@@ -32,7 +32,6 @@ if [[ "$REQ" == *cdhash* || "$REQ" != *"identifier \"$BUNDLE_ID\""* ]]; then
   exit 1
 fi
 
-# A running copy would keep its old binary mapped. Quit it through the app's own quit path first.
 if pgrep -xq Hyperpoint; then
   osascript -e 'tell application id "dev.emir.hyperpoint" to quit' >/dev/null 2>&1 || true
   for _ in {1..30}; do pgrep -xq Hyperpoint || break; sleep 0.1; done

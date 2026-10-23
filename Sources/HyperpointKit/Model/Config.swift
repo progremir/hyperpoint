@@ -1,4 +1,3 @@
-/// The parsed `~/.config/hyperpoint/config.json`. `ConfigCodec.decode` is the only way in.
 public struct Config: Codable, Equatable, Sendable {
     public static let currentVersion = 1
 
@@ -202,8 +201,6 @@ public struct ClickThrough: Codable, Equatable, Sendable {
 }
 
 extension Config {
-    /// Reproduces the BetterMouse and Karabiner setup this app replaces. docs/architecture.md shows it as the
-    /// default file, and a test keeps the two equal.
     public static let `default` = Config(
         version: currentVersion,
         hyper: HyperSettings(key: HIDUsage(name: "capsLock")!, onTap: .nothing),

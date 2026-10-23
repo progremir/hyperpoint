@@ -43,9 +43,6 @@ public enum HeldModifier: String, CaseIterable, Codable, Sendable {
     case rightControl, rightShift, rightOption, rightCommand
 }
 
-/// The named keys of a US ANSI keyboard, each with its HID usage and virtual key code side by side, so a name means
-/// the same key at the HID layer and in the event tap. F13 to F24 are absent on purpose: they are carriers, and
-/// their numbers live only in the carrier pool.
 enum KeyTable {
     struct Key {
         let name: String

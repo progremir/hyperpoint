@@ -195,7 +195,6 @@ extension Action: Codable {
 }
 
 extension Chord: Codable {
-    /// Canonical order is the one macOS menus show: ⌃⌥⇧⌘.
     static let modifierNames: [(Modifiers, [String])] = [
         (.control, ["ctrl", "control"]),
         (.option, ["opt", "option", "alt"]),

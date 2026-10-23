@@ -1,6 +1,5 @@
 public import Foundation
 
-/// Everything the menu shows, as one immutable value. The engine is its only writer.
 public struct EngineStatus: Equatable, Sendable {
     public var run: RunState
     public var permissions: PermissionState

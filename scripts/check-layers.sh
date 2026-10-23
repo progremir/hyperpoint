@@ -1,6 +1,4 @@
 #!/bin/zsh
-# Model is vocabulary, Core is pure logic, Runtime is effects, and the app is a shell over Engine. One library
-# cannot enforce this with targets (measured), so this script does. bundle.sh runs it.
 set -euo pipefail
 cd "${0:A:h}/.."
 kit=Sources/HyperpointKit

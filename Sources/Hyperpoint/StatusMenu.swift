@@ -2,7 +2,6 @@ import AppKit
 import HyperpointKit
 import os
 
-/// The menu-bar item. It renders `MenuPresentation` and sends every action to `AppModel`.
 @MainActor
 final class StatusMenu: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -60,7 +59,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(ActionItem(title: "Quit Hyperpoint", key: "q") { NSApp.terminate(nil) })
     }
 
-    /// A row that shows state. A right tab stop lines the detail up the way the mockup does.
     private func info(left: String, right: String?, bold: Bool = false) -> NSMenuItem {
         let item = NSMenuItem(title: left, action: nil, keyEquivalent: "")
         item.isEnabled = false

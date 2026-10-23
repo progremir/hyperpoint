@@ -1,5 +1,3 @@
-/// A function key reserved for Hyperpoint. The HID layer turns a physical key into it, and the tap gives it a
-/// meaning. This pool is the only place the F13 to F20 numbers exist.
 struct Carrier: Hashable, Sendable {
     let usage: HIDUsage
     let keyCode: KeyCode
@@ -32,7 +30,6 @@ enum KeyTarget: Equatable, Sendable {
     case carrier(Carrier, CarrierMeaning)
 }
 
-/// One remap at the HID layer. The `hidutil` mapping and the tap's carrier rules both derive from the same routes.
 struct KeyRoute: Equatable, Sendable {
     var source: HIDUsage
     var target: KeyTarget
@@ -48,7 +45,6 @@ struct KeyRoute: Equatable, Sendable {
     }
 }
 
-/// What one keyboard service's `UserKeyMapping` holds. Written whole, so applying it twice equals applying it once.
 struct KeyMapSetup: Equatable, Sendable {
     var routes: [KeyRoute]
 
@@ -59,12 +55,10 @@ struct KeyMapSetup: Equatable, Sendable {
         var destination: UInt64
     }
 
-    /// `hidutil` addresses a key as its usage page in the high 32 bits and its usage in the low.
     var pairs: Set<Pair> {
         Set(routes.map { Pair(source: Self.hidutilValue($0.source), destination: Self.hidutilValue($0.destination)) })
     }
 
-    /// The `--set` argument, in the form TN2450 documents.
     var userKeyMappingJSON: String {
         let entries = routes.map {
             "{\"HIDKeyboardModifierMappingSrc\":\(Self.hex(Self.hidutilValue($0.source))),"
@@ -75,18 +69,13 @@ struct KeyMapSetup: Equatable, Sendable {
 
     var carriesHyper: Bool { routes.contains { $0.destination == Carrier.hyper.usage } }
 
-    /// The write a device needs: the desired map, unless nothing is wanted and nothing of ours is on the device.
     static func pendingWrite(desired: KeyMapSetup, written: KeyMapSetup?) -> KeyMapSetup? {
         desired.routes.isEmpty && (written?.routes.isEmpty ?? true) ? nil : desired
     }
 
-    /// What a slot with no write of its own records as ours, from what the service already holds. A carrier
-    /// destination is the only evidence that a map outlived the Hyperpoint that wrote it. A map without one belongs
-    /// to someone else and is left alone.
     static func recovered(from pairs: Set<Pair>) -> KeyMapSetup? {
         let routes = pairs.compactMap { pair in
             Carrier.pool.first { hidutilValue($0.usage) == pair.destination }.map { carrier in
-                // The service keeps no meaning, and nothing reads one from a recovered map.
                 KeyRoute(
                     source: HIDUsage(rawValue: UInt16(truncatingIfNeeded: pair.source)),
                     target: .carrier(carrier, .holdModifiers([])))

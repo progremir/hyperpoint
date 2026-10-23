@@ -2,8 +2,6 @@ import ApplicationServices
 public import Foundation
 import IOKit.hid
 
-/// Accessibility (the active event tap) and Input Monitoring. macOS posts no notification when either changes, so
-/// `updates` polls.
 public enum Permissions {
     public static func current() -> PermissionState {
         let listen = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)

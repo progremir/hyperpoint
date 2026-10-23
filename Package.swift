@@ -1,8 +1,6 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-// One library with three folders and a thin app. Per-layer targets do not stop the app importing a lower layer
-// (measured), so access control is the boundary and scripts/check-layers.sh guards layer purity inside the library.
 let strict: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .enableUpcomingFeature("ExistentialAny"),

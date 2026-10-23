@@ -1,8 +1,5 @@
 import Foundation
 
-/// The runtime behind a small public API. The engine owns the desired state (config, pause, permissions) and
-/// recompiles the intent from it. Each slot owns what is on its device, and `TapHost` owns the tap. Every trigger
-/// ends in `slot.invalidate(reason)`.
 @HIDActor
 public final class Engine {
     /// Latest wins, so a slow UI never renders a stale status.
@@ -109,7 +106,6 @@ public final class Engine {
         case .disappeared(let device):
             slots.removeValue(forKey: device.id)?.close()
             journal.disconnected(device)
-            // A keyboard that vanishes while hyper is held never sends the key-up, and every order resets the tap.
             recompile(resendTapOrder: true)
         }
         publish()
@@ -125,7 +121,6 @@ public final class Engine {
             changed: { [unowned self] in publish() })
     }
 
-    /// Idempotent. Every write is absolute, so running it twice, or after a crash halfway, ends in the same state.
     private func reconcile(_ reason: ApplyReason, resendTapOrder: Bool = false) {
         recompile(resendTapOrder: resendTapOrder)
         for slot in slots.values { slot.invalidate(reason) }

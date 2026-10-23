@@ -1,4 +1,3 @@
-/// The IOKit properties of one HID interface that Hyperpoint reads, parsed once at the `DeviceHub` boundary.
 struct HIDProperties: Equatable, Sendable {
     var vendor: VendorID
     var product: ProductID
@@ -13,7 +12,7 @@ struct HIDProperties: Equatable, Sendable {
         "VendorID", "ProductID", "Built-In", "Transport", "LocationID", "Product", "PrimaryUsagePage", "PrimaryUsage",
     ]
 
-    /// A missing number reads as 0. The built-in keyboard has no VendorID or ProductID at all (measured).
+    /// The built-in keyboard has no VendorID or ProductID at all (measured).
     init(bag: [String: Any]) {
         func number(_ key: String) -> Int { (bag[key] as? Int) ?? 0 }
         vendor = VendorID(rawValue: UInt16(truncatingIfNeeded: number("VendorID")))
@@ -27,7 +26,6 @@ struct HIDProperties: Equatable, Sendable {
     }
 }
 
-/// What makes two interfaces parts of one physical device.
 struct DeviceKey: Hashable, Sendable {
     var vendor: VendorID
     var product: ProductID
@@ -44,13 +42,11 @@ struct DeviceKey: Hashable, Sendable {
     }
 }
 
-/// One appearance of a device. A reconnect is a new instance.
 struct DeviceInstanceID: Hashable, Sendable, CustomStringConvertible {
     let rawValue: UInt64
     var description: String { "#\(rawValue)" }
 }
 
-/// The registry id of a HID event service, which is what `IOHIDEventGetSenderID` reports for its events.
 struct SenderID: Hashable, Sendable {
     let rawValue: UInt64
 }
@@ -65,8 +61,6 @@ struct PresentDevice: Equatable, Sendable {
 }
 
 extension DeviceMatch {
-    /// The authority on which profile a device has. IOHIDManager ignores `Built-In` (measured), so its matching
-    /// is only a prefilter.
     func matches(_ properties: HIDProperties) -> Bool {
         switch self {
         case .builtIn: properties.builtIn
@@ -75,13 +69,10 @@ extension DeviceMatch {
         }
     }
 
-    /// The match that names this device, which also selects its keyboard service for `hidutil`.
     init(identifying properties: HIDProperties) {
         self = properties.builtIn ? .builtIn : .device(vendor: properties.vendor, product: properties.product)
     }
 
-    /// `hidutil --matching` for the device's keyboard service, which selects exactly one service for each of the
-    /// built-in and Magic keyboards (measured).
     var hidutilKeyboardMatching: String {
         let keyboard = "\"PrimaryUsagePage\":1,\"PrimaryUsage\":6"
         switch self {

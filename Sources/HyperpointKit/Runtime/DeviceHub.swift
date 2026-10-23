@@ -25,7 +25,6 @@ final class DeviceHub {
 
     var devices: [PresentDevice] { entries.values.map(\.device).sorted { $0.id.rawValue < $1.id.rawValue } }
 
-    /// Returns the keyboards already present. Later arrivals and removals go to `onEvent`.
     func start() -> [PresentDevice] {
         guard manager == nil else { return devices }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -42,7 +41,6 @@ final class DeviceHub {
         return devices
     }
 
-    /// The new device when this interface is the first of its device, nil when it joins one already present.
     fileprivate func interfaceAppeared(_ interface: IOHIDDevice) -> PresentDevice? {
         let registryID = Self.registryID(of: IOHIDDeviceGetService(interface))
         guard keyOfInterface[registryID] == nil else { return nil }
@@ -89,8 +87,6 @@ final class DeviceHub {
         return id
     }
 
-    /// The HID event services below an interface. Their registry ids are the sender ids its events carry. A
-    /// service can register a moment after its device, so this may be empty at connect.
     private static func eventServices(under service: io_service_t) -> [SenderID] {
         var iterator: io_iterator_t = 0
         guard IORegistryEntryCreateIterator(service, kIOServicePlane, IOOptionBits(kIORegistryIterateRecursively), &iterator)
@@ -108,7 +104,6 @@ final class DeviceHub {
     }
 }
 
-// The manager is scheduled on the HID run loop, so these fire on the HID thread and enter the actor directly.
 nonisolated private func hubDeviceMatched(
     _ context: UnsafeMutableRawPointer?, _ result: IOReturn, _ sender: UnsafeMutableRawPointer?, _ device: IOHIDDevice
 ) {

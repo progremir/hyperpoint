@@ -27,7 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         termination = source
     }
 
-    /// Quit restores the neutral intent first. The engine bounds that to one second.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task {
             await model.shutdown()

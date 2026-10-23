@@ -1,7 +1,5 @@
 import Foundation
 
-/// One per present device. Owns what is actually on the device and the one worker that writes to it. The engine
-/// owns the desired state, which the worker reads at the moment it writes, so `invalidate` is the only entry.
 @HIDActor
 final class Slot {
     enum Phase: Equatable {
@@ -13,7 +11,7 @@ final class Slot {
     let device: PresentDevice
     let connectedAt = Date()
     private(set) var phase = Phase.idle
-    /// What is ours on the device. The mapping dies with its service, but a service can outlive a crashed
+    /// The mapping dies with its service, but a service can outlive a crashed
     /// Hyperpoint, so a new slot first reads what the service holds.
     private(set) var written: KeyMapSetup?
     private var surveyed = false
@@ -44,7 +42,6 @@ final class Slot {
         worker = Task { await drain() }
     }
 
-    /// The device is gone. A write in flight finishes, and nothing starts after it.
     func close() {
         retry?.cancel()
         worker?.cancel()

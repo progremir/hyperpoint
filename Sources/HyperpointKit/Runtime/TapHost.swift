@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// What the tap should be. The engine sends the latest one, and every order resets held keys.
 struct TapOrder: Equatable, Sendable {
     var install: Bool
     var rules: TapRules
@@ -14,8 +13,6 @@ enum TapSignal: Sendable {
     case reenabled
 }
 
-/// Owns the mach port, its run-loop source and the watchdog. All decisions are in `TapPipeline`. The callback does
-/// no I/O, no logging and no actor hop.
 @TapActor
 final class TapHost {
     private var pipeline = TapPipeline(rules: .empty)
@@ -35,7 +32,6 @@ final class TapHost {
         if order.install { install() } else { uninstall() }
     }
 
-    /// Active, at the HID level, first in line: the carrier rewrite must happen before any other tap sees F18.
     private func install() {
         if let port, CFMachPortIsValid(port) { return }
         uninstall()
@@ -100,7 +96,6 @@ final class TapHost {
     }
 }
 
-// The tap's run-loop source and the watchdog timer live on the tap run loop, so both fire on the tap thread.
 nonisolated private func tapCallback(
     _ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent, _ refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {

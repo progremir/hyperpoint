@@ -1,7 +1,6 @@
 import Foundation
 
 enum KeyMapError: Error, Equatable, CustomStringConvertible {
-    /// The read-back did not show the mapping. The service can lag its device, or no service matched.
     case serviceNotReady
     case hidutilFailed(status: Int32, output: String)
     case timedOut
@@ -27,7 +26,6 @@ enum KeyMapWriter {
         guard !services.isEmpty, services.values.allSatisfy({ $0 == setup.pairs }) else { throw .serviceNotReady }
     }
 
-    /// Every pair the matching services hold now.
     @concurrent
     static func read(matching: String) async throws(KeyMapError) -> Set<KeyMapSetup.Pair> {
         try await readBack(matching: matching).values.reduce(into: []) { $0.formUnion($1) }
@@ -58,7 +56,6 @@ enum KeyMapWriter {
             try await Task.sleep(for: .seconds(3))
             kill(pid, SIGKILL)
         }
-        // hidutil prints a few lines, and reading to the end drains the pipe so the process cannot block on it.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         watchdog.cancel()
@@ -67,15 +64,6 @@ enum KeyMapWriter {
     }
 }
 
-/// Parses `hidutil property --get UserKeyMapping` output into each listed service's mapping pairs.
-///
-///     RegistryID  Key                   Value
-///     100000cdb   UserKeyMapping   (
-///             {
-///             HIDKeyboardModifierMappingDst = 30064771181;
-///             HIDKeyboardModifierMappingSrc = 30064771129;
-///         }
-///     )
 enum HidutilReadback {
     static func parse(_ output: String) -> [UInt64: Set<KeyMapSetup.Pair>] {
         var services: [UInt64: Set<KeyMapSetup.Pair>] = [:]

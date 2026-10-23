@@ -1,8 +1,6 @@
 @testable import HyperpointKit
 
-/// Property bags as this Mac reports them (`hidutil list` and IOHIDDeviceGetProperty, 2026-10-23).
 enum Bags {
-    /// IOHIDDeviceGetProperty returns no VendorID or ProductID for the built-in keyboard.
     static let builtInKeyboard: [String: any Sendable] = [
         "Built-In": 1, "Transport": "FIFO", "LocationID": 111, "Product": "Apple Internal Keyboard / Trackpad",
         "PrimaryUsagePage": 1, "PrimaryUsage": 6,

@@ -1,7 +1,5 @@
 import os
 
-/// One line per connect, disconnect and apply, in unified logging:
-/// `log stream --predicate 'subsystem == "dev.emir.hyperpoint"'`.
 struct Journal: Sendable {
     private let logger = Logger(subsystem: "dev.emir.hyperpoint", category: "devices")
 

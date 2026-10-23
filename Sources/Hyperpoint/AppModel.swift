@@ -1,8 +1,6 @@
 import AppKit
 import HyperpointKit
 
-/// Starts the store and the engine, mirrors the engine's status into the menu, and turns menu actions into engine
-/// calls. It decides nothing itself.
 @MainActor
 final class AppModel {
     private let store = ConfigStore()

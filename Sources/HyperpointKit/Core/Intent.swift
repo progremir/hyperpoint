@@ -4,7 +4,6 @@ struct DeviceSetup: Equatable, Sendable {
     static let neutral = DeviceSetup(keyMap: .neutral)
 }
 
-/// The desired state of every present device and of the tap. The only place `Config` is interpreted.
 struct Intent: Equatable, Sendable {
     var setups: [DeviceInstanceID: DeviceSetup]
     var tap: TapRules
@@ -13,8 +12,6 @@ struct Intent: Equatable, Sendable {
 
     func setup(for device: DeviceInstanceID) -> DeviceSetup { setups[device] ?? .neutral }
 
-    /// Paused compiles to `neutral`, so pausing is the same reconcile as a config change. A carrier is a dead key
-    /// without the tap to give it meaning, so carrier routes exist only while the tap can run.
     static func compile(_ config: Config, paused: Bool, tapAvailable: Bool, present: [PresentDevice]) -> Intent {
         guard !paused else { return .neutral }
         var setups: [DeviceInstanceID: DeviceSetup] = [:]

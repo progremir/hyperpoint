@@ -7,7 +7,6 @@ public struct ConfigSnapshot: Equatable, Sendable {
     public var error: ConfigError?
 }
 
-/// The only reader and writer of the config file. Engine and UI learn of every change through `snapshots()`.
 public actor ConfigStore {
     public nonisolated let url: URL
     private var current: ConfigSnapshot?

@@ -2,7 +2,6 @@ import Foundation
 import HyperpointKit
 import Testing
 
-/// The default file exactly as docs/architecture.md shows it.
 let documentedDefaultJSON: String = {
     let doc = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

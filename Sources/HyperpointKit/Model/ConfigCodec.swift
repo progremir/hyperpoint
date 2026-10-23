@@ -14,7 +14,6 @@ public struct ConfigError: Error, Equatable, Sendable, CustomStringConvertible {
     public var description: String { path.isEmpty ? message : "\(path): \(message)" }
 }
 
-/// Bytes to `Config` and back, with every check the file needs. Pure. `ConfigStore` does the I/O.
 public enum ConfigCodec {
     public static func decode(_ data: Data) throws(ConfigError) -> Config {
         let tree: Any
@@ -41,12 +40,9 @@ public enum ConfigCodec {
     public static func encode(_ config: Config) -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        // Every value reachable from a decoded or built Config has a name, so encoding cannot fail.
         return try! encoder.encode(config) + Data("\n".utf8)
     }
 
-    /// The decoded value re-encoded is the schema of the user's file: it has exactly the keys the types read,
-    /// so no key list exists to drift from the types.
     private static func schema(of config: Config) -> Any {
         (try? JSONSerialization.jsonObject(with: encode(config))) ?? [:]
     }
@@ -55,7 +51,6 @@ public enum ConfigCodec {
         if let user = user as? [String: Any], let schema = schema as? [String: Any] {
             for key in user.keys.sorted() {
                 let child = path.isEmpty ? key : "\(path).\(key)"
-                // The decoder reads null as an absent optional, so a null under a mistyped key would hide the typo.
                 if user[key] is NSNull {
                     return ConfigError(path: child, message: "null is not allowed. Leave the key out instead")
                 }
@@ -70,7 +65,6 @@ public enum ConfigCodec {
         return nil
     }
 
-    /// Checks that span more than one value, which the types cannot express.
     static func validate(_ config: Config) -> ConfigError? {
         if config.version != Config.currentVersion {
             return ConfigError(path: "version", message: "version \(config.version) is not supported")
@@ -103,7 +97,6 @@ public enum ConfigCodec {
     }
 }
 
-/// Which triggers each kind of control accepts, and what each pair may do. A rule outside this table cannot work.
 enum RuleShape {
     enum ControlKind { case hidpp, thumbWheel, key, button }
     enum TriggerKind: Hashable { case click, hold, holdMove, scroll }

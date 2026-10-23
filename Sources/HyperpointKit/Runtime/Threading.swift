@@ -1,11 +1,8 @@
 import CoreFoundation
 import Foundation
 
-/// A dedicated thread running a CFRunLoop, used as a global actor's executor. Actor isolation is then thread
-/// confinement, and a C callback that fires on the run loop enters the actor synchronously with `assumeIsolated`.
 final class RunLoopExecutor: SerialExecutor, @unchecked Sendable {
     private let ready = DispatchSemaphore(value: 0)
-    // Written once on the thread before `ready` is signalled, then only read.
     private nonisolated(unsafe) var loop: CFRunLoop!
 
     init(name: String) {
@@ -35,7 +32,6 @@ final class RunLoopExecutor: SerialExecutor, @unchecked Sendable {
     func isIsolatingCurrentContext() -> Bool? { CFRunLoopGetCurrent() == loop }
 }
 
-/// The device side: `Engine`, `DeviceHub`, every `Slot`.
 @globalActor
 public final actor HIDActor {
     public static let shared = HIDActor()
@@ -51,7 +47,6 @@ public final actor HIDActor {
     }
 }
 
-/// The event tap and nothing else. Every keystroke on the Mac waits on this thread.
 @globalActor
 final actor TapActor {
     static let shared = TapActor()

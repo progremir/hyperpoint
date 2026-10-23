@@ -25,10 +25,7 @@ enum TapVerdict: Equatable, Sendable {
     case drop
 }
 
-/// A value in and a verdict out, with the event rewritten in place, so every stage runs on fabricated CGEvents in
-/// tests with no tap and no permission.
 struct TapPipeline {
-    /// Every event Hyperpoint posts carries this in `eventSourceUserData`, and no stage touches such an event.
     static let syntheticMarker: Int64 = 0x4859_5052
 
     private var carriers: CarrierStage
@@ -39,7 +36,6 @@ struct TapPipeline {
         CarrierStage.interests.reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) }
     }
 
-    /// Swaps the rules in whole and forgets held keys, so a rule change cannot strand a modifier.
     mutating func apply(_ rules: TapRules) { carriers = CarrierStage(rules: rules) }
 
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
@@ -47,17 +43,12 @@ struct TapPipeline {
         return carriers.process(type, event)
     }
 
-    /// Runs on tap timeout and keyboard removal, where a key-up may have been lost.
     mutating func reset() { carriers.reset() }
 }
 
-/// Carrier keys. A hold-modifiers carrier's own key-down and key-up are rewritten in place into `flagsChanged`
-/// events that set and clear its modifiers, and keys pressed while it is down get its modifiers too. The hyper
-/// prototype measured this as the strategy that fires hotkeys and never leaves the system's modifier state stuck.
 struct CarrierStage {
     static let interests: [CGEventType] = [.keyDown, .keyUp]
 
-    /// A `flagsChanged` event names a modifier key. Left Command is the one the prototype measured.
     private static let modifierKeyCode: Int64 = 55
 
     let rules: TapRules
@@ -81,7 +72,6 @@ struct CarrierStage {
                 held[code] = modifiers
                 event.flags.formUnion(modifiers.cgFlags)
             } else {
-                // A key-up always clears, even after a reset, so the system's modifier state cannot stay set.
                 held[code] = nil
                 event.flags.subtract(modifiers.cgFlags.subtracting(heldFlags))
             }

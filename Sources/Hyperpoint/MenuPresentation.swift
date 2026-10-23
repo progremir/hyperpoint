@@ -1,7 +1,6 @@
 import Foundation
 import HyperpointKit
 
-/// The menu as a pure function of the engine's status, so all wording lives in one place.
 struct MenuPresentation: Equatable {
     enum Fix: Equatable {
         case permission(Permission)
@@ -57,7 +56,6 @@ struct MenuPresentation: Equatable {
         self.paused = paused
     }
 
-    /// One line for the log, so what the menu showed can be read back with `log show`.
     var summary: String {
         let notices = notices.map(\.title).joined(separator: "; ")
         let rows = rows.map { "\($0.name)=\($0.detail)" }.joined(separator: "; ")
