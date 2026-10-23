@@ -84,9 +84,11 @@ A 0x1D4B notification with the reconfigure flag, a config save, a permission gra
 ### Call site 3. Caps Lock is held and R is pressed
 
 1. When a keyboard whose profile has `"hyper": true` appears, its slot sets `UserKeyMapping` on that keyboard's service only. Caps Lock (usage 0x39) becomes F18 (0x6D). The OS never sees Caps Lock, so there is no LED toggle and no caps delay.
-2. F18 key-down reaches the event tap on the tap thread. `CarrierStage` finds F18 in `TapRules.carriers` as `.holdModifiers(⌘⌃⌥⇧)` and drops the event.
-3. R key-down gets ⌘⌃⌥⇧ added, or the stage posts real modifier events, whichever the hyper prototype picks ([Open questions](#open-questions-and-risks)).
-4. F18 key-up clears the hyper state. A tap timeout or a keyboard disappearing also clears it, so hyper can never stay stuck on.
+2. F18 key-down reaches the event tap on the tap thread. `CarrierStage` finds F18 in `TapRules.carriers` as `.holdModifiers(⌘⌃⌥⇧)` and rewrites the event in place into a `flagsChanged` event with ⌘⌃⌥⇧ set. The system's modifier state now shows hyper held.
+3. R key-down gets ⌘⌃⌥⇧ added to its flags.
+4. F18 key-up is rewritten in place into a `flagsChanged` event with the four modifiers cleared, so the system's modifier state goes back to normal. A tap timeout or a keyboard disappearing also clears the hyper state, so hyper can never stay stuck on.
+
+The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-results)).
 
 The 2.4G mouse uses the same mechanism. Its Escape maps straight to Right Option at the HID layer, so holding it is a real held modifier and it works in password fields. Its Return maps to a carrier key, which the tap rewrites to ⌥⇧S.
 
@@ -165,7 +167,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 1. **One reconcile path.** Every trigger calls `slot.invalidate(reason)`. `ApplyScheduler` gives each device one writer and collapses triggers that arrive mid-apply into one follow-up. Every write is absolute, so running an apply twice, or after a crash halfway, ends in the same state (per make-operations-idempotent).
 2. **The HID++ conversation is a value.** `HIDPPLink` takes bytes and time and returns bytes, events and a deadline. Discovery, writes, read-back, retries, notifications, button edges and gesture recognition are all transitions on it. Tests drive it against a firmware model seeded with the measured BetterMouse state, and they assert the model's end state, not the request order (per test-behavior-not-implementation).
 3. **Device identity is decided at the HID layer for keys.** `hidutil` maps keys per service, and the tap only sees carrier key codes. The tap never has to work out which keyboard sent a key. No device is seized.
-4. **Pointer events are attributed by sender id.** Per-device scrolling, pan, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does for pointer events, and looks it up in `TapRules`. This is private API. It is unmeasured on this Mac, so it is prototyped before anything builds on it.
+4. **Pointer events are attributed by sender id.** Per-device scrolling, pan, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`.
 5. **Profiles are data, capabilities are discovered.** No device is a constant in code. The MX and 2.4G defaults are initial profile data in `Config.default`. A HID++ device's controls come from `getCidInfo`, so a different Logitech mouse works without code changes.
 
 ### Invariants and boundaries
@@ -241,8 +243,8 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 
 Each of these is settled by a prototype before the code that depends on it, not by asking.
 
-1. **Hyper key strategy.** Adding ⌘⌃⌥⇧ to event flags is O(1), but apps that read hardware modifier state will not see it. Posting real modifier events is the alternative. A prototype runs both against the Raycast hyper bindings in use. This is the biggest risk, because hyper is used all day.
-2. **Pointer sender ids.** Does `IOHIDEventGetSenderID` on scroll and click events from the MX and the 2.4G mouse match their service ids on macOS 27? Per-device scrolling, pan, click-through and button rules depend on it.
+1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock to F18 mapping, which needs Karabiner quit.
+2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse was not plugged in, so its pointer service is unmeasured.
 3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the sidebar? The current proposal is pointer usage plus not built-in means mouse, with a per-profile override.
 4. **The 2.4G dongle's services.** It is not plugged in, so its keyboard services and their ids are unmeasured.
 5. **Thumb wheel invert while undiverted.** Solaar writes it, but firmware behavior on this mouse is inferred.
@@ -253,7 +255,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 
 ## Next implementation step
 
-Prototype the hyper key strategy and the pointer sender id on this Mac. Then build `ConfigCodec`, `Intent.compile`, `GestureMachine` and `HIDPPLink` against their tests, and land the hyper key end to end first, because it needs no HID++ and exercises both threads, permissions and signing.
+Build `ConfigCodec`, `Intent.compile`, `GestureMachine` and `HIDPPLink` against their tests. Then land the hyper key end to end first, because it needs no HID++ and exercises both threads, permissions and signing.
 
 ## Appendix A. Platform facts
 
@@ -273,3 +275,27 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | IOHIDManager ignores the `Built-In` matching key, and an unopened manager still delivers matching callbacks. | measured |
 | Seizing a keyboard device is refused by TCC even for root. | sourced |
 | Secure input disables keyboard event taps. | sourced |
+| A listen-only event tap receives nothing without Input Monitoring. An active pass-through tap works with Accessibility alone. | measured |
+
+## Appendix B. Prototype results
+
+Both prototypes ran on 2026-10-23 in a throwaway probe app signed with the Apple Development identity, outside this repo. Neither changed a key mapping or a device setting.
+
+**Hyper key.** A rewriting tap turned a posted F18 into hyper three ways, and a Carbon hotkey for ⌘⌃⌥⇧F16 checked whether an app sees it. Each strategy ran 8 times.
+
+| Strategy | Hotkey fired | Modifier state still ⌘⌃⌥⇧ after release |
+| --- | --- | --- |
+| Overlay only. Drop F18, add ⌘⌃⌥⇧ to each key. | 8/8 | 8/8 |
+| Post real modifier key events on the F18 edges. | 8/8, and 0/1 on its first run | 0/8 |
+| Rewrite F18 in place into `flagsChanged`, plus the overlay. | 8/8 | 0/8 |
+
+The third strategy wins. It posts nothing, so it has no ordering race with the events it rewrites, and the system's modifier state never stays stuck after release. With the overlay alone, the system would treat the next click as ⌘⌃⌥⇧-click until the next modifier key.
+
+**Pointer sender id.** A pass-through tap at the HID level logged the sender id of every scroll, click and move for 90 seconds while the MX and the trackpad were used in turn.
+
+| Device | Sender id | Which registry entry |
+| --- | --- | --- |
+| MX Master 3, wheel, clicks, movement | 0x100037032 | `AppleUserHIDEventService` of the MX |
+| Built-in trackpad, scroll, clicks, movement | 0x100000d10 | `AppleMultitouchDevice` |
+
+Every event carried a sender id, and all came from hardware (source pid 0).
