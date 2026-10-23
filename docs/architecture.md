@@ -156,7 +156,7 @@ Each device-facing thread is a global actor whose executor is that thread's CFRu
 | --- | --- |
 | Main actor | `AppModel`, SwiftUI, `ActionPerformer` (symbolic hotkey lookup runs on main in Mac Mouse Fix, so Hyperpoint does the same) |
 | `@HIDActor` | `Engine` (desired state), `DeviceHub` and its IOHIDManager, every `Slot`, every `HIDPPSession` and its `HIDPPLink`, `Journal` |
-| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` instance and its glide timer, the watchdog. Nothing else ever runs here. |
+| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` instance and its display link, the watchdog. Nothing else ever runs here. |
 | Cooperative pool | `ConfigStore` (an actor that owns the file), `KeyMapWriter` (the `hidutil` process), permission polling |
 
 State crosses only as immutable `Sendable` values.
@@ -200,7 +200,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 
 All four live in `TapPipeline` as stages, each with `static let interests`. `TapPipeline.mask` is derived from the stages, never hand-listed. Their settings reach the tap as per-sender entries in `TapRules`.
 
-- **Smooth scrolling.** `ScrollStage` drops wheel steps from enabled senders and feeds `ScrollAnimator`, a pure model of one velocity pulse per step, driven by a timer on the tap run loop. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
+- **Smooth scrolling.** `ScrollStage` drops wheel steps from enabled senders and feeds `ScrollAnimator`, a pure model of one velocity pulse per step, driven by the display link of the screen under the pointer. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
 - **High-resolution wheel.** HID++ feature 0x2121 adds one write and one read-back to the device setup. `ScrollStage` then treats the finer deltas as input.
 - **Right-button pan.** `PanStage` holds a right-button down from an enabled sender. Drag past a few points turns it into scrolling, with momentum through `ScrollAnimator`. A release without drag replays the right click.
 - **Click-through.** `ClickThroughStage` sees a click from an enabled sender on a background window and makes it act at once. How it activates the window without eating the click is open ([Open questions](#open-questions-and-risks)).
@@ -226,7 +226,7 @@ AppKit takes the precise delta of a posted scroll from its integer point field a
 
 `duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `easeIn` gets 60, and one without `curve` gets the default curve. A file written before the curve, with `speed`, `startBoost` and `acceleration`, still parses. Each step there went `speed × boost × gain`, so the parser samples that at 1, 5, 15, 40 and 150 steps per second and where the boost and gain bend, and the next save writes `curve` alone. A fixed distance per step converts exactly. The old default with acceleration on converts within 6.3%, at 8.6 steps per second.
 
-`TapHost` arms a 120 Hz run-loop timer on the tap thread when a tick starts a glide and disarms it when the animator is idle. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed knobs apply from the next tick.
+`TapHost` drives the frames from a display link, `NSScreen.displayLink(target:selector:)`, added to the tap thread's run loop, so each frame lands at the same point of the refresh and the animator gets the frame's `targetTimestamp`, on the same clock as the steps. The link follows the display under the pointer, because the external monitor here runs at 60 Hz and the built-in one at 120 Hz. It runs only while a glide does, and pauses when the animator is idle. A glide that sees no frame for 0.1 s rebuilds the link, in case its display went away. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed settings apply from the next step.
 
 ### Build setup
 
@@ -314,6 +314,7 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | CG converts a one-line wheel event to 10 points. A pixel-unit scroll event is continuous, and setting one of its delta fields rewrites the others. | measured |
 | AppKit reads a posted pixel scroll that carries a scroll phase as precise deltas, with `NSEvent` phases began, changed and ended. | measured |
 | `NSEvent.scrollingDeltaY` of a posted pixel scroll is its integer point delta (field 96). Setting each field from 0 to 1023 in turn to 2.7 changed it only through field 96 (truncated) and the line delta. The fixed-point delta (field 93) keeps its fraction but reaches only `deltaY`. A float scroll IOHIDEvent attached with `SLEventSetIOHIDEvent` survives delivery through the window server and is ignored. | measured |
+| `NSScreen.displayLink(target:selector:)` added to a background thread's run loop fires on that thread at the screen's refresh, 16.67 ms on the external monitor and 8.33 ms on the built-in display, with `targetTimestamp` steps that never vary. Paused, it fires nothing, and it resumes within one frame. `CACurrentMediaTime` and `CLOCK_UPTIME_RAW` agree. | measured |
 | The MX wheel's events carry 1 detent each up to 36 events per second, and 1 to 3 in a free spin at 121 events per second. Their line delta is accelerated, up to 13 lines per event. | measured |
 
 ## Appendix B. Prototype results

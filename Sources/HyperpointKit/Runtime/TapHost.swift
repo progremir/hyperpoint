@@ -1,5 +1,7 @@
+import AppKit
 import CoreGraphics
 import Foundation
+import QuartzCore
 
 struct TapOrder: Equatable, Sendable {
     var install: Bool
@@ -15,8 +17,8 @@ enum TapSignal: Sendable {
 
 @TapActor
 final class TapHost {
-    private static let frameInterval = 1.0 / 120
-    private static let never = Date.distantFuture.timeIntervalSinceReferenceDate
+    /// Frames come at least every 17 ms. A glide that waits longer lost its display link with its display.
+    private static let stalled = 0.1
 
     private var pipeline = TapPipeline(rules: .empty, origin: eventOrigin)
     private var animator = ScrollAnimator()
@@ -24,7 +26,9 @@ final class TapHost {
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
     private var watchdog: CFRunLoopTimer?
-    private var glider: CFRunLoopTimer?
+    private var frames: CADisplayLink?
+    private var framesDisplay: CGDirectDisplayID?
+    private var lastFrame = 0.0
     private let signals: AsyncStream<TapSignal>.Continuation
 
     nonisolated init(signals: AsyncStream<TapSignal>.Continuation) { self.signals = signals }
@@ -58,9 +62,7 @@ final class TapHost {
             copyDescription: nil)
         let watchdog = CFRunLoopTimerCreate(nil, CFAbsoluteTimeGetCurrent() + 5, 5, 0, 0, tapWatchdog, &context)
         CFRunLoopAddTimer(CFRunLoopGetCurrent(), watchdog, .commonModes)
-        let glider = CFRunLoopTimerCreate(nil, Self.never, Self.frameInterval, 0, 0, tapGlide, &context)
-        CFRunLoopAddTimer(CFRunLoopGetCurrent(), glider, .commonModes)
-        (self.port, self.source, self.watchdog, self.glider) = (port, source, watchdog, glider)
+        (self.port, self.source, self.watchdog) = (port, source, watchdog)
         signals.yield(.installed)
     }
 
@@ -69,10 +71,10 @@ final class TapHost {
         CGEvent.tapEnable(tap: port, enable: false)
         if let source { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes) }
         if let watchdog { CFRunLoopTimerInvalidate(watchdog) }
-        if let glider { CFRunLoopTimerInvalidate(glider) }
+        frames?.invalidate()
         if let ended = animator.stop() { post(ended) }
         CFMachPortInvalidate(port)
-        (self.port, self.source, self.watchdog, self.glider) = (nil, nil, nil, nil)
+        (self.port, self.source, self.watchdog, frames) = (nil, nil, nil, nil)
         pipeline.reset()
         signals.yield(.removed)
     }
@@ -89,17 +91,45 @@ final class TapHost {
             case .drop:
                 return nil
             case .scroll(let tick):
+                let now = Self.uptime()
                 let wasIdle = animator.isIdle
-                animator.tick(tick, at: Self.uptime())
-                if wasIdle, let glider { CFRunLoopTimerSetNextFireDate(glider, CFAbsoluteTimeGetCurrent()) }
+                animator.tick(tick, at: now)
+                guard wasIdle || now - lastFrame > Self.stalled else { return nil }
+                guard runFrames(at: event.location, renew: !wasIdle) else {
+                    if let ended = animator.stop() { post(ended) }
+                    return Unmanaged.passUnretained(event)
+                }
+                lastFrame = now
                 return nil
             }
         }
     }
 
-    fileprivate func glide() {
-        if let frame = animator.frame(at: Self.uptime()) { post(frame) }
-        if animator.isIdle, let glider { CFRunLoopTimerSetNextFireDate(glider, Self.never) }
+    /// Frames follow the display under the pointer, whose refresh rate the scrolled window draws at. False when there
+    /// is no display to follow.
+    private func runFrames(at location: CGPoint, renew: Bool) -> Bool {
+        var display = CGDirectDisplayID()
+        var count: UInt32 = 0
+        CGGetDisplaysWithPoint(location, 1, &display, &count)
+        if renew || frames == nil || (count > 0 && display != framesDisplay) {
+            frames?.invalidate()
+            frames = nil
+            let screens = NSScreen.screens
+            guard let screen = screens.first(where: { $0.displayID == display }) ?? screens.first else { return false }
+            let link = screen.displayLink(target: FrameTarget(host: self), selector: #selector(FrameTarget.frame(_:)))
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+            link.add(to: .current, forMode: .common)
+            (frames, framesDisplay) = (link, screen.displayID)
+        }
+        frames?.isPaused = false
+        return true
+    }
+
+    /// `time` is when the frame reaches the screen, on the same clock as `uptime()`.
+    fileprivate func glide(at time: Double) {
+        lastFrame = Self.uptime()
+        if let frame = animator.frame(at: time) { post(frame) }
+        if animator.isIdle { frames?.isPaused = true }
     }
 
     /// A fresh event per frame, because CG derives the line, fixed-point and point deltas from one another, so a
@@ -147,10 +177,23 @@ nonisolated private func tapCallback(
     return TapActor.assumeIsolated { host.handle(type, event) }
 }
 
-nonisolated private func tapGlide(_ timer: CFRunLoopTimer?, _ info: UnsafeMutableRawPointer?) {
-    guard let info else { return }
-    let host = Unmanaged<TapHost>.fromOpaque(info).takeUnretainedValue()
-    TapActor.assumeIsolated { host.glide() }
+/// A display link calls an Objective-C method, so this hands each frame to the host.
+private final class FrameTarget: NSObject {
+    private unowned let host: TapHost
+
+    init(host: TapHost) { self.host = host }
+
+    @objc func frame(_ link: CADisplayLink) {
+        let time = link.targetTimestamp
+        let host = host
+        TapActor.assumeIsolated { host.glide(at: time) }
+    }
+}
+
+extension NSScreen {
+    fileprivate var displayID: CGDirectDisplayID? {
+        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+    }
 }
 
 nonisolated private func tapWatchdog(_ timer: CFRunLoopTimer?, _ info: UnsafeMutableRawPointer?) {
