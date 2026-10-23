@@ -186,7 +186,7 @@ import Testing
         #expect(Intent.compile(.default, paused: true, tapAvailable: true, present: present).tap.isEmpty)
     }
 
-    @Test func smoothScrollingAloneNeedsTheTap() {
+    @Test func smoothScrollingAloneInstallsTheTap() {
         var config = Config.default
         config.devices = [config.devices[0]]
         #expect(!Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.isEmpty)

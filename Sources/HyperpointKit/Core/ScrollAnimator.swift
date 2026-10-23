@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// One wheel tick from a sender with smooth scrolling. `sign` is the sign of the event's vertical delta.
 struct ScrollTick: Equatable, Sendable {
     enum Sign: Equatable, Sendable {
         case positive
@@ -14,7 +13,6 @@ struct ScrollTick: Equatable, Sendable {
     var settings: SmoothScroll
 }
 
-/// A continuous scroll event to post, in points.
 struct ScrollFrame: Equatable, Sendable {
     var points: Int32
     var phase: CGScrollPhase
@@ -87,7 +85,6 @@ struct ScrollAnimator {
 
 private struct Glide {
     static let minimumInterval = 0.001
-    /// Ticks closer together than this accelerate.
     static let accelerationOnset = 0.05
     static let maximumGain = 4.0
 
@@ -97,8 +94,7 @@ private struct Glide {
     /// Points per second just after `lastTick`.
     var peak: Double
     var postedUntil: Double
-    /// Points travelled but not posted yet.
-    var owed = 0.0
+    var unposted = 0.0
     var posted = false
 
     init(_ tick: ScrollTick, at now: Double) {
@@ -115,7 +111,7 @@ private struct Glide {
     func continues(with tick: ScrollTick, at now: Double) -> Bool { tick.sign == sign && now < end }
 
     mutating func add(_ tick: ScrollTick, at now: Double) {
-        owed += travelled(from: postedUntil, to: now)
+        unposted += travelled(from: postedUntil, to: now)
         postedUntil = now
         peak = velocity(at: now) + Self.impulse(tick.settings, interval: now - lastTick)
         settings = tick.settings
@@ -125,10 +121,10 @@ private struct Glide {
     /// The whole points to post up to `now`. The fraction waits for the next frame, and the last frame rounds it.
     mutating func advance(to now: Double) -> Int32 {
         let until = min(max(now, postedUntil), end)
-        owed += travelled(from: postedUntil, to: until)
+        unposted += travelled(from: postedUntil, to: until)
         postedUntil = until
-        let whole = now >= end ? owed.rounded() : owed.rounded(.down)
-        owed -= whole
+        let whole = now >= end ? unposted.rounded() : unposted.rounded(.down)
+        unposted -= whole
         return Int32(sign.factor * whole)
     }
 
