@@ -145,6 +145,10 @@ public struct GestureSettings: Codable, Equatable, Sendable {
     /// Net movement, in sensor counts, that turns a hold into a swipe.
     public var distance: Int
 
+    public static let `default` = GestureSettings(fire: .pastDistance, distance: 120)
+    /// The distances the parser accepts.
+    public static let distanceRange: ClosedRange<Int> = 20...2000
+
     public init(fire: GestureFire, distance: Int) {
         self.fire = fire
         self.distance = distance
@@ -196,6 +200,17 @@ public struct SmoothScroll: Codable, Equatable, Sendable {
     public static let defaultSpeed = 40.0
     public static let defaultStartBoost = 2.0
     public static let defaultEaseIn = 0.0
+
+    public static let `default` = SmoothScroll(
+        duration: 4, brake: 2, acceleration: .default, speed: defaultSpeed, startBoost: defaultStartBoost,
+        easeIn: defaultEaseIn)
+
+    /// The values the parser accepts.
+    public static let durationRange: ClosedRange<Double> = 1...20
+    public static let brakeRange: ClosedRange<Double> = 0.5...10
+    public static let speedRange: ClosedRange<Double> = 1...500
+    public static let startBoostRange: ClosedRange<Double> = 1...10
+    public static let easeInRange: ClosedRange<Double> = 0...300
 
     public init(
         duration: Double, brake: Double, acceleration: Acceleration?, speed: Double, startBoost: Double, easeIn: Double
@@ -289,9 +304,7 @@ extension Config {
                 ],
                 gestures: GestureSettings(fire: .pastDistance, distance: 120),
                 scrolling: ScrollSettings(
-                    smooth: SmoothScroll(
-                        duration: 4, brake: 2, acceleration: .default, speed: SmoothScroll.defaultSpeed,
-                        startBoost: SmoothScroll.defaultStartBoost, easeIn: SmoothScroll.defaultEaseIn),
+                    smooth: .default,
                     hiResWheel: true,
                     rightButtonPan: RightButtonPan(momentum: true),
                     clickThrough: ClickThrough(left: true, right: true)

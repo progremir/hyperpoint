@@ -26,8 +26,6 @@ enum ControlBehavior: Equatable, Sendable {
 }
 
 extension HIDPPSetup {
-    static let defaultGestures = GestureSettings(fire: .pastDistance, distance: 120)
-
     static func compile(_ profile: DeviceProfile, capabilities: HIDPPCapabilities?) -> (HIDPPSetup?, skipped: [Rule]) {
         var clicks: [CID: Action] = [:]
         var swipes: [CID: [Direction: Action]] = [:]
@@ -61,7 +59,7 @@ extension HIDPPSetup {
             }
         }
         guard relevant else { return (nil, []) }
-        let settings = profile.gestures ?? defaultGestures
+        let settings = profile.gestures ?? .default
         var controls: [CID: ControlBehavior] = [:]
         for cid in order {
             if let swipes = swipes[cid] {

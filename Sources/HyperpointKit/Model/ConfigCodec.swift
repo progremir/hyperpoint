@@ -77,14 +77,18 @@ public enum ConfigCodec {
             if config.ignored.contains(profile.match) {
                 return ConfigError(path: "\(path).match", message: "this device is also in ignored")
             }
-            if let distance = profile.gestures?.distance, !(20...2000).contains(distance) {
-                return ConfigError(path: "\(path).gestures.distance", message: "must be between 20 and 2000")
+            if let distance = profile.gestures?.distance, !GestureSettings.distanceRange.contains(distance) {
+                let range = GestureSettings.distanceRange
+                return ConfigError(
+                    path: "\(path).gestures.distance",
+                    message: "must be between \(range.lowerBound) and \(range.upperBound)")
             }
             if let smooth = profile.scrolling?.smooth {
                 let bounds: [(key: String, value: Double, range: ClosedRange<Double>)] = [
-                    ("duration", smooth.duration, 1...20), ("brake", smooth.brake, 0.5...10),
-                    ("speed", smooth.speed, 1...500), ("startBoost", smooth.startBoost, 1...10),
-                    ("easeIn", smooth.easeIn, 0...300),
+                    ("duration", smooth.duration, SmoothScroll.durationRange),
+                    ("brake", smooth.brake, SmoothScroll.brakeRange), ("speed", smooth.speed, SmoothScroll.speedRange),
+                    ("startBoost", smooth.startBoost, SmoothScroll.startBoostRange),
+                    ("easeIn", smooth.easeIn, SmoothScroll.easeInRange),
                 ]
                 if let bad = bounds.first(where: { !$0.range.contains($0.value) }) {
                     return ConfigError(
@@ -168,6 +172,19 @@ enum RuleShape {
         case .modifier: .modifier
         case .reverse: .reverse
         }
+    }
+}
+
+extension Control {
+    /// Whether a rule on this control can fire on `trigger`. The parser rejects every other rule.
+    public func accepts(_ trigger: Trigger) -> Bool {
+        RuleShape.table[RuleShape.kind(of: self)]?[RuleShape.kind(of: trigger)] != nil
+    }
+
+    /// Whether a rule on this control can do `action` when `trigger` happens.
+    public func accepts(_ action: Action, on trigger: Trigger) -> Bool {
+        RuleShape.table[RuleShape.kind(of: self)]?[RuleShape.kind(of: trigger)]?.contains(RuleShape.kind(of: action))
+            == true
     }
 }
 
