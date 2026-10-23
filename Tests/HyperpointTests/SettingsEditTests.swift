@@ -97,13 +97,17 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         .addRule(karabiner, name: "Virtual Keyboard", Rule(control: .key(HIDUsage(name: "f1")!), trigger: .hold, action: .modifier(.leftCommand))),
         .replaceRule(
             mx, RuleKey(Rule(control: topButton, trigger: .click, action: .system(.appExpose))),
-            Rule(control: topButton, trigger: .holdMove(.left), action: .shortcut(Chord(key: KeyCode(name: "left")!, modifiers: [.control])))),
+            Rule(
+                control: .hidpp(CID(rawValue: 0x53)), trigger: .holdMove(.left),
+                action: .shortcut(Chord(key: KeyCode(name: "left")!, modifiers: [.control])))),
         .removeRule(mx, RuleKey(Rule(control: .thumbWheel, trigger: .scroll, action: .reverse))),
         .gestureFire(mx, .onRelease),
         .gestureDistance(mx, 2000),
         .smooth(mx, nil),
         .smooth(mouse24G, .default),
         .curve(mx, CurveGraph.dragging(.default, point: 1, to: SpeedCurve.Point(stepsPerSecond: 6, pointsPerSecond: 400))),
+        .holdToScroll(mx, HoldToScroll(speed: 2, direction: .wheel, momentum: false)),
+        .holdToScroll(mouse24G, .default),
     ] + SmoothKnob.allCases.map { .smoothKnob(mx, $0, $0.scale.value(at: 0.7)) }
 
     @Test(arguments: everyEdit)
@@ -111,6 +115,14 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         let edited = edit.applied(to: base)
         #expect(edited != base)
         #expect(try ConfigCodec.decode(ConfigCodec.encode(edited)) == edited)
+    }
+
+    @Test func holdToScrollEditsCreateTheScrollingSection() {
+        let edited = SettingsEdit.holdToScroll(mouse24G, HoldToScroll(speed: 0.5, direction: .grab, momentum: false)).applied(to: base)
+        #expect(profile(edited, mouse24G)?.scrolling == ScrollSettings(holdToScroll: HoldToScroll(speed: 0.5, direction: .grab, momentum: false)))
+        let mxEdited = SettingsEdit.holdToScroll(mx, HoldToScroll(speed: 2, direction: .wheel, momentum: true)).applied(to: base)
+        #expect(profile(mxEdited, mx)?.scrolling?.smooth == profile(base, mx)?.scrolling?.smooth, "the rest of the section stays")
+        #expect(profile(mxEdited, mx)?.scrolling?.holdToScroll?.direction == .wheel)
     }
 
     @Test func theLogLineUsesTheFileKeys() {

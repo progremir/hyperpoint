@@ -47,6 +47,8 @@ enum KnobUnit: Equatable {
     case tenthsOfASecond
     case milliseconds
     case counts
+    /// A multiplier, shown as 1.25×.
+    case times
     case none
 
     func format(_ value: Double, locale: Locale = .current) -> String {
@@ -57,6 +59,7 @@ enum KnobUnit: Equatable {
         case .tenthsOfASecond: "\(number(value / 10, 1...1)) s"
         case .milliseconds: "\(number(value, 0...0)) ms"
         case .counts: "\(number(value, 0...0)) counts"
+        case .times: "\(number(value, 1...2))×"
         case .none: number(value, 0...1)
         }
     }
@@ -119,6 +122,13 @@ enum SmoothKnob: String, CaseIterable, Sendable {
         }
         return smooth
     }
+}
+
+enum HoldScrollKnob {
+    static let title = "Scroll speed"
+    static let detail = "How far the page moves for how far you move the mouse. At 1× it follows your hand."
+    static let unit = KnobUnit.times
+    static let scale = SliderScale(bounds: HoldToScroll.speedRange, step: 0.05, curve: .logarithmic)
 }
 
 enum GestureKnob {

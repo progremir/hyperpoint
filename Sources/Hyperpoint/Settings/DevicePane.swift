@@ -109,6 +109,16 @@ private struct ButtonsTab: View {
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
+                    if rule.action == .scroll {
+                        Text(
+                            Labels.holdToScroll(
+                                control: rule.control,
+                                hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click })
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, RuleRow.controlWidth + 10)
+                    }
                 }
             }
             HStack {
@@ -162,7 +172,7 @@ private struct ButtonsTab: View {
 
     private var footer: String {
         if device.speaksHIDPP { return "Buttons without a rule, like Back and Forward, work as usual." }
-        return "Hyperpoint saves rules for keys and plain buttons, but does not carry them out yet."
+        return "Hyperpoint carries out rules for plain buttons. It saves rules for keys, but does not carry them out yet."
     }
 }
 

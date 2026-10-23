@@ -8,14 +8,18 @@ struct RuleChoices {
     var capabilities: HIDPPCapabilities?
     var speaksHIDPP: Bool
 
-    static let triggers: [Trigger] = [.click, .hold] + Direction.allCases.map(Trigger.holdMove) + [.scroll]
+    static let triggers: [Trigger] = [.click, .hold] + Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil), .scroll]
 
     /// A new shortcut rule needs some chord before the user records one.
     static let placeholderChord = Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command])
 
     static let actions: [Action] =
         SystemAction.allCases.map(Action.system) + [.shortcut(placeholderChord)] + HeldModifier.allCases.map(Action.modifier)
-        + [.reverse]
+        + [.reverse, .scroll]
+
+    /// The standard HID++ control of each plain button, so a Logitech mouse that reports a button it cannot divert
+    /// still offers it, as a plain button.
+    static let plainButtons: [(number: Int, cid: UInt16)] = [(1, 0x51), (2, 0x52), (3, 0x53), (4, 0x56)]
 
     var controls: [Control] {
         var controls = rules.map(\.control)
@@ -23,11 +27,13 @@ struct RuleChoices {
             if let capabilities {
                 controls += capabilities.controls.filter(\.divertable).map { .hidpp($0.cid) }
                 if capabilities.thumbWheel { controls.append(.thumbWheel) }
+                let fixed = capabilities.controls.filter { !$0.divertable }.map(\.cid.rawValue)
+                controls += Self.plainButtons.filter { fixed.contains($0.cid) }.map { .button($0.number) }
             } else {
                 controls.append(.thumbWheel)
             }
         } else {
-            controls += HIDUsage.named.map(Control.key)
+            controls += Self.plainButtons.map { .button($0.number) } + HIDUsage.named.map(Control.key)
         }
         var seen = Set<Control>()
         return controls.filter { seen.insert($0).inserted }.sorted { Self.order($0) < Self.order($1) }
@@ -39,9 +45,10 @@ struct RuleChoices {
     }
 
     func triggers(for control: Control, besides rule: Rule? = nil) -> [Trigger] {
-        let taken = Set(rules.filter { $0.control == control && RuleKey($0) != rule.map(RuleKey.init) }.map(\.trigger))
+        let taken = rules.filter { $0.control == control && RuleKey($0) != rule.map(RuleKey.init) }.map(\.trigger)
         return Self.triggers.filter { trigger in
-            control.accepts(trigger) && !taken.contains(trigger) && canMove(control, on: trigger)
+            control.accepts(trigger) && !taken.contains { $0 == trigger || $0.conflicts(with: trigger) }
+                && canMove(control, on: trigger)
         }
     }
 
@@ -78,18 +85,20 @@ struct RuleChoices {
         return Rule(control: rule.control, trigger: trigger, action: action)
     }
 
-    /// A swipe needs raw movement, which only some HID++ controls report.
+    /// Hold and move needs raw movement, which only some HID++ controls report.
     private func canMove(_ control: Control, on trigger: Trigger) -> Bool {
         guard case .holdMove = trigger, case .hidpp(let cid) = control, let capabilities else { return true }
         return capabilities.control(cid)?.rawXY ?? true
     }
 
+    /// A plain button sorts just after its HID++ control.
     private static func order(_ control: Control) -> Int {
         switch control {
-        case .hidpp(let cid): Int(cid.rawValue)
-        case .thumbWheel: 0x1_0000
-        case .key(let usage): 0x2_0000 + (HIDUsage.named.firstIndex(of: usage) ?? 0)
-        case .button(let number): 0x3_0000 + number
+        case .hidpp(let cid): Int(cid.rawValue) << 1
+        case .thumbWheel: 0x1_0000 << 1
+        case .key(let usage): (0x2_0000 + (HIDUsage.named.firstIndex(of: usage) ?? 0)) << 1
+        case .button(let number):
+            plainButtons.first { $0.number == number }.map { Int($0.cid) << 1 | 1 } ?? (0x3_0000 + number) << 1
         }
     }
 }

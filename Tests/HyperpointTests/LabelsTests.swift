@@ -26,6 +26,18 @@ import Testing
         #expect(Labels.action(.modifier(.rightOption)) == "Right Option")
         #expect(Labels.action(.shortcut(try chord("shift+cmd+4"))) == "Shortcut ⇧⌘4")
         #expect(Labels.action(.reverse) == "Horizontal scroll, reversed")
+        #expect(Labels.control(.button(1)) == "Right button")
+        #expect(Labels.control(.button(7)) == "Button 7")
+        #expect(Labels.trigger(.holdMove(nil)) == "Hold and move")
+        #expect(Labels.action(.scroll) == "Scroll")
+    }
+
+    @Test func aScrollRuleSaysWhatAQuickPressStillDoes() {
+        #expect(
+            Labels.holdToScroll(control: topButton, hasClickRule: true)
+                == "Hold the button and move the mouse to scroll. A quick press still does the click rule.")
+        #expect(Labels.holdToScroll(control: .button(1), hasClickRule: false).hasSuffix("A quick press still clicks as usual."))
+        #expect(Labels.holdToScroll(control: topButton, hasClickRule: false).hasSuffix("A quick press does nothing until you add a click rule."))
     }
 
     @Test func everyKeyHasAPlainName() {

@@ -30,6 +30,7 @@ enum SettingsEdit: Equatable, Sendable {
     case smooth(DeviceMatch, SmoothScroll?)
     case smoothKnob(DeviceMatch, SmoothKnob, Double)
     case curve(DeviceMatch, SpeedCurve)
+    case holdToScroll(DeviceMatch, HoldToScroll)
 
     func applied(to config: Config) -> Config {
         var config = config
@@ -73,6 +74,12 @@ enum SettingsEdit: Equatable, Sendable {
             }
         case .curve(let match, let curve):
             config.editProfile(match) { $0.scrolling?.smooth?.curve = curve }
+        case .holdToScroll(let match, let settings):
+            config.editProfile(match) { profile in
+                var scrolling = profile.scrolling ?? ScrollSettings()
+                scrolling.holdToScroll = settings
+                profile.scrolling = scrolling
+            }
         }
         return config
     }
@@ -95,6 +102,8 @@ enum SettingsEdit: Equatable, Sendable {
         case .smoothKnob(let match, let knob, let value):
             "\(Self.profile(match)).scrolling.smooth.\(knob.key) = \(value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never)))"
         case .curve(let match, let curve): "\(Self.profile(match)).scrolling.smooth.curve = \(Self.json(curve))"
+        case .holdToScroll(let match, let settings):
+            "\(Self.profile(match)).scrolling.holdToScroll = \(Self.json(settings))"
         }
     }
 
