@@ -26,6 +26,27 @@ struct Journal: Sendable {
         )
     }
 
+    func discovered(_ device: PresentDevice, _ capabilities: HIDPPCapabilities) {
+        let controls = capabilities.controls.map { control in
+            control.cid.hex + (control.divertable ? (control.rawXY ? "+divert+rawXY" : "+divert") : "")
+        }
+        logger.notice(
+            "discovered \(device.id, privacy: .public) \(device.name, privacy: .public) controls=[\(controls.joined(separator: ","), privacy: .public)] thumbWheel=\(capabilities.thumbWheel, privacy: .public)"
+        )
+    }
+
+    func applied(_ device: PresentDevice, job: ApplyScheduler.Job, hidpp outcome: HIDPPOutcome) {
+        let reasons = job.reasons.map(\.rawValue).sorted().joined(separator: ",")
+        let result =
+            switch outcome {
+            case .applied: "applied"
+            case .failed(let failure): "failed: \(failure)"
+            }
+        logger.notice(
+            "hidpp \(device.id, privacy: .public) \(device.name, privacy: .public) reasons=\(reasons, privacy: .public) attempt=\(job.attempt, privacy: .public) \(result, privacy: .public)"
+        )
+    }
+
     func note(_ text: String) {
         logger.notice("\(text, privacy: .public)")
     }

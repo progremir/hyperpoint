@@ -1,11 +1,20 @@
 import Foundation
+import IOKit.hid
 
+/// One present device and the writers for each place its state lives: the key map on its HID service and the
+/// HID++ state in its firmware. `invalidate` is the only way in, and each facet converges on its own.
 @HIDActor
 final class Slot {
     enum Phase: Equatable {
         case idle
         case applying
         case failed(KeyMapError)
+    }
+
+    enum HIDPPApply: Equatable {
+        case applied
+        case failed(String)
+        case skipped(String)
     }
 
     let device: PresentDevice
@@ -15,36 +24,101 @@ final class Slot {
     /// Hyperpoint, so a new slot first reads what the service holds.
     private(set) var ownedOnDevice: KeyMapSetup?
     private var surveyed = false
+    private(set) var hidppApplying = false
+    private(set) var hidppLast: (outcome: HIDPPApply, at: Date)?
 
     private let desired: @HIDActor () -> DeviceSetup
     private let changed: @HIDActor () -> Void
+    private let discovered: @HIDActor (HIDPPCapabilities) -> Void
+    private let perform: @HIDActor (Action) -> Void
     private let journal: Journal
     private let matching: String
+    private let hasKeyMap: Bool
+    private let hidppInterface: IOHIDDevice?
+    private var session: HIDPPSession?
     private var scheduler = ApplyScheduler()
     private var worker: Task<Void, Never>?
     private var retry: Task<Void, Never>?
 
     init(
-        device: PresentDevice, journal: Journal, desired: @escaping @HIDActor () -> DeviceSetup,
-        changed: @escaping @HIDActor () -> Void
+        device: PresentDevice, hidppInterface: IOHIDDevice?, journal: Journal,
+        desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
+        discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void
     ) {
         self.device = device
+        self.hidppInterface = hidppInterface
         self.journal = journal
         self.desired = desired
         self.changed = changed
+        self.discovered = discovered
+        self.perform = perform
+        hasKeyMap = device.properties.usagePairs.contains(.keyboard)
         matching = DeviceMatch(identifying: device.properties).hidutilKeyboardMatching
     }
 
-    var busy: Bool { scheduler.running }
+    var busy: Bool { scheduler.running || session?.isApplying == true }
+
+    /// Every facet with something to apply has applied it.
+    var reapplied: Bool {
+        let wanted = desired()
+        let keyMap = wanted.keyMap.routes.isEmpty ? nil : phase == .idle && ownedOnDevice == wanted.keyMap
+        let hidpp = session == nil ? nil : !hidppApplying && hidppLast?.outcome == .applied
+        let facets = [keyMap, hidpp].compactMap { $0 }
+        return !facets.isEmpty && facets.allSatisfy { $0 }
+    }
 
     func invalidate(_ reason: ApplyReason) {
-        guard scheduler.request(reason) == .startWorker else { return }
-        worker = Task { await drain() }
+        applyKeyMap(reason)
+        applyHIDPP(reason)
     }
 
     func close() {
         retry?.cancel()
         worker?.cancel()
+        session?.close()
+    }
+
+    private func applyKeyMap(_ reason: ApplyReason) {
+        guard hasKeyMap, scheduler.request(reason) == .startWorker else { return }
+        worker = Task { await drain() }
+    }
+
+    private func applyHIDPP(_ reason: ApplyReason) {
+        guard let hidppInterface,
+            let plan = HIDPPSetup.pendingWrite(desired: desired().hidpp, opened: session != nil)
+        else { return }
+        if session == nil {
+            do {
+                session = try HIDPPSession(opening: hidppInterface, journal: journal) { [unowned self] in hidppEvent($0) }
+            } catch {
+                hidppLast = (.skipped(error.description), Date())
+                journal.note("HID++ \(device.id) \(device.name) skipped: \(error)")
+                changed()
+                return
+            }
+        }
+        session?.request(reason, plan: plan)
+    }
+
+    private func hidppEvent(_ event: HIDPPEvent) {
+        switch event {
+        case .discovered(let capabilities):
+            journal.discovered(device, capabilities)
+            discovered(capabilities)
+        case .applyStarted:
+            hidppApplying = true
+            changed()
+        case .applyFinished(let job, let outcome):
+            hidppApplying = false
+            switch outcome {
+            case .applied: hidppLast = (.applied, Date())
+            case .failed(let failure): hidppLast = (.failed(failure.description), Date())
+            }
+            journal.applied(device, job: job, hidpp: outcome)
+            changed()
+        case .perform(let action):
+            perform(action)
+        }
     }
 
     private func drain() async {
@@ -87,7 +161,8 @@ final class Slot {
             retry = Task { [weak self] in
                 try? await Task.sleep(for: retryAfter)
                 guard !Task.isCancelled else { return }
-                self?.invalidate(.retry)
+                // The link retries its own failures, so a key map retry leaves the HID++ facet alone.
+                self?.applyKeyMap(.retry)
             }
         }
     }
