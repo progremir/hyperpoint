@@ -17,7 +17,6 @@ struct RuleChoices {
         SystemAction.allCases.map(Action.system) + [.shortcut(placeholderChord)] + HeldModifier.allCases.map(Action.modifier)
         + [.reverse]
 
-    /// Every control the device has, plus any a rule names, in a stable order.
     var controls: [Control] {
         var controls = rules.map(\.control)
         if speaksHIDPP {
@@ -39,7 +38,6 @@ struct RuleChoices {
         controls.filter { $0 == rule.control || !triggers(for: $0, besides: rule).isEmpty }
     }
 
-    /// Triggers `control` accepts that no rule other than `rule` uses.
     func triggers(for control: Control, besides rule: Rule? = nil) -> [Trigger] {
         let taken = Set(rules.filter { $0.control == control && RuleKey($0) != rule.map(RuleKey.init) }.map(\.trigger))
         return Self.triggers.filter { trigger in

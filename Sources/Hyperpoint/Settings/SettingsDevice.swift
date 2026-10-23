@@ -37,7 +37,6 @@ struct SettingsDevice: Identifiable, Equatable {
         } ?? false
     }
 
-    /// Profiles in file order, then devices connected now that have none.
     static func all(config: Config?, status: EngineStatus?) -> [SettingsDevice] {
         let profiles = (config?.devices ?? []).map { profile in
             let status = status?.devices.first { $0.match == profile.match }

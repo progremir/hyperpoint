@@ -151,7 +151,7 @@ struct LogLine: Identifiable, Sendable {
 
 enum LogReader {
     /// This process's own entries, which reading needs no entitlement for.
-    nonisolated static func read() throws -> [LogLine] {
+    static func read() throws -> [LogLine] {
         let store = try OSLogStore(scope: .currentProcessIdentifier)
         let entries = try store.getEntries(matching: NSPredicate(format: "subsystem == %@", "dev.emir.hyperpoint"))
         return entries.compactMap { $0 as? OSLogEntryLog }.enumerated().map { index, entry in

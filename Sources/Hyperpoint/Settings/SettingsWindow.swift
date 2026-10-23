@@ -98,7 +98,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
+            .frame(minWidth: 200, idealWidth: 210)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             switch model.pane {

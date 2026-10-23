@@ -235,7 +235,6 @@ private struct RuleRow: View {
     }
 }
 
-/// Records the next key press with its modifiers while the popover is open.
 private struct ShortcutRecorder: View {
     let record: (Chord) -> Void
     let cancel: () -> Void

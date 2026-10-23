@@ -3,11 +3,10 @@ import HyperpointKit
 
 /// Plain-word names for what the config file stores as identifiers.
 enum Labels {
-    /// HID++ control ids are a Logitech-wide table, so these hold across devices. Solaar lists the same names.
+    /// HID++ control ids are shared across Logitech devices, so these names hold beyond the MX Master 3.
     static let controlNames: [UInt16: String] = [
         0x50: "Left button", 0x51: "Right button", 0x52: "Middle button", 0x53: "Back button",
-        0x56: "Forward button", 0x5B: "Wheel tilt left", 0x5D: "Wheel tilt right", 0xC3: "Gesture button",
-        0xC4: "Top button",
+        0x56: "Forward button", 0xC3: "Gesture button", 0xC4: "Top button",
     ]
 
     static func control(_ control: Control) -> String {
