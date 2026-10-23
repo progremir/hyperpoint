@@ -54,6 +54,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
                 model.setPaused(!paused)
             })
         menu.addItem(.separator())
+        menu.addItem(ActionItem(title: "Settings…", key: ",") { [model] in model.openSettings() })
         menu.addItem(ActionItem(title: "Open Config File") { [model] in model.openConfig() })
         menu.addItem(.separator())
         menu.addItem(ActionItem(title: "Quit Hyperpoint", key: "q") { NSApp.terminate(nil) })

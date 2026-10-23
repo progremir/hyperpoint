@@ -6,8 +6,12 @@ final class AppModel {
     private let store = ConfigStore()
     private let engine = Engine()
     private let performer = ActionPerformer()
+    private let settings: SettingsModel
+    private lazy var settingsWindow = SettingsWindow(model: settings)
     private var menu: StatusMenu?
     private var engineRun: Task<Void, Never>?
+
+    init() { settings = SettingsModel(store: store, engine: engine) }
 
     func start() {
         let menu = StatusMenu(model: self)
@@ -16,8 +20,14 @@ final class AppModel {
             await store.start()
             await engine.run(configs: await store.snapshots(), permissions: Permissions.updates())
         }
-        Task { [engine] in
-            for await status in engine.statuses { menu.show(status) }
+        Task { [engine, settings] in
+            for await status in engine.statuses {
+                menu.show(status)
+                settings.show(status)
+            }
+        }
+        Task { [store, settings] in
+            for await snapshot in await store.snapshots() { settings.show(snapshot) }
         }
         Task { [engine, performer] in
             for await action in engine.actions { performer.perform(action) }
@@ -29,6 +39,10 @@ final class AppModel {
     func setPaused(_ paused: Bool) { Task { await engine.setPaused(paused) } }
 
     func openConfig() { NSWorkspace.shared.open(store.url) }
+
+    func openSettings() { settingsWindow.show() }
+
+    func snapshotSettings(to directory: URL) { Task { await settingsWindow.snapshot(to: directory) } }
 
     func fix(_ fix: MenuPresentation.Fix) {
         switch fix {
