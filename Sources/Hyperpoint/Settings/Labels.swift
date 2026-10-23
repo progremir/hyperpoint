@@ -22,7 +22,8 @@ enum Labels {
         switch trigger {
         case .click: "Click"
         case .hold: "Hold"
-        case .holdMove(let direction): "Hold, move \(direction.rawValue.lowercased())"
+        case .holdMove(let direction?): "Hold, move \(direction.rawValue.lowercased())"
+        case .holdMove(nil): "Hold and move"
         case .scroll: "Scroll"
         }
     }
@@ -36,6 +37,7 @@ enum Labels {
         case .shortcut(let chord): "Shortcut \(Self.chord(chord))"
         case .modifier(let modifier): Self.modifier(modifier)
         case .reverse: "Horizontal scroll, reversed"
+        case .scroll: "Scroll"
         }
     }
 

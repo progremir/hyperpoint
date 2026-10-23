@@ -47,7 +47,7 @@ Three things make the shape non-obvious.
           ]
         },
         "hiResWheel": true,
-        "rightButtonPan": { "momentum": true },
+        "holdToScroll": { "speed": 1, "direction": "grab", "momentum": true },
         "clickThrough": { "left": true, "right": true }
       }
     },

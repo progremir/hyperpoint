@@ -42,9 +42,9 @@ extension HIDPPSetup {
                     continue
                 }
                 if !order.contains(cid) { order.append(cid) }
-                if case .holdMove(let direction) = rule.trigger {
+                if case .holdMove(let direction?) = rule.trigger {
                     swipes[cid, default: [:]][direction] = rule.action
-                } else {
+                } else if rule.trigger == .click {
                     clicks[cid] = rule.action
                 }
             case (.thumbWheel, .scroll):

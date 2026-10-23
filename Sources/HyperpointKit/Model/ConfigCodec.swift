@@ -67,10 +67,14 @@ public enum ConfigCodec {
         return nil
     }
 
-    /// A smooth scrolling section written before the speed curve names the knobs it replaced, which decoding converts.
+    /// Keys that older files wrote and decoding converts: the smooth scrolling knobs the speed curve replaced, and
+    /// right-button pan, which became a hold-to-scroll rule.
     private static func legacySchema(at path: String, in section: [String: Any]) -> [String: Any]? {
-        guard path.hasSuffix("scrolling.smooth"), section["curve"] == nil else { return nil }
-        return ["speed": 0, "startBoost": 0, "acceleration": ["from": 0, "to": 0, "max": 0]]
+        if path.hasSuffix("scrolling.smooth"), section["curve"] == nil {
+            return ["speed": 0, "startBoost": 0, "acceleration": ["from": 0, "to": 0, "max": 0]]
+        }
+        if path.hasSuffix(".scrolling") { return ["rightButtonPan": ["momentum": false]] }
+        return nil
     }
 
     static func validate(_ config: Config) -> ConfigError? {
@@ -91,6 +95,12 @@ public enum ConfigCodec {
                     path: "\(path).gestures.distance",
                     message: "must be between \(range.lowerBound) and \(range.upperBound)")
             }
+            if let speed = profile.scrolling?.holdToScroll?.speed, !HoldToScroll.speedRange.contains(speed) {
+                let range = HoldToScroll.speedRange
+                return ConfigError(
+                    path: "\(path).scrolling.holdToScroll.speed",
+                    message: String(format: "must be between %g and %g", range.lowerBound, range.upperBound))
+            }
             if let smooth = profile.scrolling?.smooth {
                 let bounds: [(key: String, value: Double, range: ClosedRange<Double>)] = [
                     ("duration", smooth.duration, SmoothScroll.durationRange),
@@ -105,6 +115,11 @@ public enum ConfigCodec {
             }
             for (ruleIndex, rule) in (profile.rules ?? []).enumerated() {
                 let rulePath = "\(path).rules[\(ruleIndex)]"
+                if case .button(let number) = rule.control, !Control.buttonRange.contains(number) {
+                    return ConfigError(
+                        path: "\(rulePath).control.button",
+                        message: "must be between 1 and 31. 1 is the right button, and the left button, 0, cannot have rules")
+                }
                 if let problem = RuleShape.problem(with: rule) {
                     return ConfigError(path: "\(rulePath).\(problem.key)", message: problem.message)
                 }
@@ -114,6 +129,13 @@ public enum ConfigCodec {
                 }) {
                     return ConfigError(path: rulePath, message: "the same control and trigger as rules[\(earlier)]")
                 }
+                if let earlier = rules[..<ruleIndex].firstIndex(where: {
+                    $0.control == rule.control && $0.trigger.conflicts(with: rule.trigger)
+                }) {
+                    return ConfigError(
+                        path: "\(rulePath).when",
+                        message: "\"\(rule.trigger.name)\" cannot share a control with rules[\(earlier)], because scrolling and swipes both use the movement")
+                }
             }
         }
         return nil
@@ -122,14 +144,15 @@ public enum ConfigCodec {
 
 enum RuleShape {
     enum ControlKind { case hidpp, thumbWheel, key, button }
-    enum TriggerKind: Hashable { case click, hold, holdMove, scroll }
-    enum ActionKind { case system, shortcut, modifier, reverse }
+    /// `swipe` is hold and move one way, `holdMove` hold and move any way.
+    enum TriggerKind: Hashable { case click, hold, swipe, holdMove, scroll }
+    enum ActionKind { case system, shortcut, modifier, reverse, scroll }
 
     static let table: [ControlKind: [TriggerKind: Set<ActionKind>]] = [
-        .hidpp: [.click: [.system, .shortcut], .holdMove: [.system, .shortcut]],
+        .hidpp: [.click: [.system, .shortcut], .swipe: [.system, .shortcut], .holdMove: [.scroll]],
         .thumbWheel: [.scroll: [.reverse]],
         .key: [.click: [.shortcut], .hold: [.modifier]],
-        .button: [.click: [.system, .shortcut]],
+        .button: [.click: [.system, .shortcut], .holdMove: [.scroll]],
     ]
 
     static func problem(with rule: Rule) -> (key: String, message: String)? {
@@ -157,7 +180,8 @@ enum RuleShape {
         switch trigger {
         case .click: .click
         case .hold: .hold
-        case .holdMove: .holdMove
+        case .holdMove(nil): .holdMove
+        case .holdMove: .swipe
         case .scroll: .scroll
         }
     }
@@ -168,6 +192,17 @@ enum RuleShape {
         case .shortcut: .shortcut
         case .modifier: .modifier
         case .reverse: .reverse
+        case .scroll: .scroll
+        }
+    }
+}
+
+extension Trigger {
+    /// Scrolling and swipes both read the movement while the button is held, so one control cannot have both.
+    public func conflicts(with other: Trigger) -> Bool {
+        switch (self, other) {
+        case (.holdMove(nil), .holdMove(.some)), (.holdMove(.some), .holdMove(nil)): true
+        default: false
         }
     }
 }

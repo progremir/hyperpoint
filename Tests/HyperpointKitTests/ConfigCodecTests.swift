@@ -96,9 +96,10 @@ func rejection(_ json: String) -> ConfigError? {
 
     @Test func aConvertedFileIsWrittenWithTheCurveAlone() throws {
         let config = try decode(Self.withSmooth(Self.beforeTheCurve))
-        let written = try #require(String(data: ConfigCodec.encode(config), encoding: .utf8))
-        #expect(written.contains("\"curve\""))
-        for old in ["\"speed\"", "\"startBoost\"", "\"acceleration\""] { #expect(!written.contains(old), "\(old)") }
+        let tree = try JSONSerialization.jsonObject(with: ConfigCodec.encode(config)) as? [String: Any]
+        let devices = try #require(tree?["devices"] as? [[String: Any]])
+        let smooth = try #require((devices[0]["scrolling"] as? [String: Any])?["smooth"] as? [String: Any])
+        #expect(Set(smooth.keys) == ["duration", "brake", "easeIn", "curve"])
         #expect(try ConfigCodec.decode(ConfigCodec.encode(config)) == config)
     }
 
@@ -116,6 +117,40 @@ func rejection(_ json: String) -> ConfigError? {
             #expect(abs(curve.distancePerStep(at: rate) / oldDistance(rate) - 1) < 0.07, "\(rate) steps/s")
         }
         #expect(try decode(Self.withSmooth(old.replacingOccurrences(of: #"{ "from": 4, "to": 40, "max": 3 }"#, with: "true"))).devices[0].scrolling?.smooth?.curve == curve)
+    }
+
+    static let rightButtonScroll = Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)
+
+    /// The scrolling section as files wrote it before hold to scroll.
+    static func withRightButtonPan(momentum: Bool) -> String {
+        documentedDefaultJSON.replacingOccurrences(
+            of: #""holdToScroll": { "speed": 1, "direction": "grab", "momentum": true }"#,
+            with: #""rightButtonPan": { "momentum": \#(momentum) }"#)
+    }
+
+    @Test func rightButtonPanBecomesARightButtonScrollRule() throws {
+        let json = Self.withRightButtonPan(momentum: true)
+        #expect(json.contains("rightButtonPan"))
+        var expected = Config.default
+        expected.devices[0].rules?.append(Self.rightButtonScroll)
+        #expect(try decode(json) == expected)
+        let still = try decode(Self.withRightButtonPan(momentum: false))
+        #expect(still.devices[0].scrolling?.holdToScroll == HoldToScroll(speed: 1, direction: .grab, momentum: false))
+        let written = try #require(String(data: ConfigCodec.encode(still), encoding: .utf8))
+        #expect(!written.contains("rightButtonPan") && written.contains("holdToScroll"), "the next save writes the new key")
+    }
+
+    @Test func rightButtonPanKeepsAnExistingRightButtonRule() throws {
+        let json = Self.withRightButtonPan(momentum: true).replacingOccurrences(
+            of: #"{ "control": "thumbWheel""#, with: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }, { "control": "thumbWheel""#)
+        let rules = try #require(try decode(json).devices[0].rules)
+        #expect(rules.filter { $0 == Self.rightButtonScroll }.count == 1)
+    }
+
+    @Test func rightButtonPanStillRejectsATypo() throws {
+        let json = Self.withRightButtonPan(momentum: true)
+            .replacingOccurrences(of: #"{ "momentum": true }"#, with: #"{ "momentum": true, "speed": 2 }"#)
+        #expect(rejection(json)?.path == "devices[0].scrolling.rightButtonPan.speed")
     }
 
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
@@ -228,6 +263,35 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(
             find: "\"ignored\": []", replace: "\"ignored\": [{ \"builtIn\": true }]", path: "devices[2].match"),
         Mutation(find: "\"ignored\": []", replace: "\"ignored\": {}", path: "ignored"),
+        Mutation(
+            find: "\"when\": \"click\", \"do\": \"missionControl\"", replace: "\"when\": \"holdMove\", \"do\": \"missionControl\"",
+            path: "devices[0].rules[0].do"),
+        Mutation(
+            find: "\"when\": \"click\", \"do\": \"missionControl\"", replace: "\"when\": \"holdMove\", \"do\": \"scroll\"",
+            path: "devices[0].rules[1].when"),
+        Mutation(
+            find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"reverse\" }",
+            replace: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"scroll\" }",
+            path: "devices[0].rules[5].do"),
+        Mutation(
+            find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",
+            replace: "{ \"control\": { \"button\": 0 }, \"when\": \"click\"", path: "devices[1].rules[1].control.button"),
+        Mutation(
+            find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",
+            replace: "{ \"control\": { \"button\": 32 }, \"when\": \"click\"", path: "devices[1].rules[1].control.button"),
+        Mutation(
+            find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\", \"do\": { \"shortcut\": \"opt+shift+s\" } }",
+            replace: "{ \"control\": { \"button\": 2 }, \"when\": \"holdMoveDown\", \"do\": \"scroll\" }",
+            path: "devices[1].rules[1].when"),
+        Mutation(find: "\"speed\": 1,", replace: "\"speed\": 9,", path: "devices[0].scrolling.holdToScroll.speed"),
+        Mutation(find: "\"speed\": 1,", replace: "\"speed\": 0.1,", path: "devices[0].scrolling.holdToScroll.speed"),
+        Mutation(
+            find: "\"direction\": \"grab\"", replace: "\"direction\": \"drag\"",
+            path: "devices[0].scrolling.holdToScroll.direction"),
+        Mutation(
+            find: "\"momentum\": true }", replace: "\"momentum\": true, \"friction\": 1 }",
+            path: "devices[0].scrolling.holdToScroll.friction"),
+        Mutation(find: "\"direction\": \"grab\", ", replace: "", path: "devices[0].scrolling.holdToScroll.direction"),
     ]
 
     @Test(arguments: mutations)
@@ -241,10 +305,10 @@ func rejection(_ json: String) -> ConfigError? {
 
 @Suite struct RuleAcceptanceTests {
     static let controls: [Control] = [.hidpp(CID(rawValue: 0xC3)), .thumbWheel, .key(HIDUsage(name: "escape")!), .button(4)]
-    static let triggers: [Trigger] = [.click, .hold, .holdMove(.up), .scroll]
+    static let triggers: [Trigger] = [.click, .hold, .holdMove(.up), .holdMove(nil), .scroll]
     static let actions: [Action] = [
         .system(.missionControl), .shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.command])),
-        .modifier(.rightOption), .reverse,
+        .modifier(.rightOption), .reverse, .scroll,
     ]
 
     static func parses(_ rule: Rule) -> Bool {

@@ -38,6 +38,10 @@ public struct DeviceProfile: Codable, Equatable, Sendable {
     public var scrolling: ScrollSettings?
     public var hyper: Bool?
 
+    /// Files written before hold to scroll name right-button pan, which decoding converts to a rule.
+    private enum LegacyScrollingKeys: String, CodingKey { case rightButtonPan }
+    private struct RightButtonPan: Decodable { var momentum: Bool }
+
     public init(
         match: DeviceMatch, name: String, rules: [Rule]? = nil, gestures: GestureSettings? = nil,
         scrolling: ScrollSettings? = nil, hyper: Bool? = nil
@@ -48,6 +52,27 @@ public struct DeviceProfile: Codable, Equatable, Sendable {
         self.gestures = gestures
         self.scrolling = scrolling
         self.hyper = hyper
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        match = try container.decode(DeviceMatch.self, forKey: .match)
+        name = try container.decode(String.self, forKey: .name)
+        rules = try container.decodeIfPresent([Rule].self, forKey: .rules)
+        gestures = try container.decodeIfPresent(GestureSettings.self, forKey: .gestures)
+        scrolling = try container.decodeIfPresent(ScrollSettings.self, forKey: .scrolling)
+        hyper = try container.decodeIfPresent(Bool.self, forKey: .hyper)
+        guard container.contains(.scrolling),
+            let pan = try container.nestedContainer(keyedBy: LegacyScrollingKeys.self, forKey: .scrolling)
+                .decodeIfPresent(RightButtonPan.self, forKey: .rightButtonPan)
+        else { return }
+        let rule = Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)
+        if !(rules ?? []).contains(where: { $0.control == rule.control && $0.trigger == rule.trigger }) {
+            rules = (rules ?? []) + [rule]
+        }
+        if scrolling?.holdToScroll == nil {
+            scrolling?.holdToScroll = HoldToScroll(speed: 1, direction: .grab, momentum: pan.momentum)
+        }
     }
 }
 
@@ -98,13 +123,18 @@ public enum Control: Hashable, Sendable {
     case thumbWheel
     /// A key that a mouse sends from its keyboard interface.
     case key(HIDUsage)
+    /// A plain mouse button, numbered as CGEvent numbers them: 1 is the right button, 2 the middle, 3 back and
+    /// 4 forward. The left button, 0, cannot have rules.
     case button(Int)
+
+    public static let buttonRange: ClosedRange<Int> = 1...31
 }
 
 public enum Trigger: Hashable, Sendable {
     case click
     case hold
-    case holdMove(Direction)
+    /// Hold and move one way, or with no direction, hold and move any way.
+    case holdMove(Direction?)
     case scroll
 }
 
@@ -117,6 +147,8 @@ public enum Action: Hashable, Sendable {
     case shortcut(Chord)
     case modifier(HeldModifier)
     case reverse
+    /// While the button is held, moving the mouse scrolls the page instead of moving the pointer.
+    case scroll
 }
 
 /// The raw value is the CGS symbolic hotkey id, so this enum is the id table.
@@ -163,16 +195,16 @@ public enum GestureFire: String, Codable, Sendable {
 public struct ScrollSettings: Codable, Equatable, Sendable {
     public var smooth: SmoothScroll?
     public var hiResWheel: Bool?
-    public var rightButtonPan: RightButtonPan?
+    public var holdToScroll: HoldToScroll?
     public var clickThrough: ClickThrough?
 
     public init(
-        smooth: SmoothScroll? = nil, hiResWheel: Bool? = nil, rightButtonPan: RightButtonPan? = nil,
+        smooth: SmoothScroll? = nil, hiResWheel: Bool? = nil, holdToScroll: HoldToScroll? = nil,
         clickThrough: ClickThrough? = nil
     ) {
         self.smooth = smooth
         self.hiResWheel = hiResWheel
-        self.rightButtonPan = rightButtonPan
+        self.holdToScroll = holdToScroll
         self.clickThrough = clickThrough
     }
 }
@@ -242,9 +274,30 @@ public struct SmoothScroll: Codable, Equatable, Sendable {
     }
 }
 
-public struct RightButtonPan: Codable, Equatable, Sendable {
+/// How the page moves for a button whose rule is hold and move → scroll.
+public struct HoldToScroll: Codable, Equatable, Sendable {
+    /// How far the page moves for how far the mouse moves. At 1 the page follows the hand.
+    public var speed: Double
+    public var direction: HoldScrollDirection
+    /// On release the page keeps the hand's last speed and glides to a stop, like a trackpad.
     public var momentum: Bool
-    public init(momentum: Bool) { self.momentum = momentum }
+
+    public static let `default` = HoldToScroll(speed: 1, direction: .grab, momentum: true)
+    /// The speeds the parser accepts.
+    public static let speedRange: ClosedRange<Double> = 0.25...4
+
+    public init(speed: Double, direction: HoldScrollDirection, momentum: Bool) {
+        self.speed = speed
+        self.direction = direction
+        self.momentum = momentum
+    }
+}
+
+public enum HoldScrollDirection: String, Codable, CaseIterable, Sendable {
+    /// The page moves with the hand, like dragging it on a trackpad.
+    case grab
+    /// Moving the hand down scrolls down, the way the wheel does.
+    case wheel
 }
 
 public struct ClickThrough: Codable, Equatable, Sendable {
@@ -280,7 +333,7 @@ extension Config {
                 scrolling: ScrollSettings(
                     smooth: .default,
                     hiResWheel: true,
-                    rightButtonPan: RightButtonPan(momentum: true),
+                    holdToScroll: .default,
                     clickThrough: ClickThrough(left: true, right: true)
                 )
             ),
