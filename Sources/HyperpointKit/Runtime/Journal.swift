@@ -6,10 +6,19 @@ struct Journal: Sendable {
     func connected(_ device: PresentDevice, profile: String?, atLaunch: Bool) {
         let properties = device.properties
         let ids = "vendor=0x\(String(properties.vendor.rawValue, radix: 16)) product=0x\(String(properties.product.rawValue, radix: 16))"
-        let services = device.eventServices.map { "0x" + String($0.rawValue, radix: 16) }.joined(separator: ",")
         logger.notice(
-            "\(atLaunch ? "present" : "connect", privacy: .public) \(device.id, privacy: .public) \(device.name, privacy: .public) profile=\(profile ?? "none", privacy: .public) \(ids, privacy: .public) builtIn=\(properties.builtIn, privacy: .public) transport=\(properties.transport ?? "-", privacy: .public) services=[\(services, privacy: .public)]"
+            "\(atLaunch ? "present" : "connect", privacy: .public) \(device.id, privacy: .public) \(device.name, privacy: .public) profile=\(profile ?? "none", privacy: .public) \(ids, privacy: .public) builtIn=\(properties.builtIn, privacy: .public) transport=\(properties.transport ?? "-", privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
         )
+    }
+
+    func servicesChanged(_ device: PresentDevice) {
+        logger.notice(
+            "services \(device.id, privacy: .public) \(device.name, privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
+        )
+    }
+
+    private static func services(of device: PresentDevice) -> String {
+        device.eventServices.map { "0x" + String($0.rawValue, radix: 16) }.joined(separator: ",")
     }
 
     func disconnected(_ device: PresentDevice) {

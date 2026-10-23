@@ -80,6 +80,28 @@ public enum ConfigCodec {
             if let distance = profile.gestures?.distance, !(20...2000).contains(distance) {
                 return ConfigError(path: "\(path).gestures.distance", message: "must be between 20 and 2000")
             }
+            if let smooth = profile.scrolling?.smooth {
+                let bounds: [(key: String, value: Double, range: ClosedRange<Double>)] = [
+                    ("duration", smooth.duration, 1...20), ("brake", smooth.brake, 0.5...10),
+                    ("speed", smooth.speed, 1...500), ("startBoost", smooth.startBoost, 1...10),
+                    ("easeIn", smooth.easeIn, 0...300),
+                ]
+                if let bad = bounds.first(where: { !$0.range.contains($0.value) }) {
+                    return ConfigError(
+                        path: "\(path).scrolling.smooth.\(bad.key)",
+                        message: String(format: "must be between %g and %g", bad.range.lowerBound, bad.range.upperBound))
+                }
+                if let acceleration = smooth.acceleration {
+                    let rules: [(key: String, holds: Bool, message: String)] = [
+                        ("from", acceleration.from >= 0, "must be 0 or more"),
+                        ("to", acceleration.to > acceleration.from, "must be more than from"),
+                        ("max", acceleration.max >= 1, "must be 1 or more"),
+                    ]
+                    if let bad = rules.first(where: { !$0.holds }) {
+                        return ConfigError(path: "\(path).scrolling.smooth.acceleration.\(bad.key)", message: bad.message)
+                    }
+                }
+            }
             for (ruleIndex, rule) in (profile.rules ?? []).enumerated() {
                 let rulePath = "\(path).rules[\(ruleIndex)]"
                 if let problem = RuleShape.problem(with: rule) {

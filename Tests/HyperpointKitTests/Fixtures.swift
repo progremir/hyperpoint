@@ -29,10 +29,11 @@ enum Bags {
     ]
 }
 
-func present(_ id: UInt64, _ bag: [String: any Sendable]) -> PresentDevice {
+func present(_ id: UInt64, _ bag: [String: any Sendable], services: [UInt64] = []) -> PresentDevice {
     let properties = HIDProperties(bag: bag)
     return PresentDevice(
-        id: DeviceInstanceID(rawValue: id), key: DeviceKey(properties), properties: properties, eventServices: [])
+        id: DeviceInstanceID(rawValue: id), key: DeviceKey(properties), properties: properties,
+        eventServices: services.map(SenderID.init))
 }
 
 let thisMac = [

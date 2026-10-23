@@ -173,15 +173,83 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     }
 }
 
+/// Smooth scrolling for the main wheel. Each tick feeds a glide that stops `duration` after the last tick.
 public struct SmoothScroll: Codable, Equatable, Sendable {
+    /// How long the glide lasts after the last tick, in tenths of a second.
     public var duration: Double
+    /// The glide's velocity falls as (1 - t / duration) ^ brake. At 1 it slows evenly, and higher values brake hard
+    /// first and coast into a soft stop.
     public var brake: Double
-    public var acceleration: Bool
+    /// How ticks in quick succession each scroll farther, or nil for no acceleration. The file says `false`, `true`
+    /// for the defaults, or an object.
+    public var acceleration: Acceleration?
+    /// Points one tick scrolls before the start boost and acceleration.
+    public var speed: Double
+    /// How much farther a tick scrolls when no glide is running, as a multiple of `speed`.
+    public var startBoost: Double
+    /// Milliseconds a new glide takes to rise from rest to its full velocity, without changing how far it goes.
+    /// 0 starts it at full velocity.
+    public var easeIn: Double
 
-    public init(duration: Double, brake: Double, acceleration: Bool) {
+    private enum CodingKeys: String, CodingKey { case duration, brake, acceleration, speed, startBoost, easeIn }
+
+    public static let defaultSpeed = 40.0
+    public static let defaultStartBoost = 2.0
+    public static let defaultEaseIn = 0.0
+
+    public init(
+        duration: Double, brake: Double, acceleration: Acceleration?, speed: Double, startBoost: Double, easeIn: Double
+    ) {
         self.duration = duration
         self.brake = brake
         self.acceleration = acceleration
+        self.speed = speed
+        self.startBoost = startBoost
+        self.easeIn = easeIn
+    }
+
+    /// `speed`, `startBoost` and `easeIn` came after the first files were written, so a file without them keeps working.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        duration = try container.decode(Double.self, forKey: .duration)
+        brake = try container.decode(Double.self, forKey: .brake)
+        if let on = try? container.decode(Bool.self, forKey: .acceleration) {
+            acceleration = on ? .default : nil
+        } else {
+            acceleration = try container.decode(Acceleration.self, forKey: .acceleration)
+        }
+        speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? Self.defaultSpeed
+        startBoost = try container.decodeIfPresent(Double.self, forKey: .startBoost) ?? Self.defaultStartBoost
+        easeIn = try container.decodeIfPresent(Double.self, forKey: .easeIn) ?? Self.defaultEaseIn
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(duration, forKey: .duration)
+        try container.encode(brake, forKey: .brake)
+        if let acceleration {
+            try container.encode(acceleration, forKey: .acceleration)
+        } else {
+            try container.encode(false, forKey: .acceleration)
+        }
+        try container.encode(speed, forKey: .speed)
+        try container.encode(startBoost, forKey: .startBoost)
+        try container.encode(easeIn, forKey: .easeIn)
+    }
+}
+
+/// The gain on each tick rises linearly with the tick rate, from 1× at `from` ticks per second to `max`× at `to`.
+public struct Acceleration: Codable, Equatable, Sendable {
+    public var from: Double
+    public var to: Double
+    public var max: Double
+
+    public static let `default` = Acceleration(from: 4, to: 40, max: 3)
+
+    public init(from: Double, to: Double, max: Double) {
+        self.from = from
+        self.to = to
+        self.max = max
     }
 }
 
@@ -221,7 +289,9 @@ extension Config {
                 ],
                 gestures: GestureSettings(fire: .pastDistance, distance: 120),
                 scrolling: ScrollSettings(
-                    smooth: SmoothScroll(duration: 4, brake: 2, acceleration: true),
+                    smooth: SmoothScroll(
+                        duration: 4, brake: 2, acceleration: .default, speed: SmoothScroll.defaultSpeed,
+                        startBoost: SmoothScroll.defaultStartBoost, easeIn: SmoothScroll.defaultEaseIn),
                     hiResWheel: true,
                     rightButtonPan: RightButtonPan(momentum: true),
                     clickThrough: ClickThrough(left: true, right: true)

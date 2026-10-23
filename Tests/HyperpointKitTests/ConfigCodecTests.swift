@@ -44,7 +44,10 @@ func rejection(_ json: String) -> ConfigError? {
                             Chord(key: KeyCode(name: "leftBracket")!, modifiers: .hyper))),
                     ],
                     gestures: GestureSettings(fire: .onRelease, distance: 300),
-                    scrolling: ScrollSettings(hiResWheel: false),
+                    scrolling: ScrollSettings(
+                        smooth: SmoothScroll(
+                            duration: 8, brake: 1, acceleration: nil, speed: 60, startBoost: 1, easeIn: 120),
+                        hiResWheel: false),
                     hyper: false
                 )
             ],
@@ -55,6 +58,34 @@ func rejection(_ json: String) -> ConfigError? {
             #expect(try ConfigCodec.decode(bytes) == config)
             #expect(ConfigCodec.encode(try ConfigCodec.decode(bytes)) == bytes, "encoding is canonical")
         }
+    }
+
+    @Test func aFileWrittenBeforeTheScrollKnobsKeepsItsDefaults() throws {
+        let older = documentedDefaultJSON.replacingOccurrences(of: ", \"speed\": 40, \"startBoost\": 2", with: "")
+        #expect(older != documentedDefaultJSON, "the documented file names both knobs")
+        #expect(try decode(older) == Config.default)
+    }
+
+    @Test func aFileWithoutEaseInStartsGlidesAtFullVelocity() throws {
+        let older = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 0, ", with: "")
+        #expect(older != documentedDefaultJSON, "the documented file names easeIn")
+        let config = try decode(older)
+        #expect(config.devices[0].scrolling?.smooth?.easeIn == 0)
+        #expect(config == Config.default)
+        let longest = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 0,", with: "\"easeIn\": 300,")
+        #expect(try decode(longest).devices[0].scrolling?.smooth?.easeIn == 300)
+    }
+
+    @Test func accelerationIsFalseTrueOrAnObject() throws {
+        let object = "\"acceleration\": { \"from\": 4, \"to\": 40, \"max\": 3 }"
+        #expect(documentedDefaultJSON.contains(object), "the documented file spells out the knobs")
+        func acceleration(_ value: String) throws -> Acceleration? {
+            let json = documentedDefaultJSON.replacingOccurrences(of: object, with: "\"acceleration\": \(value)")
+            return try decode(json).devices[0].scrolling?.smooth?.acceleration
+        }
+        #expect(try acceleration("true") == Acceleration(from: 4, to: 40, max: 3))
+        #expect(try acceleration("false") == nil)
+        #expect(try acceleration("{ \"from\": 2, \"to\": 30, \"max\": 5 }") == Acceleration(from: 2, to: 30, max: 5))
     }
 
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
@@ -129,6 +160,25 @@ func rejection(_ json: String) -> ConfigError? {
             replace: "\"when\": \"click\", \"do\": \"appExpose\"", path: "devices[0].rules[1]"),
         Mutation(find: "\"distance\": 120", replace: "\"distance\": 5", path: "devices[0].gestures.distance"),
         Mutation(find: "\"brake\": 2,", replace: "", path: "devices[0].scrolling.smooth.brake"),
+        Mutation(find: "\"duration\": 4,", replace: "\"duration\": 40,", path: "devices[0].scrolling.smooth.duration"),
+        Mutation(find: "\"brake\": 2,", replace: "\"brake\": 0,", path: "devices[0].scrolling.smooth.brake"),
+        Mutation(find: "\"speed\": 40", replace: "\"speed\": 0", path: "devices[0].scrolling.smooth.speed"),
+        Mutation(
+            find: "\"startBoost\": 2", replace: "\"startBoost\": 0.5", path: "devices[0].scrolling.smooth.startBoost"),
+        Mutation(
+            find: "\"startBoost\": 2", replace: "\"startBoost\": 2, \"boost\": 2",
+            path: "devices[0].scrolling.smooth.boost"),
+        Mutation(find: "\"easeIn\": 0,", replace: "\"easeIn\": -1,", path: "devices[0].scrolling.smooth.easeIn"),
+        Mutation(find: "\"easeIn\": 0,", replace: "\"easeIn\": 301,", path: "devices[0].scrolling.smooth.easeIn"),
+        Mutation(find: "\"from\": 4", replace: "\"from\": -1", path: "devices[0].scrolling.smooth.acceleration.from"),
+        Mutation(find: "\"to\": 40", replace: "\"to\": 4", path: "devices[0].scrolling.smooth.acceleration.to"),
+        Mutation(find: "\"max\": 3", replace: "\"max\": 0.5", path: "devices[0].scrolling.smooth.acceleration.max"),
+        Mutation(find: ", \"max\": 3", replace: "", path: "devices[0].scrolling.smooth.acceleration.max"),
+        Mutation(
+            find: "\"max\": 3", replace: "\"max\": 3, \"min\": 1", path: "devices[0].scrolling.smooth.acceleration.min"),
+        Mutation(
+            find: "{ \"from\": 4, \"to\": 40, \"max\": 3 }", replace: "\"fast\"",
+            path: "devices[0].scrolling.smooth.acceleration"),
         Mutation(find: "\"hiResWheel\": true", replace: "\"hiResWheels\": true", path: "devices[0].scrolling.hiResWheels"),
         Mutation(
             find: "\"product\": \"0x0321\"", replace: "\"product\": \"0x0321\", \"location\": 1",

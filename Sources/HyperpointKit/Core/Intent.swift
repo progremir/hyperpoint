@@ -18,8 +18,12 @@ struct Intent: Equatable, Sendable {
         guard !paused else { return .neutral }
         var setups: [DeviceInstanceID: DeviceSetup] = [:]
         var skipped: [DeviceInstanceID: [Rule]] = [:]
+        var smoothScroll: [SenderID: SmoothScroll] = [:]
         for device in present {
             guard let profile = config.profile(for: device.properties) else { continue }
+            if let smooth = profile.scrolling?.smooth {
+                for sender in device.eventServices { smoothScroll[sender] = smooth }
+            }
             var routes: [KeyRoute] = []
             if profile.hyper == true, tapAvailable, device.properties.hostsHyper {
                 routes.append(.hyper(from: config.hyper.key))
@@ -33,6 +37,6 @@ struct Intent: Equatable, Sendable {
             setups[device.id] = DeviceSetup(keyMap: KeyMapSetup(routes: routes), hidpp: hidpp)
         }
         let routes = present.flatMap { setups[$0.id]?.keyMap.routes ?? [] }
-        return Intent(setups: setups, tap: TapRules(routes: routes), skipped: skipped)
+        return Intent(setups: setups, tap: TapRules(routes: routes, smoothScroll: smoothScroll), skipped: skipped)
     }
 }

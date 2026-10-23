@@ -104,7 +104,7 @@ import Testing
     @Test func hyperKeyboardsMapCapsLockToTheHyperCarrier() {
         let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac)
         #expect(thisMac.map { intent.setup(for: $0.id).keyMap } == [hyperMap, hyperMap, .neutral, .neutral])
-        #expect(intent.tap == TapRules(carriers: [Carrier.hyper.keyCode: .holdModifiers(.hyper)]))
+        #expect(intent.tap == TapRules(carriers: [Carrier.hyper.keyCode: .holdModifiers(.hyper)], smoothScroll: [:]))
     }
 
     @Test func pausedIsNeutralEverywhere() {
@@ -150,6 +150,46 @@ import Testing
         #expect(forward == reversed)
         #expect(onlyMagic.setup(for: thisMac[1].id) == forward.setup(for: thisMac[1].id))
         #expect(onlyMagic.tap == forward.tap)
+    }
+}
+
+@Suite struct SmoothScrollIntentTests {
+    let mxService = SenderID(rawValue: 0x1_0003_7032)
+    let keyboardService = SenderID(rawValue: 0x1_0001_BC2E)
+    var present: [PresentDevice] {
+        [
+            HyperpointKitTests.present(1, Bags.builtInKeyboard, services: [0x1_0000_0D10]),
+            HyperpointKitTests.present(2, Bags.magicKeyboard, services: [keyboardService.rawValue]),
+            HyperpointKitTests.present(3, Bags.mxMaster3, services: [mxService.rawValue]),
+        ]
+    }
+
+    @Test func theMXScrollsSmoothlyByItsEventService() {
+        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: present)
+        #expect(intent.tap.smoothScroll == [mxService: Config.default.devices[0].scrolling!.smooth!])
+    }
+
+    @Test func aProfileWithoutSmoothScrollingAddsNoSender() {
+        var config = Config.default
+        config.devices[0].scrolling?.smooth = nil
+        #expect(Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.smoothScroll.isEmpty)
+        config.devices[0].scrolling = nil
+        #expect(Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.smoothScroll.isEmpty)
+    }
+
+    @Test func aDeviceWhoseServiceIsNotPublishedYetHasNoSender() {
+        let reconnected = HyperpointKitTests.present(5, Bags.mxMaster3)
+        #expect(Intent.compile(.default, paused: false, tapAvailable: true, present: [reconnected]).tap.smoothScroll.isEmpty)
+    }
+
+    @Test func pauseStopsSmoothScrolling() {
+        #expect(Intent.compile(.default, paused: true, tapAvailable: true, present: present).tap.isEmpty)
+    }
+
+    @Test func smoothScrollingAloneInstallsTheTap() {
+        var config = Config.default
+        config.devices = [config.devices[0]]
+        #expect(!Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.isEmpty)
     }
 }
 

@@ -114,12 +114,15 @@ public final class Engine {
         publish()
     }
 
-    private func handle(_ event: DeviceHub.Event) {
+    private func handle(_ event: DeviceRoster.Change) {
         switch event {
         case .appeared(let device):
             addSlot(for: device, atLaunch: false)
             recompile()
             slots[device.id]?.invalidate(.connected)
+        case .servicesChanged(let device):
+            journal.servicesChanged(device)
+            recompile()
         case .disappeared(let device):
             slots.removeValue(forKey: device.id)?.close()
             capabilities[device.id] = nil

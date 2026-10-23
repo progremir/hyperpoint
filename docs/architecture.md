@@ -36,7 +36,9 @@ Three things make the shape non-obvious.
       ],
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
-        "smooth": { "duration": 4, "brake": 2, "acceleration": true },
+        "smooth": {
+          "duration": 4, "easeIn": 0, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2
+        },
         "hiResWheel": true,
         "rightButtonPan": { "momentum": true },
         "clickThrough": { "left": true, "right": true }
@@ -109,7 +111,8 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `Control` | `.hidpp(CID)`, `.thumbWheel`, `.key(HIDUsage)` for a key a mouse sends from a keyboard interface, `.button(Int)` for a plain mouse button. |
 | `Trigger` | `.click`, `.hold`, `.holdMove(Direction)`, `.scroll`. |
 | `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. |
-| `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, `Capabilities`. |
+| `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, the ids of its HID event services, `Capabilities`. |
+| `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it from IOKit, and it decides which device a newly published event service belongs to. |
 | `Capabilities` | What discovery found. HID++ controls with their flags (temporary divert, rawXY), thumb wheel, keyboard interface, pointer, keyboard. Never stored in config. |
 | `Intent` | `Intent.compile(config, paused, present)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
@@ -132,8 +135,8 @@ One SwiftPM library with three folders and a thin app target, built into a signe
 | Path | Access | Holds |
 | --- | --- | --- |
 | `Sources/HyperpointKit/Model` | public | `Config` and its parts, `ConfigCodec`, `EngineStatus` |
-| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ApplyScheduler`, `RetryPolicy`, `Capabilities` |
-| `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ScrollAnimator`, `ActionPerformer`, `Journal` |
+| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities` |
+| `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ActionPerformer`, `Journal` |
 | `Sources/Hyperpoint` | app | `AppModel`, the menu, Welcome and settings views |
 
 Per-layer SwiftPM targets do not stop the app importing a lower layer (measured), but access control does hide internals across the library boundary (measured). `scripts/check-layers.sh` fails the build when Core imports IOKit or anything from Runtime.
@@ -146,7 +149,7 @@ Each device-facing thread is a global actor whose executor is that thread's CFRu
 | --- | --- |
 | Main actor | `AppModel`, SwiftUI, `ActionPerformer` (symbolic hotkey lookup runs on main in Mac Mouse Fix, so Hyperpoint does the same) |
 | `@HIDActor` | `Engine` (desired state), `DeviceHub` and its IOHIDManager, every `Slot`, every `HIDPPSession` and its `HIDPPLink`, `Journal` |
-| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, `ScrollAnimator`, the watchdog. Nothing else ever runs here. |
+| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` instance and its glide timer, the watchdog. Nothing else ever runs here. |
 | Cooperative pool | `ConfigStore` (an actor that owns the file), `KeyMapWriter` (the `hidutil` process), permission polling |
 
 State crosses only as immutable `Sendable` values.
@@ -167,7 +170,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 1. **One reconcile path.** Every trigger calls `slot.invalidate(reason)`. `ApplyScheduler` gives each device one writer and collapses triggers that arrive mid-apply into one follow-up. Every write is absolute, so running an apply twice, or after a crash halfway, ends in the same state (per make-operations-idempotent).
 2. **The HID++ conversation is a value.** `HIDPPLink` takes bytes and time and returns bytes, events and a deadline. Discovery, writes, read-back, retries, notifications, button edges and gesture recognition are all transitions on it. Tests drive it against a firmware model seeded with the measured BetterMouse state, and they assert the model's end state, not the request order (per test-behavior-not-implementation).
 3. **Device identity is decided at the HID layer for keys.** `hidutil` maps keys per service, and the tap only sees carrier key codes. The tap never has to work out which keyboard sent a key. No device is seized.
-4. **Pointer events are attributed by sender id.** Per-device scrolling, pan, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`.
+4. **Pointer events are attributed by sender id.** Per-device scrolling, pan, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`. Over BLE the event service is published after the IOHIDDevice matches (measured on an MX reconnect), so `DeviceHub` also watches for new `IOHIDEventService` entries. `DeviceRoster` gives each one to the device that owns one of its registry ancestors, and the engine recompiles `TapRules`.
 5. **Profiles are data, capabilities are discovered.** No device is a constant in code. The MX and 2.4G defaults are initial profile data in `Config.default`. A HID++ device's controls come from `getCidInfo`, so a different Logitech mouse works without code changes.
 
 ### Invariants and boundaries
@@ -190,10 +193,35 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 
 All four live in `TapPipeline` as stages, each with `static let interests`. `TapPipeline.mask` is derived from the stages, never hand-listed. Their settings reach the tap as per-sender entries in `TapRules`.
 
-- **Smooth scrolling.** `ScrollStage` drops wheel events from enabled senders and feeds `ScrollAnimator`, a pure velocity model (duration, brake, acceleration) driven by a timer on the tap run loop. It posts marked continuous-scroll events.
+- **Smooth scrolling.** `ScrollStage` drops wheel ticks from enabled senders and feeds `ScrollAnimator`, a pure velocity model driven by a timer on the tap run loop. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
 - **High-resolution wheel.** HID++ feature 0x2121 adds one write and one read-back to the device setup. `ScrollStage` then treats the finer deltas as input.
 - **Right-button pan.** `PanStage` holds a right-button down from an enabled sender. Drag past a few points turns it into scrolling, with momentum through `ScrollAnimator`. A release without drag replays the right click.
 - **Click-through.** `ClickThroughStage` sees a click from an enabled sender on a background window and makes it act at once. How it activates the window without eating the click is open ([Open questions](#open-questions-and-risks)).
+
+### Smooth scrolling
+
+The MX wheel without BetterMouse sends line-based wheel events, and apps such as Telegram animate each one as a separate jump. Hyperpoint replaces those events with a glide of continuous pixel scrolls, the kind a trackpad sends.
+
+`ScrollStage` takes a wheel event when it is line-based, vertical, has no modifier held, and comes from a sender in `TapRules.smoothScroll`. Every other scroll passes untouched. Trackpad scrolls are continuous, the thumb wheel is horizontal, shift-scroll and zoom carry a modifier, and other mice have no entry. Each taken event is one tick, and only the sign of its delta counts, so macOS's own wheel acceleration never stacks on Hyperpoint's.
+
+`ScrollAnimator` keeps one velocity. Each tick adds an impulse to it. Between ticks the velocity falls as `(1 - t / duration) ^ brake`, so it reaches zero exactly `duration` after the last tick. A new glide can ease in first. Its velocity rises from 0 to the peak along a smoothstep curve over `easeIn`, then falls as usual, so the glide ends `easeIn` + `duration` after its tick. With both in seconds and `D = duration / (brake + 1)`, the decay covers `peak × D` and the smoothstep covers `peak × easeIn / 2`. The peak is multiplied by `D / (easeIn / 2 + D)`, so the tick travels as far as it would without the ease-in. A tick that arrives during the ease-in ends it. The glide's remaining distance carries on as a plain decay from that tick, plus the new tick's impulse, and later ticks never ease in, so a spin does not stutter. A tick in the other direction ends the glide on the next frame and starts a new one. The impulse is sized to give each knob one job:
+
+- A tick when no glide is running scrolls `startBoost` × `speed` points. This is the faster start the user asked for.
+- A steady stream scrolls `speed` × gain points per tick whatever `duration` and `brake` are, so those two shape only the glide. The boost fades as ticks come closer together, so the distance per tick has no step where a glide ends.
+- The gain is linear in the tick rate `r`, in ticks per second: `1 + (r - from) / (to - from) × (max - 1)`, held between 1 and `max`. With the defaults a tick scrolls 1× at 4 ticks per second or slower, 2× at 22 and 3× at 40 or faster. `acceleration: false` keeps the gain at 1, and `true` uses the defaults.
+
+| Key | Meaning | Default | Range |
+| --- | --- | --- | --- |
+| `duration` | Glide length after the last tick, in tenths of a second | 4 | 1 to 20 |
+| `brake` | Exponent of the velocity decay. At 1 the glide slows evenly. Higher values brake hard first and coast into a soft stop. | 2 | 0.5 to 10 |
+| `acceleration` | `false`, `true` for the defaults, or `{ "from", "to", "max" }`. The gain starts above 1 at `from` ticks per second and reaches `max` at `to`. | `{ "from": 4, "to": 40, "max": 3 }` | `from` 0 or more, `to` more than `from`, `max` 1 or more |
+| `speed` | Points per tick in a steady stream | 40 | 1 to 500 |
+| `startBoost` | Distance of a tick when no glide is running, as a multiple of `speed` | 2 | 1 to 10 |
+| `easeIn` | Milliseconds a new glide takes to reach its full velocity. The distance stays the same. 0 starts it at full velocity. | 0 | 0 to 300 |
+
+`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed`, `startBoost` or `easeIn` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s. A steady stream of 10 ticks per second scrolls about 670 points per second, 20 about 1,700, 30 about 3,200 and 60 about 7,500 (measured on the animator with a fake clock).
+
+`TapHost` arms a 120 Hz run-loop timer on the tap thread when a tick starts a glide and disarms it when the animator is idle. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed knobs apply from the next tick.
 
 ### Build setup
 
@@ -252,6 +280,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 7. **Click-through mechanics.** Making a background click act at once may need activating the window first and replaying the click. It needs a prototype in v2.
 8. **Gesture distance.** 120 sensor counts is a guess. It is tuned by feel.
 9. **Carrier collisions.** A keyboard with physical F13 to F24 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
+10. **Smooth scrolling feel.** The defaults are a starting point for tuning by feel. Nobody measured them against BetterMouse. A free-spinning wheel may also send one tick backwards as it stops. That tick would end the glide and scroll back one boosted tick. Neither has been tried on the MX yet.
 
 ## Next implementation step
 
@@ -276,6 +305,9 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | Seizing a keyboard device is refused by TCC even for root. | sourced |
 | Secure input disables keyboard event taps. | sourced |
 | A listen-only event tap receives nothing without Input Monitoring. An active pass-through tap works with Accessibility alone. | measured |
+| After a BLE reconnect the MX's `AppleUserHIDEventService` is published after its IOHIDDevice matches, so a walk down from the device at match time finds no event service. A first-match notification for `IOHIDEventService` reports it, and its registry ancestors include the IOHIDDevice's service. | measured |
+| CG converts a one-line wheel event to 10 points. A pixel-unit scroll event is continuous, and setting one of its delta fields rewrites the others. | measured |
+| AppKit reads a posted pixel scroll that carries a scroll phase as precise deltas, with `NSEvent` phases began, changed and ended. | measured |
 
 ## Appendix B. Prototype results
 
