@@ -90,6 +90,16 @@ public enum ConfigCodec {
                         path: "\(path).scrolling.smooth.\(bad.key)",
                         message: String(format: "must be between %g and %g", bad.range.lowerBound, bad.range.upperBound))
                 }
+                if let acceleration = smooth.acceleration {
+                    let rules: [(key: String, holds: Bool, message: String)] = [
+                        ("from", acceleration.from >= 0, "must be 0 or more"),
+                        ("to", acceleration.to > acceleration.from, "must be more than from"),
+                        ("max", acceleration.max >= 1, "must be 1 or more"),
+                    ]
+                    if let bad = rules.first(where: { !$0.holds }) {
+                        return ConfigError(path: "\(path).scrolling.smooth.acceleration.\(bad.key)", message: bad.message)
+                    }
+                }
             }
             for (ruleIndex, rule) in (profile.rules ?? []).enumerated() {
                 let rulePath = "\(path).rules[\(ruleIndex)]"

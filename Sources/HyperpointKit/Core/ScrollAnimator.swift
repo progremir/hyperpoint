@@ -85,8 +85,6 @@ struct ScrollAnimator {
 
 private struct Glide {
     static let minimumInterval = 0.001
-    static let accelerationOnset = 0.05
-    static let maximumGain = 4.0
 
     let sign: ScrollTick.Sign
     var settings: SmoothScroll
@@ -147,8 +145,14 @@ private struct Glide {
         let spacing = interval.map { max($0, minimumInterval) }
         let x = spacing.map { min(1, $0 / length) } ?? 1
         let boost = 1 + (settings.startBoost - 1) * x
-        let gain = settings.acceleration ? spacing.map { min(maximumGain, max(1, accelerationOnset / $0)) } ?? 1 : 1
+        let gain = spacing.flatMap { spacing in settings.acceleration?.gain(ticksPerSecond: 1 / spacing) } ?? 1
         let steady = x < 1 ? (1 - pow(1 - x, brake + 1)) / (1 - pow(1 - x, brake)) : 1
         return settings.speed * boost * gain * (brake + 1) / (length * steady)
+    }
+}
+
+extension Acceleration {
+    func gain(ticksPerSecond rate: Double) -> Double {
+        1 + min(1, Swift.max(0, (rate - from) / (to - from))) * (max - 1)
     }
 }

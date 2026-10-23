@@ -36,7 +36,9 @@ Three things make the shape non-obvious.
       ],
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
-        "smooth": { "duration": 4, "brake": 2, "acceleration": true, "speed": 40, "startBoost": 2 },
+        "smooth": {
+          "duration": 4, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2
+        },
         "hiResWheel": true,
         "rightButtonPan": { "momentum": true },
         "clickThrough": { "left": true, "right": true }
@@ -205,18 +207,18 @@ The MX wheel without BetterMouse sends line-based wheel events, and apps such as
 `ScrollAnimator` keeps one velocity. Each tick adds an impulse to it. Between ticks the velocity falls as `(1 - t / duration) ^ brake`, so it reaches zero exactly `duration` after the last tick. A tick in the other direction ends the glide on the next frame and starts a new one. The impulse is sized to give each knob one job:
 
 - A tick when no glide is running scrolls `startBoost` × `speed` points. This is the faster start the user asked for.
-- A steady stream scrolls `speed` points per tick whatever `duration` and `brake` are, so those two shape only the glide. The boost fades as ticks come closer together, so the distance per tick has no step where a glide ends.
-- With `acceleration`, ticks closer than 50 ms each scroll farther, up to 4× at 80 ticks per second.
+- A steady stream scrolls `speed` × gain points per tick whatever `duration` and `brake` are, so those two shape only the glide. The boost fades as ticks come closer together, so the distance per tick has no step where a glide ends.
+- The gain is linear in the tick rate `r`, in ticks per second: `1 + (r - from) / (to - from) × (max - 1)`, held between 1 and `max`. With the defaults a tick scrolls 1× at 4 ticks per second or slower, 2× at 22 and 3× at 40 or faster. `acceleration: false` keeps the gain at 1, and `true` uses the defaults.
 
 | Key | Meaning | Default | Range |
 | --- | --- | --- | --- |
 | `duration` | Glide length after the last tick, in tenths of a second | 4 | 1 to 20 |
 | `brake` | Exponent of the velocity decay. At 1 the glide slows evenly. Higher values brake hard first and coast into a soft stop. | 2 | 0.5 to 10 |
-| `acceleration` | Ticks closer than 50 ms scroll farther | true | |
+| `acceleration` | `false`, `true` for the defaults, or `{ "from", "to", "max" }`. The gain starts above 1 at `from` ticks per second and reaches `max` at `to`. | `{ "from": 4, "to": 40, "max": 3 }` | `from` 0 or more, `to` more than `from`, `max` 1 or more |
 | `speed` | Points per tick in a steady stream | 40 | 1 to 500 |
 | `startBoost` | Distance of a tick when no glide is running, as a multiple of `speed` | 2 | 1 to 10 |
 
-`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed` or `startBoost` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s, 10 ticks per second scroll about 490 points per second, and 60 ticks per second about 6,000 (measured on the animator with a fake clock).
+`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed` or `startBoost` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s. A steady stream of 10 ticks per second scrolls about 670 points per second, 20 about 1,700, 30 about 3,200 and 60 about 7,500 (measured on the animator with a fake clock).
 
 `TapHost` arms a 120 Hz run-loop timer on the tap thread when a tick starts a glide and disarms it when the animator is idle. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed knobs apply from the next tick.
 

@@ -46,6 +46,11 @@ private func with(_ change: (inout SmoothScroll) -> Void) -> SmoothScroll {
     return settings
 }
 
+private func perTickInSteadyStream(_ rate: Double, _ settings: SmoothScroll) -> Double {
+    let stream = glide(burst(Int(5 * rate), perSecond: rate), settings, seconds: 6)
+    return Double(stream.distance(from: 1, to: 3)) / (2 * rate)
+}
+
 @Suite struct ScrollAnimatorTests {
     @Test func aTickAfterIdleGoesFartherThanAPlainNotch() {
         let notch = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: 1, wheel2: 0, wheel3: 0)!
@@ -64,7 +69,7 @@ private func with(_ change: (inout SmoothScroll) -> Void) -> SmoothScroll {
     @Test func aFastBurstAcceleratesWhenAccelerationIsOn() {
         let fast = burst(20, perSecond: 60)
         let accelerated = glide(fast).distance
-        let flat = glide(fast, with { $0.acceleration = false }).distance
+        let flat = glide(fast, with { $0.acceleration = nil }).distance
         #expect(accelerated > 2 * flat)
         #expect(glide(burst(20, perSecond: 60)).distance > glide(burst(20, perSecond: 10)).distance)
     }
@@ -74,12 +79,35 @@ private func with(_ change: (inout SmoothScroll) -> Void) -> SmoothScroll {
             let settings = with {
                 $0.duration = duration
                 $0.brake = brake
-                $0.acceleration = false
+                $0.acceleration = nil
                 $0.startBoost = 1
             }
             let stream = glide(burst(40, perSecond: 10), settings, seconds: 6)
             let perTick = Double(stream.distance(from: 1, to: 3)) / 20
             #expect(abs(perTick - settings.speed) < 0.1 * settings.speed, "duration \(duration), brake \(brake)")
+        }
+    }
+
+    @Test func accelerationGainRisesLinearlyWithTickRate() {
+        let settings = with {
+            $0.startBoost = 1
+            $0.acceleration = Acceleration(from: 4, to: 40, max: 3)
+        }
+        let expected: [(rate: Double, gain: Double)] = [(3, 1), (4, 1), (13, 1.5), (22, 2), (31, 2.5), (40, 3), (80, 3)]
+        for (rate, gain) in expected {
+            let perTick = perTickInSteadyStream(rate, settings)
+            #expect(abs(perTick / (settings.speed * gain) - 1) < 0.05, "\(rate) ticks/s scroll \(perTick) per tick")
+        }
+    }
+
+    @Test func withoutAccelerationEveryRateScrollsSpeedPerTick() {
+        let settings = with {
+            $0.startBoost = 1
+            $0.acceleration = nil
+        }
+        for rate in [3.0, 22, 80] {
+            let perTick = perTickInSteadyStream(rate, settings)
+            #expect(abs(perTick / settings.speed - 1) < 0.05, "\(rate) ticks/s scroll \(perTick) per tick")
         }
     }
 
