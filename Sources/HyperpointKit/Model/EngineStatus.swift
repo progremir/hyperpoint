@@ -8,17 +8,21 @@ public struct EngineStatus: Equatable, Sendable {
     public var tap: TapState
     /// One row per profile, in config order.
     public var devices: [DeviceStatus]
+    /// Connected devices that no profile matches and that are not ignored, one row per match. Hyperpoint leaves them
+    /// as macOS has them.
+    public var newDevices: [DeviceStatus]
     public var lastReconnect: Reconnect?
 
     public init(
         run: RunState, permissions: PermissionState, configError: ConfigError?, tap: TapState,
-        devices: [DeviceStatus], lastReconnect: Reconnect?
+        devices: [DeviceStatus], newDevices: [DeviceStatus] = [], lastReconnect: Reconnect?
     ) {
         self.run = run
         self.permissions = permissions
         self.configError = configError
         self.tap = tap
         self.devices = devices
+        self.newDevices = newDevices
         self.lastReconnect = lastReconnect
     }
 
@@ -73,6 +77,12 @@ public enum TapState: Equatable, Sendable {
 
 public struct DeviceStatus: Equatable, Sendable {
     public var name: String
+    public var match: DeviceMatch
+    /// Nil when the device is not connected.
+    public var kind: DeviceKind?
+    /// How the device connects as IOKit names it, such as "Bluetooth Low Energy" or "USB". Nil when not connected
+    /// or unknown.
+    public var transport: String?
     /// When the device connected, or nil when it is not connected.
     public var connectedAt: Date?
     /// Nil when the profile does not ask for the hyper key.
@@ -80,12 +90,25 @@ public struct DeviceStatus: Equatable, Sendable {
     /// Nil until Hyperpoint has something to write to the device over HID++.
     public var hidpp: HIDPPStatus?
 
-    public init(name: String, connectedAt: Date?, hyper: HyperStatus?, hidpp: HIDPPStatus? = nil) {
+    public init(
+        name: String, match: DeviceMatch, kind: DeviceKind? = nil, transport: String? = nil, connectedAt: Date?,
+        hyper: HyperStatus?, hidpp: HIDPPStatus? = nil
+    ) {
         self.name = name
+        self.match = match
+        self.kind = kind
+        self.transport = transport
         self.connectedAt = connectedAt
         self.hyper = hyper
         self.hidpp = hidpp
     }
+}
+
+public enum DeviceKind: Equatable, Sendable {
+    /// A keyboard that can host the hyper key.
+    case keyboard
+    /// Any other device, such as a mouse that also sends keys.
+    case mouse
 }
 
 public struct HIDPPStatus: Equatable, Sendable {

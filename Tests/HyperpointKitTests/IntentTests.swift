@@ -287,12 +287,14 @@ import Testing
         let mx = HIDProperties(bag: Bags.mxMaster3)
         #expect(mx.speaksHIDPP)
         #expect(!mx.hostsHyper)
+        #expect(mx.kind == .mouse)
     }
 
     @Test func keyboardsHostHyperAndDoNotSpeakHIDPP() {
         for bag in [Bags.builtInKeyboard, Bags.magicKeyboard, Bags.karabinerVirtualKeyboard] {
             let properties = HIDProperties(bag: bag)
             #expect(properties.hostsHyper && !properties.speaksHIDPP, "\(properties.name ?? "")")
+            #expect(properties.kind == .keyboard, "\(properties.name ?? "")")
         }
     }
 

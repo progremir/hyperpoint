@@ -199,3 +199,34 @@ func rejection(_ json: String) -> ConfigError? {
         #expect(error.path == mutation.path)
     }
 }
+
+@Suite struct RuleAcceptanceTests {
+    static let controls: [Control] = [.hidpp(CID(rawValue: 0xC3)), .thumbWheel, .key(HIDUsage(name: "escape")!), .button(4)]
+    static let triggers: [Trigger] = [.click, .hold, .holdMove(.up), .scroll]
+    static let actions: [Action] = [
+        .system(.missionControl), .shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.command])),
+        .modifier(.rightOption), .reverse,
+    ]
+
+    static func parses(_ rule: Rule) -> Bool {
+        var config = Config.default
+        config.devices[0].rules = [rule]
+        return (try? ConfigCodec.decode(ConfigCodec.encode(config))) != nil
+    }
+
+    @Test(arguments: controls)
+    func acceptsMatchesWhatTheParserTakes(_ control: Control) {
+        for trigger in Self.triggers {
+            let parsesWithSomeAction = Self.actions.contains {
+                Self.parses(Rule(control: control, trigger: trigger, action: $0))
+            }
+            #expect(control.accepts(trigger) == parsesWithSomeAction, "\(control) \(trigger)")
+            for action in Self.actions {
+                #expect(
+                    control.accepts(action, on: trigger)
+                        == Self.parses(Rule(control: control, trigger: trigger, action: action)),
+                    "\(control) \(trigger) \(action)")
+            }
+        }
+    }
+}

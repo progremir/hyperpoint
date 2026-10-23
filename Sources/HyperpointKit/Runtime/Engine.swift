@@ -181,9 +181,21 @@ public final class Engine {
             let device = present.first { config?.profile(for: $0.properties) == profile }
             let slot = device.flatMap { slots[$0.id] }
             return DeviceStatus(
-                name: profile.name, connectedAt: slot?.connectedAt,
+                name: profile.name, match: profile.match, kind: device?.properties.kind,
+                transport: device?.properties.transport, connectedAt: slot?.connectedAt,
                 hyper: profile.hyper == true ? slot.map(Self.hyperStatus) ?? .off : nil,
                 hidpp: slot.flatMap(hidppStatus))
+        }
+        var newDevices: [DeviceStatus] = []
+        if let config {
+            for device in present where !config.devices.contains(where: { $0.match.matches(device.properties) }) {
+                let match = DeviceMatch(identifying: device.properties)
+                guard !config.ignored.contains(match), !newDevices.contains(where: { $0.match == match }) else { continue }
+                newDevices.append(
+                    DeviceStatus(
+                        name: device.name, match: match, kind: device.properties.kind,
+                        transport: device.properties.transport, connectedAt: slots[device.id]?.connectedAt, hyper: nil))
+            }
         }
         let reconnect = lastReconnect.map { last in
             Reconnect(device: last.name, at: last.at, reapplied: slots[last.device]?.reapplied ?? false)
@@ -191,7 +203,7 @@ public final class Engine {
         statusSink.yield(
             EngineStatus(
                 run: paused ? .paused : .active, permissions: permissions, configError: configError, tap: tap,
-                devices: rows, lastReconnect: reconnect))
+                devices: rows, newDevices: newDevices, lastReconnect: reconnect))
     }
 
     private func hidppStatus(_ slot: Slot) -> HIDPPStatus? {

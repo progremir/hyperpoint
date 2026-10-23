@@ -54,6 +54,29 @@ public actor ConfigStore {
         return stream
     }
 
+    /// Applies `change` to the file as it is on disk now and saves the result. It refuses while the file is invalid,
+    /// so a hand edit in progress is never overwritten, and it refuses a result the parser would reject.
+    public func update(_ change: @Sendable (Config) -> Config) throws(ConfigError) {
+        let current: Config
+        do {
+            current = try ConfigCodec.decode(try Data(contentsOf: url))
+        } catch let error as ConfigError {
+            throw ConfigError(path: error.path, message: "the file has an error, so it was not changed. \(error.message)")
+        } catch {
+            throw ConfigError(path: "", message: "cannot read the file: \(error)")
+        }
+        let next = change(current)
+        guard next != current else { return }
+        let data = ConfigCodec.encode(next)
+        _ = try ConfigCodec.decode(data)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw ConfigError(path: "", message: "cannot write \(url.path): \(error)")
+        }
+        reload()
+    }
+
     func reload() {
         let last = current?.config
         do {

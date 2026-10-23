@@ -49,6 +49,8 @@ struct HIDProperties: Equatable, Sendable {
     /// A keyboard that is not also an external mouse. The built-in keyboard shares its device with the trackpad, so
     /// built-in devices always count.
     var hostsHyper: Bool { usagePairs.contains(.keyboard) && (builtIn || !usagePairs.contains(.mouse)) }
+
+    var kind: DeviceKind { hostsHyper ? .keyboard : .mouse }
 }
 
 struct DeviceKey: Hashable, Sendable {

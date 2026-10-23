@@ -10,6 +10,9 @@ public struct HIDUsage: Hashable, Sendable {
     }
 
     public var name: String? { KeyTable.byUsage[self]?.name }
+
+    /// Every key the config file can name, in keyboard order.
+    public static let named: [HIDUsage] = KeyTable.keys.map(\.usage)
 }
 
 /// A virtual key code (`kVK_*`), as CGEvents carry it.
@@ -19,6 +22,12 @@ public struct KeyCode: Hashable, Sendable {
 
     public init?(name: String) {
         guard let key = KeyTable.byName[name.lowercased()] else { return nil }
+        self = key.keyCode
+    }
+
+    /// Nil for a key the config file cannot name.
+    public init?(virtualKeyCode: UInt16) {
+        guard let key = KeyTable.byKeyCode[KeyCode(rawValue: virtualKeyCode)] else { return nil }
         self = key.keyCode
     }
 

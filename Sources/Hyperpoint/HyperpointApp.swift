@@ -19,6 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.start()
+        if let directory = UserDefaults.standard.string(forKey: "snapshotSettings") {
+            model.snapshotSettings(to: URL(fileURLWithPath: directory))
+        }
         // SIGTERM would otherwise skip the quit path and leave Caps Lock mapped to F18.
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)

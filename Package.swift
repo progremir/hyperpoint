@@ -15,5 +15,6 @@ let package = Package(
         .target(name: "HyperpointKit", swiftSettings: strict),
         .executableTarget(name: "Hyperpoint", dependencies: ["HyperpointKit"], swiftSettings: strict),
         .testTarget(name: "HyperpointKitTests", dependencies: ["HyperpointKit"], swiftSettings: strict),
+        .testTarget(name: "HyperpointTests", dependencies: ["Hyperpoint"], swiftSettings: strict),
     ]
 )
