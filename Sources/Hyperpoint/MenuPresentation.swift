@@ -70,7 +70,7 @@ struct MenuPresentation: Equatable {
                 fix: .permission(.accessibility))
         case .permission(.inputMonitoring):
             Notice(
-                title: "Input Monitoring is off", detail: "Mouse buttons will need it. Click to allow.",
+                title: "Input Monitoring is off", detail: "Mouse buttons need it. Click to allow.",
                 fix: .permission(.inputMonitoring))
         case .config(let error):
             Notice(
@@ -84,6 +84,15 @@ struct MenuPresentation: Equatable {
 
     private static func detail(_ device: DeviceStatus, paused: Bool) -> String {
         guard device.connectedAt != nil else { return "Not connected" }
+        switch device.hidpp?.progress {
+        case .applying: return "Applying…"
+        case .notSetUp: return "Connected, not set up"
+        case .setUp where device.hyper == nil:
+            if paused { return "Paused" }
+            let skipped = device.hidpp?.skippedRules.count ?? 0
+            return skipped == 0 ? "Connected" : "Connected, \(skipped) \(skipped == 1 ? "rule" : "rules") skipped"
+        case .setUp, nil: break
+        }
         switch device.hyper {
         case nil: return "Connected"
         case .on: return "Hyper key on"
