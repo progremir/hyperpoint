@@ -26,7 +26,7 @@ forbid_imports $kit/Model 'AppKit|SwiftUI|IOKit(\..*)?|CoreGraphics|ApplicationS
 forbid_imports $kit/Core 'AppKit|SwiftUI|IOKit(\..*)?|ApplicationServices|CoreServices|Carbon|os|Dispatch' "Core is pure"
 forbid_imports Sources/Hyperpoint 'IOKit(\..*)?|CoreGraphics|ApplicationServices|Carbon' "the app talks to Engine, never to devices"
 
-effects=$(code $kit/Core 'Thread\b|DispatchQueue|CFRunLoop|Date\(\)|Date\.now|Process\(|FileManager|UserDefaults|Task *[({]|\.sleep\(')
+effects=$(code $kit/Core 'Thread\b|DispatchQueue|CFRunLoop|Date\(\)|\.now\b|Process\(|FileManager|UserDefaults|Task *[({]|\.sleep\(')
 [[ -z "$effects" ]] || fail "$kit/Core has effects: threads, clocks, processes and files belong in Runtime" "$effects"
 
 forbid_symbols $kit/Core $kit/Runtime

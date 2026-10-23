@@ -1,3 +1,12 @@
+struct UsagePair: Hashable, Sendable {
+    var page: Int
+    var usage: Int
+
+    static let keyboard = UsagePair(page: 0x01, usage: 0x06)
+    static let mouse = UsagePair(page: 0x01, usage: 0x02)
+    static let hidppPage = 0xFF43
+}
+
 struct HIDProperties: Equatable, Sendable {
     var vendor: VendorID
     var product: ProductID
@@ -7,10 +16,16 @@ struct HIDProperties: Equatable, Sendable {
     var name: String?
     var primaryUsagePage: Int
     var primaryUsage: Int
+    /// Every top-level collection. The MX Master 3 reports keyboard as its primary usage and also has mouse and
+    /// HID++ collections (measured).
+    var usagePairs: [UsagePair]
 
     static let keys = [
         "VendorID", "ProductID", "Built-In", "Transport", "LocationID", "Product", "PrimaryUsagePage", "PrimaryUsage",
+        "DeviceUsagePairs",
     ]
+
+    static let logitech = VendorID(rawValue: 0x046D)
 
     /// The built-in keyboard has no VendorID or ProductID at all (measured).
     init(bag: [String: Any]) {
@@ -23,7 +38,17 @@ struct HIDProperties: Equatable, Sendable {
         name = bag["Product"] as? String
         primaryUsagePage = number("PrimaryUsagePage")
         primaryUsage = number("PrimaryUsage")
+        let pairs = (bag["DeviceUsagePairs"] as? [[String: Any]] ?? []).compactMap { pair in
+            (pair["DeviceUsagePage"] as? Int).flatMap { page in (pair["DeviceUsage"] as? Int).map { UsagePair(page: page, usage: $0) } }
+        }
+        usagePairs = pairs.isEmpty ? [UsagePair(page: primaryUsagePage, usage: primaryUsage)] : pairs
     }
+
+    var speaksHIDPP: Bool { vendor == Self.logitech && usagePairs.contains { $0.page == UsagePair.hidppPage } }
+
+    /// A keyboard that is not also an external mouse. The built-in keyboard shares its device with the trackpad, so
+    /// built-in devices always count.
+    var hostsHyper: Bool { usagePairs.contains(.keyboard) && (builtIn || !usagePairs.contains(.mouse)) }
 }
 
 struct DeviceKey: Hashable, Sendable {
@@ -56,6 +81,7 @@ struct PresentDevice: Equatable, Sendable {
     var key: DeviceKey
     var properties: HIDProperties
     var eventServices: [SenderID]
+    var hidpp: HIDPPCapabilities?
 
     var name: String { properties.name ?? "Unknown device" }
 }

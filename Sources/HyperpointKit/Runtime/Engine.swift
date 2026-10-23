@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @HIDActor
@@ -5,6 +6,9 @@ public final class Engine {
     /// Latest wins, so a slow UI never renders a stale status.
     public nonisolated let statuses: AsyncStream<EngineStatus>
     private nonisolated let statusSink: AsyncStream<EngineStatus>.Continuation
+    /// Button actions, in order, for `ActionPerformer` on the main actor.
+    public nonisolated let actions: AsyncStream<Action>
+    private nonisolated let actionSink: AsyncStream<Action>.Continuation
     private nonisolated let tapOrders: AsyncStream<TapOrder>
     private nonisolated let tapOrderSink: AsyncStream<TapOrder>.Continuation
     private nonisolated let tapSignals: AsyncStream<TapSignal>
@@ -20,6 +24,7 @@ public final class Engine {
     private var intent = Intent.neutral
     private var sentTapOrder: TapOrder?
     private var slots: [DeviceInstanceID: Slot] = [:]
+    private var capabilities: [DeviceInstanceID: HIDPPCapabilities] = [:]
     private var lastReconnect: (device: DeviceInstanceID, name: String, at: Date)?
     private var started = false
     private let journal = Journal()
@@ -27,6 +32,7 @@ public final class Engine {
 
     public nonisolated init() {
         (statuses, statusSink) = AsyncStream.makeStream(of: EngineStatus.self, bufferingPolicy: .bufferingNewest(1))
+        (actions, actionSink) = AsyncStream.makeStream(of: Action.self)
         (tapOrders, tapOrderSink) = AsyncStream.makeStream(of: TapOrder.self, bufferingPolicy: .bufferingNewest(1))
         (tapSignals, tapSignalSink) = AsyncStream.makeStream(of: TapSignal.self)
         tapHost = TapHost(signals: tapSignalSink)
@@ -41,6 +47,7 @@ public final class Engine {
             group.addTask { for await signal in self.tapSignals { await self.tapSignaled(signal) } }
             group.addTask { for await snapshot in configs { await self.configChanged(snapshot) } }
             group.addTask { for await state in permissions { await self.permissionsChanged(state) } }
+            group.addTask { await self.followWakes() }
         }
     }
 
@@ -82,9 +89,19 @@ public final class Engine {
 
     private func permissionsChanged(_ state: PermissionState) {
         guard state != permissions else { return }
-        let tapPermissionChanged = state.accessibility != permissions.accessibility
         permissions = state
-        if tapPermissionChanged { reconcile(.permissionChanged) } else { publish() }
+        reconcile(.permissionChanged)
+    }
+
+    /// Sleep loses HID++ diverts, and a keyboard service can come back without its key map.
+    private nonisolated func followWakes() async {
+        let center = await MainActor.run { NSWorkspace.shared.notificationCenter }
+        for await _ in center.notifications(named: NSWorkspace.didWakeNotification) { await woke() }
+    }
+
+    private func woke() {
+        journal.note("woke from sleep")
+        reconcile(.wake)
     }
 
     private func tapSignaled(_ signal: TapSignal) {
@@ -105,6 +122,7 @@ public final class Engine {
             slots[device.id]?.invalidate(.connected)
         case .disappeared(let device):
             slots.removeValue(forKey: device.id)?.close()
+            capabilities[device.id] = nil
             journal.disconnected(device)
             recompile(resendTapOrder: true)
         }
@@ -116,9 +134,23 @@ public final class Engine {
         journal.connected(device, profile: profile?.name, atLaunch: atLaunch)
         if !atLaunch, let profile { lastReconnect = (device.id, profile.name, Date()) }
         slots[device.id] = Slot(
-            device: device, journal: journal,
+            device: device, hidppInterface: hub.hidppInterface(of: device.id), journal: journal,
             desired: { [unowned self] in intent.setup(for: device.id) },
-            changed: { [unowned self] in publish() })
+            changed: { [unowned self] in publish() },
+            discovered: { [unowned self] found in
+                capabilities[device.id] = found
+                recompile()
+                publish()
+            },
+            perform: { [actionSink] in actionSink.yield($0) })
+    }
+
+    private var present: [PresentDevice] {
+        hub.devices.map { device in
+            var device = device
+            device.hidpp = capabilities[device.id]
+            return device
+        }
     }
 
     private func reconcile(_ reason: ApplyReason, resendTapOrder: Bool = false) {
@@ -131,7 +163,7 @@ public final class Engine {
         let tapAvailable = permissions.accessibility == .granted
         intent =
             config.map {
-                Intent.compile($0, paused: paused || quitting, tapAvailable: tapAvailable, present: hub.devices)
+                Intent.compile($0, paused: paused || quitting, tapAvailable: tapAvailable, present: present)
             } ?? .neutral
         let order = TapOrder(install: tapAvailable && !intent.tap.isEmpty, rules: intent.tap)
         if resendTapOrder || order != sentTapOrder {
@@ -147,17 +179,29 @@ public final class Engine {
             let slot = device.flatMap { slots[$0.id] }
             return DeviceStatus(
                 name: profile.name, connectedAt: slot?.connectedAt,
-                hyper: profile.hyper == true ? slot.map(Self.hyperStatus) ?? .off : nil)
+                hyper: profile.hyper == true ? slot.map(Self.hyperStatus) ?? .off : nil,
+                hidpp: slot.flatMap(hidppStatus))
         }
         let reconnect = lastReconnect.map { last in
-            Reconnect(
-                device: last.name, at: last.at,
-                reapplied: slots[last.device].map { $0.phase == .idle && $0.ownedOnDevice?.carriesHyper == true } ?? false)
+            Reconnect(device: last.name, at: last.at, reapplied: slots[last.device]?.reapplied ?? false)
         }
         statusSink.yield(
             EngineStatus(
                 run: paused ? .paused : .active, permissions: permissions, configError: configError, tap: tap,
                 devices: rows, lastReconnect: reconnect))
+    }
+
+    private func hidppStatus(_ slot: Slot) -> HIDPPStatus? {
+        let progress: HIDPPStatus.Progress
+        switch (slot.hidppApplying, slot.hidppLast?.outcome) {
+        case (true, _): progress = .applying
+        case (false, .applied): progress = .setUp
+        case (false, .failed(let why)), (false, .skipped(let why)): progress = .notSetUp(why)
+        case (false, nil): return nil
+        }
+        return HIDPPStatus(
+            progress: progress, lastApply: slot.hidppLast?.at, capabilities: capabilities[slot.device.id],
+            skippedRules: intent.skipped[slot.device.id] ?? [])
     }
 
     private static func hyperStatus(_ slot: Slot) -> HyperStatus {

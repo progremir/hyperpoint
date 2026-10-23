@@ -1,8 +1,8 @@
 import IOKit
 import IOKit.hid
 
-/// Tracks which keyboards are present. The manager is never opened, so no device is opened or seized, and it still
-/// delivers matching callbacks (measured).
+/// Tracks which keyboards and HID++ devices are present. The manager is never opened, so it seizes nothing, and it
+/// still delivers matching callbacks (measured).
 @HIDActor
 final class DeviceHub {
     enum Event {
@@ -19,6 +19,7 @@ final class DeviceHub {
     private struct Entry {
         var device: PresentDevice
         var interfaces: Set<UInt64>
+        var hidppInterface: IOHIDDevice?
     }
 
     private let onEvent: @HIDActor (Event) -> Void
@@ -31,11 +32,21 @@ final class DeviceHub {
 
     var devices: [PresentDevice] { entries.values.map(\.device).sorted { $0.id.rawValue < $1.id.rawValue } }
 
+    func hidppInterface(of device: DeviceInstanceID) -> IOHIDDevice? {
+        entries.values.first { $0.device.id == device }?.hidppInterface
+    }
+
     func start() -> [PresentDevice] {
         guard manager == nil else { return devices }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        IOHIDManagerSetDeviceMatching(
-            manager, [kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop, kIOHIDPrimaryUsageKey: kHIDUsage_GD_Keyboard] as CFDictionary)
+        // The MX Master 3 matches both. The manager then lists two IOHIDDevice objects for its one service, which
+        // the registry id folds into one interface (measured).
+        IOHIDManagerSetDeviceMatchingMultiple(
+            manager,
+            [
+                [kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop, kIOHIDPrimaryUsageKey: kHIDUsage_GD_Keyboard],
+                [kIOHIDVendorIDKey: Int(HIDProperties.logitech.rawValue), kIOHIDDeviceUsagePageKey: UsagePair.hidppPage],
+            ] as CFArray)
         for device in (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>) ?? [] {
             _ = interfaceAppeared(device)
         }
@@ -58,16 +69,18 @@ final class DeviceHub {
         let key = DeviceKey(properties)
         keyOfInterface[registryID] = key
         let services = Self.eventServices(under: IOHIDDeviceGetService(interface))
+        let hidpp = properties.speaksHIDPP ? interface : nil
         if var entry = entries[key] {
             entry.interfaces.insert(registryID)
             entry.device.eventServices += services
+            entry.hidppInterface = entry.hidppInterface ?? hidpp
             entries[key] = entry
             return .anotherInterface
         }
         let device = PresentDevice(
             id: DeviceInstanceID(rawValue: nextID), key: key, properties: properties, eventServices: services)
         nextID += 1
-        entries[key] = Entry(device: device, interfaces: [registryID])
+        entries[key] = Entry(device: device, interfaces: [registryID], hidppInterface: hidpp)
         return .newDevice(device)
     }
 

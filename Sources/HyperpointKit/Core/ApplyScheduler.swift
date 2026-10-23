@@ -1,10 +1,12 @@
 enum ApplyReason: String, Hashable, Sendable {
     case launch
     case connected
+    case deviceAsked
     case configChanged
     case permissionChanged
     case pauseChanged
     case manual
+    case wake
     case quit
     case retry
 }

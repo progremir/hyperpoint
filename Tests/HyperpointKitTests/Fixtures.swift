@@ -4,6 +4,10 @@ enum Bags {
     static let builtInKeyboard: [String: any Sendable] = [
         "Built-In": 1, "Transport": "FIFO", "LocationID": 111, "Product": "Apple Internal Keyboard / Trackpad",
         "PrimaryUsagePage": 1, "PrimaryUsage": 6,
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 6], ["DeviceUsagePage": 12, "DeviceUsage": 1],
+            ["DeviceUsagePage": 0xFF00, "DeviceUsage": 6],
+        ],
     ]
     /// `hidutil list` shows the same keyboard as vendor 0x0, product 0x0.
     static let builtInKeyboardAsListed: [String: any Sendable] = builtInKeyboard.merging(["VendorID": 0, "ProductID": 0]) { $1 }
@@ -14,6 +18,10 @@ enum Bags {
     static let mxMaster3: [String: any Sendable] = [
         "VendorID": 1133, "ProductID": 45091, "Transport": "Bluetooth Low Energy", "LocationID": 745_701_390,
         "Product": "MX Master 3", "PrimaryUsagePage": 1, "PrimaryUsage": 6,
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 6], ["DeviceUsagePage": 1, "DeviceUsage": 2],
+            ["DeviceUsagePage": 1, "DeviceUsage": 1], ["DeviceUsagePage": 0xFF43, "DeviceUsage": 0x202],
+        ],
     ]
     static let karabinerVirtualKeyboard: [String: any Sendable] = [
         "VendorID": 0x5AC, "ProductID": 0x24F, "LocationID": 0, "Product": "Karabiner DriverKit VirtualHIDKeyboard 1.8.0",
@@ -33,3 +41,16 @@ let thisMac = [
 ]
 
 let capsLock = HIDUsage(name: "capsLock")!
+
+let measuredMXCapabilities = HIDPPCapabilities(
+    controls: [
+        (0x50, false, false), (0x51, false, false), (0x52, true, true), (0x53, true, true), (0x56, true, true),
+        (0xC3, true, true), (0xC4, true, true), (0xD7, true, true),
+    ].map { HIDPPCapabilities.Control(cid: CID(rawValue: $0.0), divertable: $0.1, rawXY: $0.2) },
+    thumbWheel: true)
+
+func discovered(_ device: PresentDevice, _ capabilities: HIDPPCapabilities = measuredMXCapabilities) -> PresentDevice {
+    var device = device
+    device.hidpp = capabilities
+    return device
+}

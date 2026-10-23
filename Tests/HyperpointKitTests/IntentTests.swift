@@ -115,7 +115,7 @@ import Testing
 
     @Test func withoutTheTapNoKeyBecomesACarrier() {
         let intent = Intent.compile(.default, paused: false, tapAvailable: false, present: thisMac)
-        #expect(thisMac.allSatisfy { intent.setup(for: $0.id) == .neutral })
+        #expect(thisMac.allSatisfy { intent.setup(for: $0.id).keyMap == .neutral })
         #expect(intent.tap.isEmpty)
     }
 
@@ -124,8 +124,16 @@ import Testing
         config.devices[3].hyper = false
         config.devices[2].hyper = nil
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
-        #expect(thisMac.allSatisfy { intent.setup(for: $0.id) == .neutral })
+        #expect(thisMac.allSatisfy { intent.setup(for: $0.id).keyMap == .neutral })
         #expect(intent.tap.isEmpty)
+    }
+
+    @Test func theMXIsNotAHyperKeyboard() {
+        var config = Config.default
+        config.devices[0].hyper = true
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
+        #expect(intent.setup(for: thisMac[2].id).keyMap == .neutral, "its keyboard collection does not make it one")
+        #expect(intent.setup(for: thisMac[1].id).keyMap == hyperMap)
     }
 
     @Test func theConfiguredKeyIsTheSource() {
@@ -142,5 +150,115 @@ import Testing
         #expect(forward == reversed)
         #expect(onlyMagic.setup(for: thisMac[1].id) == forward.setup(for: thisMac[1].id))
         #expect(onlyMagic.tap == forward.tap)
+    }
+}
+
+@Suite struct HIDPPIntentTests {
+    let mx = discovered(thisMac[2])
+    let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
+
+    var defaultMX: HIDPPSetup {
+        HIDPPSetup(
+            controls: [
+                gestureButton: .gesture(
+                    GesturePlan(
+                        fire: .pastDistance, distance: 120, click: .system(.missionControl),
+                        swipes: [.down: .system(.appExpose), .left: .system(.spaceLeft), .right: .system(.spaceRight)])),
+                topButton: .press(shot),
+            ],
+            thumbWheelInverted: true)
+    }
+
+    @Test func theDefaultConfigReproducesBetterMouse() {
+        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: [thisMac[0], thisMac[1], mx])
+        #expect(intent.setup(for: mx.id).hidpp == defaultMX)
+        #expect(intent.skipped.isEmpty)
+        #expect(intent.setup(for: thisMac[0].id).hidpp == nil, "keyboards do not speak HID++")
+        #expect(intent.setup(for: thisMac[1].id).hidpp == nil)
+    }
+
+    @Test func theFirmwareFlagsFollowTheBehavior() {
+        let control = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: true)
+        #expect(defaultMX.behavior(of: gestureButton).reporting(for: control).writeFlags == 0x33)
+        #expect(defaultMX.behavior(of: topButton).reporting(for: control).writeFlags == 0x23)
+        #expect(defaultMX.behavior(of: CID(rawValue: 0x52)).reporting(for: control).writeFlags == 0x22, "no rule is native")
+        let noRawXY = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: false)
+        #expect(defaultMX.behavior(of: gestureButton).reporting(for: noRawXY).writeFlags == 0x23)
+    }
+
+    @Test func beforeDiscoveryTheRulesCompileUnfiltered() {
+        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: [thisMac[2]])
+        #expect(intent.setup(for: mx.id).hidpp == defaultMX)
+    }
+
+    @Test func rulesOnControlsTheDeviceLacksAreSkipped() throws {
+        var config = Config.default
+        let absent = Rule(control: .hidpp(CID(rawValue: 0x1A0)), trigger: .click, action: .system(.spaceLeft))
+        let leftButton = Rule(control: .hidpp(CID(rawValue: 0x50)), trigger: .click, action: .system(.spaceRight))
+        config.devices[0].rules = [absent, leftButton] + (config.devices[0].rules ?? [])
+        let noWheel = HIDPPCapabilities(controls: measuredMXCapabilities.controls, thumbWheel: false)
+
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [discovered(thisMac[2], noWheel)])
+
+        let wheel = try #require(config.devices[0].rules?.last)
+        #expect(intent.skipped[mx.id] == [absent, leftButton, wheel])
+        var expected = defaultMX
+        expected.thumbWheelInverted = false
+        #expect(intent.setup(for: mx.id).hidpp == expected, "the rules the device can carry out still apply")
+    }
+
+    @Test func aClickWithoutHoldMoveIsAPress() {
+        var config = Config.default
+        config.devices[0].rules = config.devices[0].rules?.filter { $0.trigger == .click }
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
+        #expect(
+            intent.setup(for: mx.id).hidpp
+                == HIDPPSetup(controls: [gestureButton: .press(.system(.missionControl)), topButton: .press(shot)], thumbWheelInverted: false))
+    }
+
+    @Test func gestureSettingsComeFromTheProfile() {
+        var config = Config.default
+        config.devices[0].gestures = GestureSettings(fire: .onRelease, distance: 300)
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
+        guard case .gesture(let plan) = intent.setup(for: mx.id).hidpp?.behavior(of: gestureButton) else {
+            Issue.record("the gesture button is a gesture")
+            return
+        }
+        #expect(plan.fire == .onRelease && plan.distance == 300)
+    }
+
+    @Test func aProfileWithoutButtonRulesLeavesTheDeviceAlone() {
+        var config = Config.default
+        config.devices[0].rules = nil
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
+        #expect(intent.setup(for: mx.id).hidpp == nil)
+    }
+
+    @Test func pauseTurnsAnOpenedDeviceNative() {
+        let paused = Intent.compile(.default, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
+        #expect(HIDPPSetup.pendingWrite(desired: paused, opened: true) == .native)
+        #expect(HIDPPSetup.pendingWrite(desired: paused, opened: false) == nil, "a device never opened stays untouched")
+        #expect(HIDPPSetup.pendingWrite(desired: defaultMX, opened: false) == defaultMX)
+    }
+}
+
+@Suite struct DeviceKindTests {
+    @Test func theMXSpeaksHIDPPAndIsNotAKeyboard() {
+        let mx = HIDProperties(bag: Bags.mxMaster3)
+        #expect(mx.speaksHIDPP)
+        #expect(!mx.hostsHyper)
+    }
+
+    @Test func keyboardsHostHyperAndDoNotSpeakHIDPP() {
+        for bag in [Bags.builtInKeyboard, Bags.magicKeyboard, Bags.karabinerVirtualKeyboard] {
+            let properties = HIDProperties(bag: bag)
+            #expect(properties.hostsHyper && !properties.speaksHIDPP, "\(properties.name ?? "")")
+        }
+    }
+
+    @Test func aNonLogitechVendorCollectionIsNotHIDPP() {
+        var bag = Bags.mxMaster3
+        bag["VendorID"] = 0x1EA7
+        #expect(!HIDProperties(bag: bag).speaksHIDPP)
     }
 }

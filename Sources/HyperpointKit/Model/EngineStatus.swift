@@ -77,11 +77,38 @@ public struct DeviceStatus: Equatable, Sendable {
     public var connectedAt: Date?
     /// Nil when the profile does not ask for the hyper key.
     public var hyper: HyperStatus?
+    /// Nil until Hyperpoint has something to write to the device over HID++.
+    public var hidpp: HIDPPStatus?
 
-    public init(name: String, connectedAt: Date?, hyper: HyperStatus?) {
+    public init(name: String, connectedAt: Date?, hyper: HyperStatus?, hidpp: HIDPPStatus? = nil) {
         self.name = name
         self.connectedAt = connectedAt
         self.hyper = hyper
+        self.hidpp = hidpp
+    }
+}
+
+public struct HIDPPStatus: Equatable, Sendable {
+    public enum Progress: Equatable, Sendable {
+        case applying
+        case setUp
+        /// The last apply failed or could not start, and why.
+        case notSetUp(String)
+    }
+
+    public var progress: Progress
+    /// When the last apply finished, applied or not.
+    public var lastApply: Date?
+    /// Nil until discovery finishes on this connection.
+    public var capabilities: HIDPPCapabilities?
+    /// Rules the device cannot carry out, such as one on a control it lacks.
+    public var skippedRules: [Rule]
+
+    public init(progress: Progress, lastApply: Date?, capabilities: HIDPPCapabilities?, skippedRules: [Rule]) {
+        self.progress = progress
+        self.lastApply = lastApply
+        self.capabilities = capabilities
+        self.skippedRules = skippedRules
     }
 }
 
