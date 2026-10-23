@@ -1,10 +1,13 @@
 enum ApplyReason: String, Hashable, Sendable {
     case launch
     case connected
+    /// HID++ 0x1D4B: the device asks software to configure it again.
+    case deviceAsked
     case configChanged
     case permissionChanged
     case pauseChanged
     case manual
+    case wake
     case quit
     case retry
 }
