@@ -120,6 +120,9 @@ public final class Engine {
             addSlot(for: device, atLaunch: false)
             recompile()
             slots[device.id]?.invalidate(.connected)
+        case .servicesChanged(let device):
+            journal.servicesChanged(device)
+            recompile()
         case .disappeared(let device):
             slots.removeValue(forKey: device.id)?.close()
             capabilities[device.id] = nil

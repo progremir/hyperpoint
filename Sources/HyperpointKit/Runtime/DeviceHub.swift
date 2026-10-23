@@ -9,6 +9,7 @@ final class DeviceHub {
     private var manager: IOHIDManager?
     private var roster = DeviceRoster()
     private var hidppInterfaces: [DeviceKey: IOHIDDevice] = [:]
+    private var servicePort: IONotificationPortRef?
 
     init(onEvent: @escaping @HIDActor (DeviceRoster.Change) -> Void) { self.onEvent = onEvent }
 
@@ -37,7 +38,34 @@ final class DeviceHub {
         IOHIDManagerRegisterDeviceRemovalCallback(manager, hubDeviceRemoved, context)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), CFRunLoopMode.commonModes.rawValue)
         self.manager = manager
+        watchEventServices()
         return devices
+    }
+
+    private func watchEventServices() {
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), IONotificationPortGetRunLoopSource(port).takeUnretainedValue(), .commonModes)
+        var iterator: io_iterator_t = 0
+        guard
+            IOServiceAddMatchingNotification(
+                port, kIOFirstMatchNotification, IOServiceMatching("IOHIDEventService"), hubEventServicesPublished,
+                Unmanaged.passUnretained(self).toOpaque(), &iterator) == KERN_SUCCESS
+        else {
+            IONotificationPortDestroy(port)
+            return
+        }
+        servicePort = port
+        servicesPublished(iterator)
+    }
+
+    /// Draining the iterator also arms the next notification.
+    fileprivate func servicesPublished(_ iterator: io_iterator_t) {
+        while case let service = IOIteratorNext(iterator), service != 0 {
+            let change = roster.serviceAppeared(
+                SenderID(rawValue: Self.registryID(of: service)), ancestors: Self.ancestors(of: service))
+            IOObjectRelease(service)
+            if let change { onEvent(change) }
+        }
     }
 
     @discardableResult
@@ -69,6 +97,20 @@ final class DeviceHub {
         var id: UInt64 = 0
         IORegistryEntryGetRegistryEntryID(entry, &id)
         return id
+    }
+
+    private static func ancestors(of entry: io_registry_entry_t) -> [UInt64] {
+        var ids: [UInt64] = []
+        var current = entry
+        IOObjectRetain(current)
+        while true {
+            var parent: io_registry_entry_t = 0
+            let found = IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) == KERN_SUCCESS
+            IOObjectRelease(current)
+            guard found else { return ids }
+            ids.append(registryID(of: parent))
+            current = parent
+        }
     }
 
     private static func eventServices(under service: io_service_t) -> [SenderID] {
@@ -104,4 +146,10 @@ nonisolated private func hubDeviceRemoved(
     let hub = Unmanaged<DeviceHub>.fromOpaque(context).takeUnretainedValue()
     nonisolated(unsafe) let device = device
     HIDActor.assumeIsolated { hub.removed(device) }
+}
+
+nonisolated private func hubEventServicesPublished(_ context: UnsafeMutableRawPointer?, _ iterator: io_iterator_t) {
+    guard let context else { return }
+    let hub = Unmanaged<DeviceHub>.fromOpaque(context).takeUnretainedValue()
+    HIDActor.assumeIsolated { hub.servicesPublished(iterator) }
 }

@@ -86,11 +86,12 @@ struct PresentDevice: Equatable, Sendable {
     var name: String { properties.name ?? "Unknown device" }
 }
 
-/// Groups the IOHIDDevice interfaces of one physical device into a `PresentDevice`. Interfaces are named by their
-/// IORegistry entry ids, so this is `DeviceHub`'s bookkeeping without the IOKit calls.
+/// Groups the IOHIDDevice interfaces and HID event services of one physical device into a `PresentDevice`. Both
+/// are named by their IORegistry entry ids, so this is `DeviceHub`'s bookkeeping without the IOKit calls.
 struct DeviceRoster {
     enum Change: Equatable {
         case appeared(PresentDevice)
+        case servicesChanged(PresentDevice)
         case disappeared(PresentDevice)
     }
 
@@ -111,17 +112,24 @@ struct DeviceRoster {
         guard keyOfInterface[interface] == nil else { return nil }
         let key = DeviceKey(properties)
         keyOfInterface[interface] = key
-        if var entry = entries[key] {
-            entry.interfaces.insert(interface)
-            entry.device.eventServices += services
-            entries[key] = entry
-            return nil
+        if entries[key] != nil {
+            entries[key]?.interfaces.insert(interface)
+            return adopt(services, into: key)
         }
         let device = PresentDevice(
             id: DeviceInstanceID(rawValue: nextID), key: key, properties: properties, eventServices: services)
         nextID += 1
         entries[key] = Entry(device: device, interfaces: [interface])
         return .appeared(device)
+    }
+
+    /// A BLE device's event service is published after its IOHIDDevice matches (measured on a reconnect of the MX
+    /// Master 3), so it is attributed through whichever of its ancestors is a tracked interface.
+    mutating func serviceAppeared(_ service: SenderID, ancestors: [UInt64]) -> Change? {
+        for ancestor in ancestors {
+            if let key = keyOfInterface[ancestor] { return adopt([service], into: key) }
+        }
+        return nil
     }
 
     mutating func interfaceRemoved(_ interface: UInt64) -> Change? {
@@ -133,6 +141,15 @@ struct DeviceRoster {
         }
         entries[key] = nil
         return .disappeared(entry.device)
+    }
+
+    private mutating func adopt(_ services: [SenderID], into key: DeviceKey) -> Change? {
+        guard var entry = entries[key] else { return nil }
+        let new = services.filter { !entry.device.eventServices.contains($0) }
+        guard !new.isEmpty else { return nil }
+        entry.device.eventServices += new
+        entries[key] = entry
+        return .servicesChanged(entry.device)
     }
 }
 
