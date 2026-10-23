@@ -13,9 +13,10 @@ final class Slot {
     let device: PresentDevice
     let connectedAt = Date()
     private(set) var phase = Phase.idle
-    /// What the last successful write put on the device. The mapping dies with its service, so a new slot starts
-    /// knowing nothing of ours is there.
+    /// What is ours on the device. The mapping dies with its service, but a service can outlive a crashed
+    /// Hyperpoint, so a new slot first reads what the service holds.
     private(set) var written: KeyMapSetup?
+    private var surveyed = false
 
     private let desired: @HIDActor () -> DeviceSetup
     private let changed: @HIDActor () -> Void
@@ -52,6 +53,17 @@ final class Slot {
     private func drain() async {
         while !Task.isCancelled, let job = scheduler.nextJob() {
             retry?.cancel()
+            if !surveyed {
+                do {
+                    written = KeyMapSetup.recovered(from: try await KeyMapWriter.read(matching: matching))
+                    surveyed = true
+                } catch {
+                    journal.note("survey \(device.id) \(device.name) failed: \(error)")
+                    failed(error)
+                    changed()
+                    continue
+                }
+            }
             guard let target = KeyMapSetup.pendingWrite(desired: desired().keyMap, written: written) else {
                 _ = scheduler.finished(failed: false)
                 continue
@@ -65,17 +77,21 @@ final class Slot {
                 _ = scheduler.finished(failed: false)
                 journal.applied(device, job: job, wrote: target, failure: nil)
             } catch {
-                phase = .failed(error)
                 journal.applied(device, job: job, wrote: target, failure: error)
-                if let delay = scheduler.finished(failed: true) {
-                    retry = Task { [weak self] in
-                        try? await Task.sleep(for: delay)
-                        guard !Task.isCancelled else { return }
-                        self?.invalidate(.retry)
-                    }
-                }
+                failed(error)
             }
             changed()
+        }
+    }
+
+    private func failed(_ error: KeyMapError) {
+        phase = .failed(error)
+        if let delay = scheduler.finished(failed: true) {
+            retry = Task { [weak self] in
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+                self?.invalidate(.retry)
+            }
         }
     }
 }

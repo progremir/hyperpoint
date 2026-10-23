@@ -80,6 +80,21 @@ struct KeyMapSetup: Equatable, Sendable {
         desired.routes.isEmpty && (written?.routes.isEmpty ?? true) ? nil : desired
     }
 
+    /// What a slot with no write of its own records as ours, from what the service already holds. A carrier
+    /// destination is the only evidence that a map outlived the Hyperpoint that wrote it. A map without one belongs
+    /// to someone else and is left alone.
+    static func recovered(from pairs: Set<Pair>) -> KeyMapSetup? {
+        let routes = pairs.compactMap { pair in
+            Carrier.pool.first { hidutilValue($0.usage) == pair.destination }.map { carrier in
+                // The service keeps no meaning, and nothing reads one from a recovered map.
+                KeyRoute(
+                    source: HIDUsage(rawValue: UInt16(truncatingIfNeeded: pair.source)),
+                    target: .carrier(carrier, .holdModifiers([])))
+            }
+        }
+        return routes.isEmpty ? nil : KeyMapSetup(routes: routes)
+    }
+
     private static func hidutilValue(_ usage: HIDUsage) -> UInt64 { 0x7_0000_0000 | UInt64(usage.rawValue) }
 
     private static func hex(_ value: UInt64) -> String { "0x" + String(value, radix: 16, uppercase: true) }

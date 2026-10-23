@@ -23,10 +23,21 @@ enum KeyMapWriter {
         let set = try await hidutil(["property", "--matching", matching, "--set", setup.userKeyMappingJSON])
         guard set.status == 0 else { throw .hidutilFailed(status: set.status, output: set.output) }
         // hidutil exits 0 and changes nothing when no service matches, so only the read-back proves the write.
+        let services = try await readBack(matching: matching)
+        guard !services.isEmpty, services.values.allSatisfy({ $0 == setup.pairs }) else { throw .serviceNotReady }
+    }
+
+    /// Every pair the matching services hold now.
+    @concurrent
+    static func read(matching: String) async throws(KeyMapError) -> Set<KeyMapSetup.Pair> {
+        try await readBack(matching: matching).values.reduce(into: []) { $0.formUnion($1) }
+    }
+
+    @concurrent
+    private static func readBack(matching: String) async throws(KeyMapError) -> [UInt64: Set<KeyMapSetup.Pair>] {
         let get = try await hidutil(["property", "--matching", matching, "--get", "UserKeyMapping"])
         guard get.status == 0 else { throw .hidutilFailed(status: get.status, output: get.output) }
-        let services = HidutilReadback.parse(get.output)
-        guard !services.isEmpty, services.values.allSatisfy({ $0 == setup.pairs }) else { throw .serviceNotReady }
+        return HidutilReadback.parse(get.output)
     }
 
     @concurrent

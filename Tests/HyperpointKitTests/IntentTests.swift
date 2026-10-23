@@ -54,6 +54,50 @@ import Testing
     }
 }
 
+@Suite struct RecoveredKeyMapTests {
+    let capsLockToF18 = KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_006D)
+    let escapeToF13 = KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_0068)
+    let escapeToRightOption = KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_00E6)
+    let returnToF21 = KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0070)
+
+    @Test func aCarrierDestinationMakesTheMapOurs() {
+        #expect(KeyMapSetup.recovered(from: [capsLockToF18])?.carriesHyper == true)
+        #expect(KeyMapSetup.recovered(from: [escapeToF13]) != nil, "every carrier in the pool counts")
+        #expect(KeyMapSetup.recovered(from: [capsLockToF18, escapeToRightOption]) != nil)
+    }
+
+    @Test func aMapWithNoCarrierIsSomeoneElses() {
+        #expect(KeyMapSetup.recovered(from: [escapeToRightOption, returnToF21]) == nil)
+    }
+
+    @Test func anEmptyMapIsNotOurs() {
+        #expect(KeyMapSetup.recovered(from: []) == nil)
+    }
+
+    @Test func aStaleHyperMapIsClearedOnceHyperIsDisabled() {
+        let leftByACrash = """
+            RegistryID  Key                   Value
+            10001bc2e   UserKeyMapping   (
+                    {
+                    HIDKeyboardModifierMappingDst = 30064771181;
+                    HIDKeyboardModifierMappingSrc = 30064771129;
+                }
+            )
+
+            """
+        let held = HidutilReadback.parse(leftByACrash).values.reduce(into: Set()) { $0.formUnion($1) }
+        let written = KeyMapSetup.recovered(from: held)
+        #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == .neutral)
+        let hyper = KeyMapSetup(routes: [.hyper(from: capsLock)])
+        #expect(KeyMapSetup.pendingWrite(desired: hyper, written: written) == hyper)
+    }
+
+    @Test func aForeignMapIsLeftAloneWhenNothingIsWanted() {
+        let written = KeyMapSetup.recovered(from: [escapeToRightOption])
+        #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == nil)
+    }
+}
+
 @Suite struct IntentTests {
     let hyperMap = KeyMapSetup(routes: [.hyper(from: capsLock)])
 
