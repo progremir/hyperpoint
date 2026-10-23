@@ -26,6 +26,8 @@ final class TapHost {
     private var holdScroll = HoldScrollAnimator()
     private var holdPoints = (dx: WholePoints(), dy: WholePoints())
     private var cursorFrozen = false
+    /// Between a hold scroll's began and ended, from either recognizer.
+    private var handScrolling = false
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
     private var watchdog: CFRunLoopTimer?
@@ -99,7 +101,9 @@ final class TapHost {
             reenable()
             return Unmanaged.passUnretained(event)
         default:
-            switch pipeline.process(type, event) {
+            let verdict = pipeline.process(type, event)
+            updateCursor()
+            switch verdict {
             case .pass:
                 return Unmanaged.passUnretained(event)
             case .drop:
@@ -131,17 +135,20 @@ final class TapHost {
         let now = Self.uptime()
         holdScroll.receive(event, at: now)
         switch event {
-        case .began: freezeCursor(true)
-        case .ended: freezeCursor(false)
+        case .began: handScrolling = true
+        case .ended: handScrolling = false
         case .moved: break
         }
+        updateCursor()
         guard holdScroll.wantsFrames else { return }
         if !keepFrames(near: location ?? CGEvent(source: nil)?.location ?? .zero, now: now) { endHoldScroll() }
     }
 
-    /// The pointer stays where the hold began while the hand scrolls, whether or not the device keeps reporting
-    /// movement to macOS. `force` frees it even if it should be free already, for a tap that stops or lost events.
-    private func freezeCursor(_ frozen: Bool, force: Bool = false) {
+    /// The pointer stays put from the press of a plain button that scrolls until its release, and while an HID++
+    /// control scrolls, whether or not the device keeps reporting movement to macOS. `force` frees it even if it
+    /// should be free already, for a tap that stops or lost events.
+    private func updateCursor(force: Bool = false) {
+        let frozen = pipeline.holdsPointer || handScrolling
         guard frozen != cursorFrozen || force else { return }
         cursorFrozen = frozen
         _ = CGAssociateMouseAndMouseCursorPosition(frozen ? 0 : 1)
@@ -149,15 +156,16 @@ final class TapHost {
 
     private func endHoldScroll() {
         if let ended = holdScroll.stop() { post(ended) }
-        freezeCursor(false)
+        handScrolling = false
+        updateCursor()
     }
 
     /// A button the pipeline forgot while it was down. A press held back from apps goes to them, and its scroll ends.
     /// `endingEverything` also ends a scroll an HID++ control drives, for a tap that stops or lost events.
     private func release(_ release: ButtonStage.Release, endingEverything: Bool) {
-        release.press?.post(tap: .cghidEventTap)
         if release.endsScroll || endingEverything { endHoldScroll() }
-        if endingEverything { freezeCursor(false, force: true) }
+        updateCursor(force: endingEverything)
+        release.press?.post(tap: .cghidEventTap)
     }
 
     /// Keeps the display link running for an animator that wants frames. A link that has not fired for `stalled`

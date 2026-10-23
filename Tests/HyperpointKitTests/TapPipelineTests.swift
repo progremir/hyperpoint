@@ -221,9 +221,12 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
 
 private let shotAction = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
-private func mouse(_ type: CGEventType, button: Int, dx: Double = 0, dy: Double = 0, marked: Bool = false) -> CGEvent {
+private func mouse(
+    _ type: CGEventType, button: Int, dx: Double = 0, dy: Double = 0, at location: CGPoint = CGPoint(x: 400, y: 300),
+    marked: Bool = false
+) -> CGEvent {
     let event = CGEvent(
-        mouseEventSource: nil, mouseType: type, mouseCursorPosition: CGPoint(x: 400, y: 300),
+        mouseEventSource: nil, mouseType: type, mouseCursorPosition: location,
         mouseButton: CGMouseButton(rawValue: UInt32(button))!)!
     event.setIntegerValueField(.mouseEventButtonNumber, value: Int64(button))
     event.setDoubleValueField(.mouseEventDeltaX, value: dx)
@@ -269,6 +272,36 @@ private func isMarked(_ event: CGEvent) -> Bool {
         #expect(isMarked(press) && isMarked(release))
         #expect(pipeline.process(press.type, press) == .pass, "the replay passes the tap untouched")
         #expect(pipeline.process(release.type, release) == .pass)
+    }
+
+    @Test func aScrollingButtonHoldsThePointerFromItsPress() {
+        var pipeline = pipeline()
+        #expect(!pipeline.holdsPointer)
+        _ = pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        #expect(pipeline.holdsPointer, "frozen at the press, before any movement")
+        _ = pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: distance - 1))
+        #expect(pipeline.holdsPointer, "still frozen below the distance")
+        _ = pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 2))
+        #expect(pipeline.holdsPointer, "and while it scrolls")
+        _ = pipeline.process(.rightMouseUp, mouse(.rightMouseUp, button: 1))
+        #expect(!pipeline.holdsPointer, "free from the release")
+
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 4))
+        #expect(!pipeline.holdsPointer, "a click-only button leaves the pointer free")
+    }
+
+    @Test func aShortPressReplaysAtThePressLocation() {
+        var pipeline = pipeline()
+        let pressed = CGPoint(x: 120, y: 80)
+        _ = pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1, at: pressed))
+        _ = pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: 5, dy: 5, at: pressed))
+        let up = mouse(.rightMouseUp, button: 1, at: CGPoint(x: 125, y: 85))
+        guard case .replay(let press, let release) = pipeline.process(.rightMouseUp, up) else {
+            Issue.record("the click is replayed")
+            return
+        }
+        #expect(press.location == pressed && release.location == pressed)
+        #expect(!pipeline.holdsPointer, "the pointer is free before the replay reaches apps")
     }
 
     @Test func aDragPastTheDistanceScrollsAndAppsSeeNoDrag() {
@@ -325,6 +358,7 @@ private func isMarked(_ event: CGEvent) -> Bool {
         var held = pipeline()
         _ = held.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
         let release = held.reset()
+        #expect(!held.holdsPointer, "a reset frees the pointer held since the press")
         let press = try #require(release.press, "the held press goes to apps")
         #expect(press.type == .rightMouseDown && isMarked(press) && !release.endsScroll)
         #expect(held.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) == .pass, "so its release passes too")
@@ -333,6 +367,7 @@ private func isMarked(_ event: CGEvent) -> Bool {
         _ = scrolling.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
         _ = scrolling.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: distance))
         #expect(scrolling.reset() == ButtonStage.Release(press: nil, endsScroll: true), "the host frees the pointer")
+        #expect(!scrolling.holdsPointer)
         #expect(scrolling.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 9)) == .pass)
 
         var idle = pipeline()

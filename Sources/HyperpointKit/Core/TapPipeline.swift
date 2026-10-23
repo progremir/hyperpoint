@@ -87,6 +87,9 @@ struct TapPipeline {
         return verdict == .pass ? buttons.process(type, event) : verdict
     }
 
+    /// Whether a held button keeps the pointer where it was pressed.
+    var holdsPointer: Bool { buttons.holdsPointer }
+
     @discardableResult
     mutating func reset() -> ButtonStage.Release {
         carriers.reset()
@@ -95,7 +98,8 @@ struct TapPipeline {
 }
 
 /// Carries out the rules on plain mouse buttons, for the senders that have them. A button whose rule waits on its
-/// movement is held back from apps. A release before the distance is its click, and moving past it scrolls. The
+/// movement is held back from apps. A release before the distance is its click, and moving past it scrolls. A
+/// button that scrolls holds the pointer from its press, so a fast flick cannot move it before the scroll starts. The
 /// left button never has rules, so it is not watched.
 struct ButtonStage {
     static let interests: [CGEventType] = [
@@ -125,6 +129,11 @@ struct ButtonStage {
     init(rules: [ButtonKey: ControlBehavior], origin: @escaping @Sendable (CGEvent) -> HIDOrigin?) {
         self.rules = rules
         self.origin = origin
+    }
+
+    var holdsPointer: Bool {
+        guard case .gesture(let plan)? = held?.behavior, case .scroll = plan.moves else { return false }
+        return true
     }
 
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
@@ -189,6 +198,7 @@ struct ButtonStage {
         switch machine.step(.release) {
         case .click(nil):
             guard let press = held.press, let release = Self.replayable(event) else { return .pass }
+            release.location = press.location
             return .replay(press, release)
         case let output?:
             return verdict(output)
