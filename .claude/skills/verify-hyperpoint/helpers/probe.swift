@@ -182,7 +182,8 @@ if variant == "posted" {
     }
     let mask = bit(.scrollWheel) | bit(.rightMouseDown) | bit(.rightMouseUp) | bit(.rightMouseDragged)
         | bit(.otherMouseDown) | bit(.otherMouseUp) | bit(.otherMouseDragged)
-    guard install(.cgAnnotatedSessionEventTap, .tailAppendEventTap, .listenOnly, mask, hold) else { print("tapCreate failed"); exit(2) }
+    // Active, passing every event unchanged: a listen-only tap gets no hardware events without Input Monitoring.
+    guard install(.cgAnnotatedSessionEventTap, .tailAppendEventTap, .defaultTap, mask, hold) else { print("tapCreate failed"); exit(2) }
     DispatchQueue.main.asyncAfter(deadline: .now() + 45) { print(wheelLines.joined(separator: "\n")); fflush(stdout); exit(0) }
 } else if variant == "wheel" {
     let wheel: CGEventTapCallBack = { _, type, event, _ in
