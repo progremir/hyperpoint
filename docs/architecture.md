@@ -72,6 +72,8 @@ The rules for the file:
 
 - A device entry is a **profile**. Its `match` names the device. Everything else is optional, and a missing section means "leave the device as macOS has it".
 - A rule is `control`, `when`, `do`. Which `when` values a control accepts depends on its kind, and the parser rejects a rule that cannot work, with its path (for example `devices[1].rules[0].when`).
+- A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
+- `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the sidebar and is left untouched.
 - Pause is runtime state, not config.
@@ -80,7 +82,7 @@ The rules for the file:
 
 1. The IOHIDManager matching callback fires on the HID thread. `DeviceHub` groups the new IOHIDDevice interfaces into one `PresentDevice` and finds its profile by `match`.
 2. The device has a HID++ collection, so its slot opens a `HIDPPSession`. Discovery reads the feature table and the control list (`getCount`, `getCidInfo`), which become the device's `Capabilities`.
-3. `Intent.compile` turns the profile and the capabilities into a `DeviceSetup`. For the MX, that is `0xC3` as a gesture control (divert plus rawXY, flags `0x33`), `0xC4` as a press control (`0x23`), and the thumb wheel undiverted and inverted.
+3. `Intent.compile` turns the profile and the capabilities into a `DeviceSetup`. For the MX, that is `0xC3` as a gesture control that swipes and `0xC4` as one that scrolls (both divert plus rawXY, flags `0x33`), and the thumb wheel undiverted and inverted. The right button cannot be diverted on this mouse, so its scroll rule goes to `TapRules` instead, keyed by the MX's event service.
 4. The slot's worker writes all of it and reads it back. A timeout right after a BLE connect is normal, so `RetryPolicy` retries at 0.3, 1, 2, 4 and 8 seconds.
 5. The journal logs the connect and the apply, and the menu shows "MX Master 3 reconnected at 15:06. Settings re-applied."
 
@@ -117,24 +119,27 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `DeviceProfile` | One device entry. `match`, `name`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
 | `DeviceMatch` | Vendor and product, or `builtIn`. One value classifies a `PresentDevice` and renders hidutil `--matching`. IOHIDManager ignores `Built-In` (measured), so Swift's `matches` is the authority and the manager is only a prefilter. |
 | `Rule` | `Control`, `Trigger`, `Action`. |
-| `Control` | `.hidpp(CID)`, `.thumbWheel`, `.key(HIDUsage)` for a key a mouse sends from a keyboard interface, `.button(Int)` for a plain mouse button. |
-| `Trigger` | `.click`, `.hold`, `.holdMove(Direction)`, `.scroll`. |
-| `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. |
+| `Control` | `.hidpp(CID)`, `.thumbWheel`, `.key(HIDUsage)` for a key a mouse sends from a keyboard interface, `.button(Int)` for a plain mouse button in CGEvent numbering. |
+| `Trigger` | `.click`, `.hold`, `.holdMove(Direction?)`, `.scroll`. A nil direction is hold and move any way. |
+| `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`, `.scroll`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. |
 | `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, the ids of its HID event services, `Capabilities`. |
 | `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it from IOKit, and it decides which device a newly published event service belongs to. |
 | `Capabilities` | What discovery found. HID++ controls with their flags (temporary divert, rawXY), thumb wheel, keyboard interface, pointer, keyboard. Never stored in config. |
 | `Intent` | `Intent.compile(config, paused, present)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
-| `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. |
+| `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. HID++ controls and plain buttons build it from their rules with one initializer. |
+| `GesturePlan` | The distance, the click action, and `GestureMoves`, which is `.swipes([Direction: Action], fire)` or `.scroll(HoldScrollPlan)`. One control cannot do both. |
+| `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
+| `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
 | `KeyRoute` | One remap, from a source usage to `.native(usage)` or `.carrier(Carrier, CarrierMeaning)`. The hidutil JSON and the tap's carrier rules both derive from the same `[KeyRoute]`. |
 | `Carrier` | A reserved F13 to F24 key. Hyper is F18. Key rules get carriers from the rest of the pool, assigned in a stable order by `Intent.compile`. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
-| `TapRules` | Carrier meanings, plus per-sender settings for scrolling, pan and click-through, keyed by the HID service ids of the devices whose profiles enable them. |
+| `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. |
 | `EngineStatus` | One immutable value the UI renders. Run state, permissions, per-device link, last apply and capabilities, new devices, learned control, last hyper chord. |
 
 The dominant access patterns, traced through these types:
 
 - **A HID++ notification** resolves to its slot in O(1) by device instance. `HIDPPLink` decodes it through the session's feature map and feeds the gesture machine. No allocation and no thread hop.
-- **A tap event** costs one carrier lookup by key code. Scroll and button events also cost one lookup by sender id. A sender with no entry passes untouched, so the trackpad is never smoothed.
+- **A tap event** costs one carrier lookup by key code. Scroll events and right and other button presses also cost one lookup by sender id. Drags and releases cost none, because they only match the one button the stage holds. A sender with no entry passes untouched, so the trackpad is never smoothed.
 - **A config save** recompiles the intent once and invalidates every present slot. Each slot writes its whole setup. There is no diffing logic to get wrong.
 
 ### Module map
@@ -158,7 +163,7 @@ Each device-facing thread is a global actor whose executor is that thread's CFRu
 | --- | --- |
 | Main actor | `AppModel`, SwiftUI, `ActionPerformer` (symbolic hotkey lookup runs on main in Mac Mouse Fix, so Hyperpoint does the same) |
 | `@HIDActor` | `Engine` (desired state), `DeviceHub` and its IOHIDManager, every `Slot`, every `HIDPPSession` and its `HIDPPLink`, `Journal` |
-| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` instance and its display link, the watchdog. Nothing else ever runs here. |
+| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` and `HoldScrollAnimator` instances and their display link, the pointer freeze, the watchdog. Nothing else ever runs here. |
 | Cooperative pool | `ConfigStore` (an actor that owns the file), `KeyMapWriter` (the `hidutil` process), permission polling |
 
 State crosses only as immutable `Sendable` values.
@@ -170,7 +175,9 @@ State crosses only as immutable `Sendable` values.
 | HID to main | `engine.actions` | ordered, for `ActionPerformer` |
 | ConfigStore to HID and main | `store.events()` | each element is a full state |
 | HID to tap | `TapRules` | latest wins, applied between events |
+| HID to tap | `HoldScrollEvent` from a HID++ control | ordered, every event, because a lost end would leave the pointer frozen |
 | Tap to HID | `TapSignal` (re-enabled, invalidated, hyper chord) | ordered, rare |
+| Tap to main | plain-button actions, into `engine.actions` | ordered |
 
 There is no lock and no shared mutable object. Config has one owner, `ConfigStore`. The engine and the UI each hold a copy of the latest value it published, and neither writes it back except through `ConfigStore.update`.
 
@@ -179,7 +186,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 1. **One reconcile path.** Every trigger calls `slot.invalidate(reason)`. `ApplyScheduler` gives each device one writer and collapses triggers that arrive mid-apply into one follow-up. Every write is absolute, so running an apply twice, or after a crash halfway, ends in the same state (per make-operations-idempotent).
 2. **The HID++ conversation is a value.** `HIDPPLink` takes bytes and time and returns bytes, events and a deadline. Discovery, writes, read-back, retries, notifications, button edges and gesture recognition are all transitions on it. Tests drive it against a firmware model seeded with the measured BetterMouse state, and they assert the model's end state, not the request order (per test-behavior-not-implementation).
 3. **Device identity is decided at the HID layer for keys.** `hidutil` maps keys per service, and the tap only sees carrier key codes. The tap never has to work out which keyboard sent a key. No device is seized.
-4. **Pointer events are attributed by sender id.** Per-device scrolling, pan, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`. Over BLE the event service is published after the IOHIDDevice matches (measured on an MX reconnect), so `DeviceHub` also watches for new `IOHIDEventService` entries. `DeviceRoster` gives each one to the device that owns one of its registry ancestors, and the engine recompiles `TapRules`.
+4. **Pointer events are attributed by sender id.** Per-device scrolling, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`. Over BLE the event service is published after the IOHIDDevice matches (measured on an MX reconnect), so `DeviceHub` also watches for new `IOHIDEventService` entries. `DeviceRoster` gives each one to the device that owns one of its registry ancestors, and the engine recompiles `TapRules`.
 5. **Profiles are data, capabilities are discovered.** No device is a constant in code. The MX and 2.4G defaults are initial profile data in `Config.default`. A HID++ device's controls come from `getCidInfo`, so a different Logitech mouse works without code changes.
 
 ### Invariants and boundaries
@@ -187,24 +194,26 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 - `KeyCode`, `HIDUsage`, `CID` and `SenderID` are distinct types (per type-system-discipline).
 - HID++ wire types stay internal to Core. The runtime sees report bytes in and out, nothing else.
 - Validation happens at five boundaries and nowhere else (per boundary-discipline). `ConfigCodec` for the file, the HID++ codec for device bytes, `KeyMapWriter` for `hidutil` output, `DeviceHub` for IOKit properties, and `TapHost` for CGEvents.
-- `TapPipeline.reset()` runs on tap timeout and on every keyboard removal, so a lost key-up cannot leave hyper held.
-- Every event Hyperpoint posts carries a marker in `eventSourceUserData`, and every stage passes marked events untouched. Hyperpoint's own ⇧⌘4 or smooth-scroll events are never rewritten.
+- `TapPipeline.reset()` runs on tap timeout, on every keyboard removal and before new rules replace the pipeline, so a lost key-up cannot leave hyper held. It also returns a plain-button press the stage was holding back, which `TapHost` posts so that the button's real release pairs with it, and says whether a scroll ended.
+- The pointer is frozen only while a hold scrolls. `TapHost` frees it on the scroll's end, on a pipeline reset that ended one, on tap timeout, on uninstall (pause, quit, a lost permission) and when no display can run frames. `Engine.shutdown` waits for the uninstall, so quitting mid-scroll frees it.
+- Every event Hyperpoint posts carries a marker in `eventSourceUserData`, and every stage passes marked events untouched. Hyperpoint's own ⇧⌘4, smooth-scroll, hold-scroll and replayed clicks are never rewritten.
 
 ### Gesture machine
 
-`GestureMachine` is a pure machine with no clock. Inputs are `press(GesturePlan)`, `move(dx, dy)`, `release` and `cancel`. States are `idle`, `tracking(plan, dx, dy)` and `consumed`. The plan is captured at press, so a config edit mid-gesture cannot change a gesture in flight.
+`GestureMachine` is a pure machine with no clock. Inputs are `press(GesturePlan)`, `move(dx, dy)`, `release` and `cancel`, with movement in the control's own unit, sensor counts for HID++ raw movement and points for pointer drags. States are `idle`, `tracking(plan, dx, dy)`, `consumed` and `scrolling(plan)`. Outputs are `click(Action?)`, `perform(Action)` and `scroll(HoldScrollEvent)`. The plan is captured at press, so a config edit mid-gesture cannot change a gesture in flight.
 
 - In `pastDistance` mode, the move that makes net travel reach `distance` fires the swipe for the dominant axis. In `onRelease` mode, the release decides. Below `distance`, the release is a click.
 - A swipe in a direction with no rule is consumed. It fires nothing and is not a click.
-- A press while tracking means a release was lost, so the machine starts over. Device removal and every apply send `cancel`.
+- With a scroll plan, the move that makes net travel reach `distance` emits `began`, each later move `moved` scaled by the plan's gain, and the release `ended`. It is never a click once it scrolls.
+- A press while tracking means a release was lost, so the machine starts over, ending a scroll first. Device removal and every apply send `cancel`, which also ends a scroll.
 
 ### v2 scrolling and clicks
 
-All four live in `TapPipeline` as stages, each with `static let interests`. `TapPipeline.mask` is derived from the stages, never hand-listed. Their settings reach the tap as per-sender entries in `TapRules`.
+The tap-side ones live in `TapPipeline` as stages, each with `static let interests`. `TapPipeline.mask` is derived from the stages, never hand-listed. Their settings reach the tap as per-sender entries in `TapRules`.
 
 - **Smooth scrolling.** `ScrollStage` drops wheel steps from enabled senders and feeds `ScrollAnimator`, a pure model of one velocity pulse per step, driven by the display link of the screen under the pointer. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
 - **High-resolution wheel.** HID++ feature 0x2121 adds one write and one read-back to the device setup. `ScrollStage` then treats the finer deltas as input.
-- **Right-button pan.** `PanStage` holds a right-button down from an enabled sender. Drag past a few points turns it into scrolling, with momentum through `ScrollAnimator`. A release without drag replays the right click.
+- **Hold to scroll.** Any button with a hold and move → scroll rule. A HID++ control recognizes it in `HIDPPLink` from raw movement, and a plain button in `ButtonStage` from drags. [Hold to scroll](#hold-to-scroll) has the model.
 - **Click-through.** `ClickThroughStage` sees a click from an enabled sender on a background window and makes it act at once. How it activates the window without eating the click is open ([Open questions](#open-questions-and-risks)).
 
 ### Smooth scrolling
@@ -231,6 +240,31 @@ AppKit takes the precise delta of a posted scroll from its integer point field a
 The settings window's Scrolling and clicks tab draws `curve` as a graph on the same log-log axes, so the drawn line is exactly what the wheel does. Shaded bands mark the MX wheel's measured rates: slow 4 to 12, medium 15 to 17, fast about 36 and a flick about 120 events per second. A point drags between its neighbours, double-clicking the line adds a point on it, and double-clicking a point removes it, from 2 to 10 points. The readout gives the speed and the distance per step under the pointer, and a drag saves once, on mouse-up.
 
 `TapHost` drives the frames from a display link, `NSScreen.displayLink(target:selector:)`, added to the tap thread's run loop, so each frame lands at the same point of the refresh and the animator gets the frame's `targetTimestamp`, on the same clock as the steps. The link follows the display under the pointer, because the external monitor here runs at 60 Hz and the built-in one at 120 Hz. It runs only while a glide does, and pauses when the animator is idle. A glide that sees no frame for 0.1 s rebuilds the link, in case its display went away. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed settings apply from the next step.
+
+### Hold to scroll
+
+The user asked to generalize right-button pan into an action any button can have, the MX top button above all. So it is one action, `"do": "scroll"`, on the non-directional trigger `"when": "holdMove"`, and the right-button pan of the earlier design is that rule on button 1. A file that still has `scrolling.rightButtonPan` decodes to the rule plus `holdToScroll` with its momentum, and the next save writes the new form.
+
+A press does nothing yet. A release before the movement passes the profile's `gestures.distance` is the click. That is the control's click rule, or for a plain button with none, the original click replayed. Movement past the distance starts scrolling. From then on each movement scrolls the page by movement × speed on both axes, and the pointer stays where it is. On release the page keeps the hand's speed and glides to a stop if `momentum` is on.
+
+Two recognizers feed one animator.
+
+- **HID++ controls** whose capabilities say rawXY. The rule diverts the control with raw movement (`0x33`), and `GestureMachine` in `HIDPPLink` does the rest from `divertedRawXY` notifications on the HID thread. Its scroll events cross to the tap thread on their own ordered stream. The HID thread never posts a scroll.
+- **Plain buttons**, right and other mouse events from a sender with rules. `ButtonStage` holds back the press, keeps a marked copy and feeds drag deltas to its own `GestureMachine`. A short press posts the copy and a marked copy of the release, in order, at the HID tap. A scroll drops every drag, so apps never see one. The left button is never watched.
+
+`HoldScrollAnimator` on the tap thread posts what a trackpad posts. While the hand moves, each display frame carries the movement since the last frame as one continuous pixel scroll on both axes, with scroll phase began, then changed, then ended. After release it posts momentum frames, momentum phase begin, continue and end, with no scroll phase. Frames post whole points, as the wheel's glide does, rounded on the running total per axis. The display link pauses while the hand holds still.
+
+The release speed is the hand's movement over its last few tens of milliseconds. Movement and the time it took are each weighted by `exp(-age / 0.04 s)`, and the speed is their ratio. That ratio is exact for a steady hand however often the device reports, and a hand that stopped before letting go has nearly none. A release slower than 150 points a second does not glide. The glide is the wheel step's glide with no ease-in, decaying as `(1 - t / duration) ^ brake` with the profile's smooth-scrolling `duration` and `brake`, or their defaults when smooth scrolling is off. It starts at the release speed and travels speed × duration / (brake + 1). A new hold during a glide ends it first.
+
+`TapHost` freezes the pointer with `CGAssociateMouseAndMouseCursorPosition(false)` when a scroll begins and frees it when the scroll ends, so the freeze does not depend on whether raw-movement divert or dropped drags stop the pointer by themselves.
+
+**Units.** Raw movement is in sensor counts, and drags are in points macOS has already accelerated. At speed 1 the page should move as far as the pointer would have, so a drag scrolls its own points, and a count is worth `HoldScrollPlan.pointsPerCount` points, measured (Appendix A). The gesture distance stays in sensor counts in the file, so a plain button's threshold is `distance × pointsPerCount` points, the same hand travel for both.
+
+| Key | Meaning | Default | Range |
+| --- | --- | --- | --- |
+| `speed` | Page movement per hand movement. At 1 the page follows the hand. | 1 | 0.25 to 4 |
+| `direction` | `grab` moves the page with the hand, like a trackpad. `wheel` scrolls down when the hand moves down, like the wheel. | `grab` | |
+| `momentum` | Glide on after a release while moving | true | |
 
 ### Build setup
 
@@ -286,10 +320,11 @@ Each of these is settled by a prototype before the code that depends on it, not 
 4. **The 2.4G dongle's services.** It is not plugged in, so its keyboard services and their ids are unmeasured.
 5. **Thumb wheel invert while undiverted.** Solaar writes it, but firmware behavior on this mouse is inferred.
 6. **Unprompted 0x1D4B over BLE.** If the MX does not send it after each reconnect, the connect callback and manual re-apply are the only triggers. A periodic read-back is the fallback.
-7. **Click-through mechanics.** Making a background click act at once may need activating the window first and replaying the click. It needs a prototype in v2.
-8. **Gesture distance.** 120 sensor counts is a guess. It is tuned by feel.
-9. **Carrier collisions.** A keyboard with physical F13 to F24 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
-10. **Smooth scrolling feel.** The default curve comes from the MX wheel's measured rates, and the glide's defaults are a starting point for tuning by feel. A free-spinning wheel may also send one step backwards as it stops. That step would end the glide and scroll back one step.
+7. **Hold-to-scroll feel and the frozen pointer under raw-movement divert.** Whether the MX keeps moving the pointer while a rawXY-diverted control is held is unmeasured, and the freeze makes it moot. Whether `CGAssociateMouseAndMouseCursorPosition` holds from a background agent app, and whether the glide's length and the 150 pt/s threshold feel right, are for the user's journey.
+8. **Click-through mechanics.** Making a background click act at once may need activating the window first and replaying the click. It needs a prototype in v2.
+9. **Gesture distance.** 120 sensor counts is a guess. It is tuned by feel.
+10. **Carrier collisions.** A keyboard with physical F13 to F24 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
+11. **Smooth scrolling feel.** The default curve comes from the MX wheel's measured rates, and the glide's defaults are a starting point for tuning by feel. A free-spinning wheel may also send one step backwards as it stops. That step would end the glide and scroll back one step.
 
 ## Next implementation step
 
@@ -320,6 +355,9 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | `NSEvent.scrollingDeltaY` of a posted pixel scroll is its integer point delta (field 96). Setting each field from 0 to 1023 in turn to 2.7 changed it only through field 96 (truncated) and the line delta. The fixed-point delta (field 93) keeps its fraction but reaches only `deltaY`. A float scroll IOHIDEvent attached with `SLEventSetIOHIDEvent` survives delivery through the window server and is ignored. | measured |
 | `NSScreen.displayLink(target:selector:)` added to a background thread's run loop fires on that thread at the screen's refresh, 16.67 ms on the external monitor and 8.33 ms on the built-in display, with `targetTimestamp` steps that never vary. Paused, it fires nothing, and it resumes within one frame. `CACurrentMediaTime` and `CLOCK_UPTIME_RAW` agree. | measured |
 | The MX wheel's events carry 1 detent each up to 36 events per second, and 1 to 3 in a free spin at 121 events per second. Their line delta is accelerated, up to 13 lines per event. | measured |
+| The MX pointer moves 0.25 to 0.30 points per sensor count below 400 counts a second, 0.33 at 400 to 800, 0.43 at 800 to 1600, 0.59 at 1600 to 3200 and 0.94 at 3200 to 6400 (medians of 50 ms windows). The hand moves at a median 890 counts a second, and the median gain from 200 to 3200 counts a second is 0.40, 0.41 with 100 ms windows. From 20,257 pointer reports over 23 minutes of the user's own use, read passively from the MX's HID reports with the pointer position at each, away from screen edges. The rise is macOS acceleration (`HIDMouseAcceleration` 0.6875, `HIDPointerResolution` 400 dpi on this service). | measured |
+| HID++ raw movement counts in the same sensor counts as the HID pointer report. | sourced (Solaar, logiops), not measured |
+| The MX's left and right buttons (0x50, 0x51) are not divertable. The middle, back, forward, gesture, top and thumb buttons are, with raw movement. | measured |
 
 ## Appendix B. Prototype results
 

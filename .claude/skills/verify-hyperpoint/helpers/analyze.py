@@ -1,4 +1,4 @@
-"""Summarize a probe recording. Usage: analyze.py posted|wheel|senders <file>"""
+"""Summarize a probe recording. Usage: analyze.py posted|wheel|senders|hold <file>"""
 import collections
 import re
 import statistics
@@ -51,5 +51,41 @@ elif mode == "wheel":
         seconds = max((b[-1][0] - b[0][0]) / 1000, 0.001)
         print(f"burst {i}: events={len(b)} rate={len(b) / seconds:.0f}/s detents={sum(abs(r[2]) for r in b):.0f}"
               f" max-detents-per-event={max(abs(r[2]) for r in b):.0f}")
+elif mode == "hold":
+    events = []
+    for line in lines:
+        m = re.match(r"([\d.]+) scroll ours=(\d) dy=(-?\d+) dx=(-?\d+) phase=(\d+) momentum=(\d+) cursor=(-?\d+),(-?\d+)", line)
+        if m:
+            events.append(dict(t=float(m[1]), kind="scroll", ours=int(m[2]), dy=int(m[3]), dx=int(m[4]), phase=int(m[5]),
+                               momentum=int(m[6]), x=int(m[7]), y=int(m[8])))
+            continue
+        m = re.match(r"([\d.]+) button=(\d+) (\w+) ours=(\d) cursor=(-?\d+),(-?\d+)", line)
+        if m:
+            events.append(dict(t=float(m[1]), kind=m[3], button=int(m[2]), ours=int(m[4]), x=int(m[5]), y=int(m[6])))
+    buttons = collections.Counter((e["button"], e["kind"], "replayed" if e["ours"] else "native") for e in events if e["kind"] != "scroll")
+    print("button events apps saw:", dict(sorted(buttons.items())))
+    gestures = []
+    for e in (e for e in events if e["kind"] == "scroll" and e["ours"]):
+        if e["phase"] == 1:
+            gestures.append(dict(start=e["t"], x=e["x"], y=e["y"], frames=0, dy=0, dx=0, glide=0, glide_dy=0, glide_dx=0,
+                                 drift=0, ended=False, glide_ended=False))
+        if not gestures:
+            continue
+        g = gestures[-1]
+        if e["momentum"] == 0:
+            g["frames"] += 1
+            g["dy"] += e["dy"]
+            g["dx"] += e["dx"]
+            g["drift"] = max(g["drift"], abs(e["x"] - g["x"]) + abs(e["y"] - g["y"]))
+            g["ended"] |= e["phase"] == 4
+        else:
+            g["glide"] += 1
+            g["glide_dy"] += e["dy"]
+            g["glide_dx"] += e["dx"]
+            g["glide_ended"] |= e["momentum"] == 3
+    for g in gestures:
+        print(f"scroll at {g['start']:.0f}ms: hand frames={g['frames']} dy={g['dy']} dx={g['dx']} ended={g['ended']}"
+              f" pointer-drift={g['drift']}pt glide frames={g['glide']} dy={g['glide_dy']} dx={g['glide_dx']}"
+              f" glide-ended={g['glide_ended']}")
 else:
     print("\n".join(lines))

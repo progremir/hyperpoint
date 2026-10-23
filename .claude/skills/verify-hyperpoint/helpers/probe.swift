@@ -2,10 +2,12 @@ import AppKit
 import Carbon.HIToolbox
 import CoreGraphics
 
-// Throwaway probe. Modes: overlay | real | senders.
+// Throwaway probe. Modes: overlay | real | senders | posted | wheel | hold.
 // overlay, real: posts F18 down, F16 down/up, F18 up at the HID tap. A rewriting tap turns F18 into hyper using
 // the chosen strategy. A Carbon hotkey for cmd+ctrl+opt+shift+F16 and a later listen-only tap report what apps see.
 // senders: logs the IOHIDEvent sender id of every pointer event for 40 s, grouped every 2 s.
+// hold: 45 s of what apps receive while a button scrolls: posted scrolls on both axes with their phases, right and
+// other button events, and where the pointer is at each.
 
 @_silgen_name("CGEventCopyIOHIDEvent") func CGEventCopyIOHIDEvent(_ event: CGEvent) -> Unmanaged<CFTypeRef>?
 @_silgen_name("IOHIDEventGetSenderID") func IOHIDEventGetSenderID(_ event: CFTypeRef) -> UInt64
@@ -157,6 +159,31 @@ if variant == "posted" {
         fflush(stdout)
         exit(0)
     }
+} else if variant == "hold" {
+    let hold: CGEventTapCallBack = { _, type, event, _ in
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6
+        let ours = event.getIntegerValueField(.eventSourceUserData) == marker ? 1 : 0
+        let cursor = CGEvent(source: nil)?.location ?? .zero
+        let at = String(format: "cursor=%.0f,%.0f", cursor.x, cursor.y)
+        switch type {
+        case .scrollWheel:
+            wheelLines.append(String(format: "%.1f scroll ours=%d dy=%lld dx=%lld phase=%lld momentum=%lld %@", ms, ours,
+                event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1), event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2),
+                event.getIntegerValueField(.scrollWheelEventScrollPhase), event.getIntegerValueField(.scrollWheelEventMomentumPhase), at))
+        case .rightMouseDown, .rightMouseUp, .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged:
+            let name = [CGEventType.rightMouseDown: "down", .rightMouseUp: "up", .rightMouseDragged: "drag",
+                        .otherMouseDown: "down", .otherMouseUp: "up", .otherMouseDragged: "drag"][type]!
+            wheelLines.append(String(format: "%.1f button=%lld %@ ours=%d %@", ms,
+                event.getIntegerValueField(.mouseEventButtonNumber), name, ours, at))
+        default:
+            break
+        }
+        return Unmanaged.passUnretained(event)
+    }
+    let mask = bit(.scrollWheel) | bit(.rightMouseDown) | bit(.rightMouseUp) | bit(.rightMouseDragged)
+        | bit(.otherMouseDown) | bit(.otherMouseUp) | bit(.otherMouseDragged)
+    guard install(.cgAnnotatedSessionEventTap, .tailAppendEventTap, .listenOnly, mask, hold) else { print("tapCreate failed"); exit(2) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 45) { print(wheelLines.joined(separator: "\n")); fflush(stdout); exit(0) }
 } else if variant == "wheel" {
     let wheel: CGEventTapCallBack = { _, type, event, _ in
         guard type == .scrollWheel, event.getIntegerValueField(.eventSourceUserData) != marker else { return Unmanaged.passUnretained(event) }
