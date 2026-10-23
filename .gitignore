@@ -4,3 +4,5 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .claude/worktrees/
+.verify-evidence/
+.verify-bin/
