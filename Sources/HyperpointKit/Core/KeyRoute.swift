@@ -74,6 +74,8 @@ struct KeyMapSetup: Equatable, Sendable {
         return "{\"UserKeyMapping\":[\(entries.joined(separator: ","))]}"
     }
 
+    var carriesHyper: Bool { routes.contains { $0.destination == Carrier.hyper.usage } }
+
     /// The write a device needs: the desired map, unless nothing is wanted and nothing of ours is on the device.
     static func pendingWrite(desired: KeyMapSetup, written: KeyMapSetup?) -> KeyMapSetup? {
         desired.routes.isEmpty && (written?.routes.isEmpty ?? true) ? nil : desired
