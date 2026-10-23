@@ -57,6 +57,12 @@ func rejection(_ json: String) -> ConfigError? {
         }
     }
 
+    @Test func aFileWrittenBeforeTheScrollKnobsKeepsItsDefaults() throws {
+        let older = documentedDefaultJSON.replacingOccurrences(of: ", \"speed\": 40, \"startBoost\": 2", with: "")
+        #expect(older != documentedDefaultJSON, "the documented file names both knobs")
+        #expect(try decode(older) == Config.default)
+    }
+
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
         let json = documentedDefaultJSON.replacingOccurrences(of: "\"shift+cmd+4\"", with: "\"Command+Shift+4\"")
         #expect(try decode(json) == Config.default)
@@ -129,6 +135,14 @@ func rejection(_ json: String) -> ConfigError? {
             replace: "\"when\": \"click\", \"do\": \"appExpose\"", path: "devices[0].rules[1]"),
         Mutation(find: "\"distance\": 120", replace: "\"distance\": 5", path: "devices[0].gestures.distance"),
         Mutation(find: "\"brake\": 2,", replace: "", path: "devices[0].scrolling.smooth.brake"),
+        Mutation(find: "\"duration\": 4,", replace: "\"duration\": 40,", path: "devices[0].scrolling.smooth.duration"),
+        Mutation(find: "\"brake\": 2,", replace: "\"brake\": 0,", path: "devices[0].scrolling.smooth.brake"),
+        Mutation(find: "\"speed\": 40", replace: "\"speed\": 0", path: "devices[0].scrolling.smooth.speed"),
+        Mutation(
+            find: "\"startBoost\": 2", replace: "\"startBoost\": 0.5", path: "devices[0].scrolling.smooth.startBoost"),
+        Mutation(
+            find: "\"startBoost\": 2", replace: "\"startBoost\": 2, \"boost\": 2",
+            path: "devices[0].scrolling.smooth.boost"),
         Mutation(find: "\"hiResWheel\": true", replace: "\"hiResWheels\": true", path: "devices[0].scrolling.hiResWheels"),
         Mutation(
             find: "\"product\": \"0x0321\"", replace: "\"product\": \"0x0321\", \"location\": 1",

@@ -36,7 +36,7 @@ Three things make the shape non-obvious.
       ],
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
-        "smooth": { "duration": 4, "brake": 2, "acceleration": true },
+        "smooth": { "duration": 4, "brake": 2, "acceleration": true, "speed": 40, "startBoost": 2 },
         "hiResWheel": true,
         "rightButtonPan": { "momentum": true },
         "clickThrough": { "left": true, "right": true }

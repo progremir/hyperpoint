@@ -173,15 +173,39 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     }
 }
 
+/// Smooth scrolling for the main wheel. Each tick feeds a glide that stops `duration` after the last tick.
 public struct SmoothScroll: Codable, Equatable, Sendable {
+    /// How long the glide lasts after the last tick, in tenths of a second.
     public var duration: Double
+    /// The glide's velocity falls as (1 - t / duration) ^ brake. At 1 it slows evenly, and higher values brake hard
+    /// first and coast into a soft stop.
     public var brake: Double
+    /// Whether ticks in quick succession each scroll farther.
     public var acceleration: Bool
+    /// Points one tick scrolls before the start boost and acceleration.
+    public var speed: Double
+    /// How much farther a tick scrolls when no glide is running, as a multiple of `speed`.
+    public var startBoost: Double
 
-    public init(duration: Double, brake: Double, acceleration: Bool) {
+    public static let defaultSpeed = 40.0
+    public static let defaultStartBoost = 2.0
+
+    public init(duration: Double, brake: Double, acceleration: Bool, speed: Double, startBoost: Double) {
         self.duration = duration
         self.brake = brake
         self.acceleration = acceleration
+        self.speed = speed
+        self.startBoost = startBoost
+    }
+
+    /// `speed` and `startBoost` came after the first files were written, so a file without them keeps working.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        duration = try container.decode(Double.self, forKey: .duration)
+        brake = try container.decode(Double.self, forKey: .brake)
+        acceleration = try container.decode(Bool.self, forKey: .acceleration)
+        speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? Self.defaultSpeed
+        startBoost = try container.decodeIfPresent(Double.self, forKey: .startBoost) ?? Self.defaultStartBoost
     }
 }
 
@@ -221,7 +245,9 @@ extension Config {
                 ],
                 gestures: GestureSettings(fire: .pastDistance, distance: 120),
                 scrolling: ScrollSettings(
-                    smooth: SmoothScroll(duration: 4, brake: 2, acceleration: true),
+                    smooth: SmoothScroll(
+                        duration: 4, brake: 2, acceleration: true, speed: SmoothScroll.defaultSpeed,
+                        startBoost: SmoothScroll.defaultStartBoost),
                     hiResWheel: true,
                     rightButtonPan: RightButtonPan(momentum: true),
                     clickThrough: ClickThrough(left: true, right: true)
