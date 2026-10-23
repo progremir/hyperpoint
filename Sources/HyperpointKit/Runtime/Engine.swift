@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @HIDActor
@@ -46,6 +47,7 @@ public final class Engine {
             group.addTask { for await signal in self.tapSignals { await self.tapSignaled(signal) } }
             group.addTask { for await snapshot in configs { await self.configChanged(snapshot) } }
             group.addTask { for await state in permissions { await self.permissionsChanged(state) } }
+            group.addTask { await self.followWakes() }
         }
     }
 
@@ -87,9 +89,19 @@ public final class Engine {
 
     private func permissionsChanged(_ state: PermissionState) {
         guard state != permissions else { return }
-        let tapPermissionChanged = state.accessibility != permissions.accessibility
         permissions = state
-        if tapPermissionChanged { reconcile(.permissionChanged) } else { publish() }
+        reconcile(.permissionChanged)
+    }
+
+    /// Sleep loses HID++ diverts, and a keyboard service can come back without its key map.
+    private nonisolated func followWakes() async {
+        let center = await MainActor.run { NSWorkspace.shared.notificationCenter }
+        for await _ in center.notifications(named: NSWorkspace.didWakeNotification) { await woke() }
+    }
+
+    private func woke() {
+        journal.note("woke from sleep")
+        reconcile(.wake)
     }
 
     private func tapSignaled(_ signal: TapSignal) {
