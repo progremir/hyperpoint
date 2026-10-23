@@ -22,7 +22,7 @@ Preconditions:
 - Hyperpoint running and settled.
 - A copy of the user's config saved to the evidence directory before any edit.
 
-- **Every page renders.** Run `verify.sh settings-shots`. PNGs for General, Hyper key, each device's tabs and the keyboards appear under `settings/`. Open the scrolling PNG and check the speed graph, the measured-range labels and the glide sliders.
+- **Every page renders.** Run `verify.sh settings-shots`. PNGs for General, Hyper key, each device's tabs and the keyboards appear under `settings/`. A page taller than the screen gets a second PNG, `NN-name-end.png`, scrolled to its end. Open the scrolling PNGs and check the speed graph, the measured-range labels, the glide sliders and the Hold to scroll section.
 - **Edit saves.** Ask the user (or drive by accessibility if available) to move "Glide after you stop" and release. `verify.sh log 1m` shows a settings save and `reasons=configChanged … applied` for every device. `diff` the saved copy against the live file: only that key changed (the first save also rewrites formatting and the old speed keys as `curve`).
 - **Invalid file.** With the user's consent, write an out-of-range value by hand. The menu shows `Config file has an error`, the window shows the error and disables editing, and `verify.sh state` is unchanged. Restore the saved copy.
 
