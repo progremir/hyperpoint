@@ -1,7 +1,7 @@
 struct GestureMachine: Sendable {
     enum Input: Sendable {
         case press(GesturePlan)
-        /// In the control's own unit: sensor counts for HID++ raw movement, points for pointer drags.
+        /// In the control's own unit, sensor counts for HID++ raw movement and points for pointer drags.
         case move(dx: Double, dy: Double)
         case release
         case cancel

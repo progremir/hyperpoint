@@ -90,7 +90,7 @@ struct HIDPPLink: Sendable {
         return finished(out)
     }
 
-    /// For a link that is going away: a scroll in progress ends.
+    /// For a link that is going away. A scroll in progress ends.
     mutating func close() -> HIDPPOutput {
         var out = HIDPPOutput()
         gestureControl = nil

@@ -13,8 +13,8 @@ struct HoldScrollPlan: Equatable, Sendable {
     /// The release glide, or nil without momentum.
     var momentum: Glide?
 
-    /// `pointsPerUnit` turns the control's movement into points: `pointsPerCount` for HID++ raw movement, 1 for
-    /// pointer drags, which are points already.
+    /// `pointsPerUnit` turns the control's movement into points. It is `pointsPerCount` for HID++ raw movement and
+    /// 1 for pointer drags, which are points already.
     init(_ settings: HoldToScroll, glide: SmoothScroll, pointsPerUnit: Double) {
         let sign: Double = settings.direction == .grab ? 1 : -1
         gain = sign * settings.speed * pointsPerUnit
@@ -22,14 +22,14 @@ struct HoldScrollPlan: Equatable, Sendable {
     }
 }
 
-/// The glide's decay, the same one a wheel step's glide uses: (1 - t / seconds) ^ brake.
+/// The glide's decay, (1 - t / seconds) ^ brake, the same one a wheel step's glide uses.
 struct Glide: Equatable, Sendable {
     var seconds: Double
     var brake: Double
 }
 
 /// Between a gesture recognizer and the animator that posts the scroll events. Deltas are page points in the
-/// posted scroll's sign: positive moves the content down or right.
+/// posted scroll's sign, so positive moves the content down or right.
 enum HoldScrollEvent: Equatable, Sendable {
     case began(HoldScrollPlan)
     case moved(dx: Double, dy: Double)
@@ -69,12 +69,12 @@ extension HoldScrollPhase {
     }
 }
 
-/// Posts a held button's scrolling the way a trackpad does: the hand's movement, gathered per display frame, with
-/// the scroll phases began, changed and ended, then on release a momentum glide with the momentum phases. The glide
-/// starts at the hand's speed over the last few tens of milliseconds and decays like a wheel step's glide. Time is
-/// passed in, in seconds.
+/// Posts a held button's scrolling the way a trackpad does. The hand's movement goes out once per display frame with
+/// the scroll phases began, changed and ended, and on release a momentum glide follows with the momentum phases. The
+/// glide starts at the hand's speed over the last few tens of milliseconds and decays like a wheel step's glide. Time
+/// is passed in, in seconds.
 struct HoldScrollAnimator {
-    /// How far back the release speed looks, in seconds: movement this old counts for about a third.
+    /// How far back the release speed looks, in seconds. Movement this old counts for about a third.
     static let smoothing = 0.04
     /// A release slower than this, in points per second, does not glide.
     static let slowestFling = 150.0

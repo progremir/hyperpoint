@@ -152,7 +152,7 @@ final class TapHost {
         freezeCursor(false)
     }
 
-    /// A button the pipeline forgot while it was down: a press held back from apps goes to them, and its scroll ends.
+    /// A button the pipeline forgot while it was down. A press held back from apps goes to them, and its scroll ends.
     /// `endingEverything` also ends a scroll an HID++ control drives, for a tap that stops or lost events.
     private func release(_ release: ButtonStage.Release, endingEverything: Bool) {
         release.press?.post(tap: .cghidEventTap)

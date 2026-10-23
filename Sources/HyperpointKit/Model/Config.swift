@@ -123,7 +123,7 @@ public enum Control: Hashable, Sendable {
     case thumbWheel
     /// A key that a mouse sends from its keyboard interface.
     case key(HIDUsage)
-    /// A plain mouse button, numbered as CGEvent numbers them: 1 is the right button, 2 the middle, 3 back and
+    /// A plain mouse button, numbered as CGEvent numbers them. 1 is the right button, 2 the middle, 3 back and
     /// 4 forward. The left button, 0, cannot have rules.
     case button(Int)
 

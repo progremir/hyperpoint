@@ -67,8 +67,8 @@ public enum ConfigCodec {
         return nil
     }
 
-    /// Keys that older files wrote and decoding converts: the smooth scrolling knobs the speed curve replaced, and
-    /// right-button pan, which became a hold-to-scroll rule.
+    /// Keys that older files wrote and decoding converts. They are the smooth scrolling knobs the speed curve
+    /// replaced, and right-button pan, which became a hold-to-scroll rule.
     private static func legacySchema(at path: String, in section: [String: Any]) -> [String: Any]? {
         if path.hasSuffix("scrolling.smooth"), section["curve"] == nil {
             return ["speed": 0, "startBoost": 0, "acceleration": ["from": 0, "to": 0, "max": 0]]

@@ -95,7 +95,7 @@ struct TapPipeline {
 }
 
 /// Carries out the rules on plain mouse buttons, for the senders that have them. A button whose rule waits on its
-/// movement is held back from apps: a release before the distance is its click, and moving past it scrolls. The
+/// movement is held back from apps. A release before the distance is its click, and moving past it scrolls. The
 /// left button never has rules, so it is not watched.
 struct ButtonStage {
     static let interests: [CGEventType] = [
