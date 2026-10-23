@@ -16,7 +16,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
 @Suite struct TapPipelineTests {
     var pipeline = TapPipeline(
-        rules: Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap)
+        rules: Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap, sender: { _ in nil })
 
     @Test mutating func hyperHeldIsAModifierChangeAndKeysCarryIt() {
         let down = key(f18, down: true)
@@ -131,8 +131,79 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
         #expect(down.flags.isDisjoint(with: hyperFlags))
     }
 
-    @Test func theTapListensForKeys() {
-        #expect(TapPipeline.mask & (1 << CGEventMask(CGEventType.keyDown.rawValue)) != 0)
-        #expect(TapPipeline.mask & (1 << CGEventMask(CGEventType.keyUp.rawValue)) != 0)
+    @Test func theTapListensForKeysAndScrolls() {
+        for type in [CGEventType.keyDown, .keyUp, .scrollWheel] {
+            #expect(TapPipeline.mask & (1 << CGEventMask(type.rawValue)) != 0, "\(type.rawValue)")
+        }
+    }
+}
+
+private let mxSender = SenderID(rawValue: 0x1_0003_7032)
+private let trackpadSender = SenderID(rawValue: 0x1_0000_0D10)
+private let smooth = Config.default.devices[0].scrolling!.smooth!
+
+private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) -> CGEvent {
+    let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2, wheel1: lines, wheel2: horizontal, wheel3: 0)!
+    if marked { event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker) }
+    return event
+}
+
+@Suite struct ScrollStageTests {
+    let rules = Intent.compile(
+        .default, paused: false, tapAvailable: true,
+        present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue])]
+    ).tap
+
+    func pipeline(_ sender: SenderID?) -> TapPipeline { TapPipeline(rules: rules, sender: { _ in sender }) }
+
+    @Test func aWheelTickFromASmoothSenderIsTakenForTheAnimator() {
+        var pipeline = pipeline(mxSender)
+        #expect(pipeline.process(.scrollWheel, wheel(1)) == .scroll(ScrollTick(sign: .positive, settings: smooth)))
+        #expect(pipeline.process(.scrollWheel, wheel(-3)) == .scroll(ScrollTick(sign: .negative, settings: smooth)))
+    }
+
+    @Test func continuousScrollsPass() {
+        var pipeline = pipeline(mxSender)
+        let continuous = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 12, wheel2: 0, wheel3: 0)!
+        #expect(pipeline.process(.scrollWheel, continuous) == .pass)
+    }
+
+    @Test func horizontalScrollsPass() {
+        var pipeline = pipeline(mxSender)
+        #expect(pipeline.process(.scrollWheel, wheel(0, horizontal: 1)) == .pass, "the thumb wheel")
+        #expect(pipeline.process(.scrollWheel, wheel(1, horizontal: -1)) == .pass, "a diagonal keeps both axes")
+    }
+
+    @Test func otherSendersPass() {
+        var trackpad = pipeline(trackpadSender)
+        #expect(trackpad.process(.scrollWheel, wheel(1)) == .pass)
+        var unattributed = pipeline(nil)
+        #expect(unattributed.process(.scrollWheel, wheel(1)) == .pass)
+    }
+
+    @Test func hyperpointsOwnScrollsPass() {
+        var pipeline = pipeline(mxSender)
+        #expect(pipeline.process(.scrollWheel, wheel(1, marked: true)) == .pass)
+    }
+
+    @Test func aScrollWithAModifierHeldPasses() {
+        var pipeline = pipeline(mxSender)
+        for flags in [CGEventFlags.maskShift, .maskCommand, .maskControl, .maskAlternate] {
+            let event = wheel(1)
+            event.flags = flags
+            #expect(pipeline.process(.scrollWheel, event) == .pass, "\(flags.rawValue)")
+        }
+    }
+
+    @Test func newRulesApplyFromTheNextTick() {
+        var pipeline = pipeline(mxSender)
+        var faster = rules
+        faster.smoothScroll[mxSender]?.speed = 90
+        pipeline.replaceRulesAndForgetHeldKeys(faster)
+        guard case .scroll(let tick) = pipeline.process(.scrollWheel, wheel(1)) else {
+            Issue.record("the tick is taken")
+            return
+        }
+        #expect(tick.settings.speed == 90)
     }
 }

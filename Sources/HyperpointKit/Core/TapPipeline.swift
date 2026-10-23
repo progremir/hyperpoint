@@ -2,48 +2,88 @@ import CoreGraphics
 
 struct TapRules: Equatable, Sendable {
     var carriers: [KeyCode: CarrierMeaning]
+    var smoothScroll: [SenderID: SmoothScroll]
 
-    static let empty = TapRules(carriers: [:])
+    static let empty = TapRules(carriers: [:], smoothScroll: [:])
 
-    init(carriers: [KeyCode: CarrierMeaning]) { self.carriers = carriers }
+    init(carriers: [KeyCode: CarrierMeaning], smoothScroll: [SenderID: SmoothScroll]) {
+        self.carriers = carriers
+        self.smoothScroll = smoothScroll
+    }
 
-    init(routes: [KeyRoute]) {
+    init(routes: [KeyRoute], smoothScroll: [SenderID: SmoothScroll]) {
         var carriers: [KeyCode: CarrierMeaning] = [:]
         for route in routes {
             switch route.target {
             case .carrier(let carrier, let meaning): carriers[carrier.keyCode] = meaning
             }
         }
-        self.init(carriers: carriers)
+        self.init(carriers: carriers, smoothScroll: smoothScroll)
     }
 
-    var isEmpty: Bool { carriers.isEmpty }
+    var isEmpty: Bool { carriers.isEmpty && smoothScroll.isEmpty }
 }
 
 enum TapVerdict: Equatable, Sendable {
     case pass
     case drop
+    /// Drop the event and feed the tick to the scroll animator.
+    case scroll(ScrollTick)
 }
 
 struct TapPipeline {
     static let syntheticMarker: Int64 = 0x4859_5052
 
+    private let sender: @Sendable (CGEvent) -> SenderID?
     private var carriers: CarrierStage
+    private var scroll: ScrollStage
 
-    init(rules: TapRules) { carriers = CarrierStage(rules: rules) }
-
-    static var mask: CGEventMask {
-        CarrierStage.interests.reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) }
+    init(rules: TapRules, sender: @escaping @Sendable (CGEvent) -> SenderID?) {
+        self.sender = sender
+        carriers = CarrierStage(rules: rules)
+        scroll = ScrollStage(settings: rules.smoothScroll, sender: sender)
     }
 
-    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { carriers = CarrierStage(rules: rules) }
+    static var mask: CGEventMask {
+        (CarrierStage.interests + ScrollStage.interests).reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) }
+    }
+
+    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { self = TapPipeline(rules: rules, sender: sender) }
 
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else { return .pass }
-        return carriers.process(type, event)
+        let verdict = carriers.process(type, event)
+        return verdict == .pass ? scroll.process(type, event) : verdict
     }
 
     mutating func reset() { carriers.reset() }
+}
+
+/// Takes vertical wheel ticks from senders with smooth scrolling. Continuous scrolls, horizontal ones such as the
+/// thumb wheel's, and scrolls with a modifier held pass, so trackpads, other mice, shift-scroll and zoom stay native.
+struct ScrollStage {
+    static let interests: [CGEventType] = [.scrollWheel]
+
+    private static let modifiers: CGEventFlags = [.maskShift, .maskControl, .maskAlternate, .maskCommand]
+
+    let settings: [SenderID: SmoothScroll]
+    let sender: @Sendable (CGEvent) -> SenderID?
+
+    func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
+        guard type == .scrollWheel, !settings.isEmpty,
+            event.getIntegerValueField(.scrollWheelEventIsContinuous) == 0,
+            Self.delta(event, .scrollWheelEventFixedPtDeltaAxis2, .scrollWheelEventDeltaAxis2) == 0,
+            event.flags.isDisjoint(with: Self.modifiers)
+        else { return .pass }
+        let vertical = Self.delta(event, .scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventDeltaAxis1)
+        guard vertical != 0, let sender = sender(event), let smooth = settings[sender] else { return .pass }
+        return .scroll(ScrollTick(sign: vertical > 0 ? .positive : .negative, settings: smooth))
+    }
+
+    private static func delta(_ event: CGEvent, _ fixed: CGEventField, _ lines: CGEventField) -> Double {
+        let value = event.getDoubleValueField(fixed)
+        return value != 0 ? value : Double(event.getIntegerValueField(lines))
+    }
 }
 
 struct CarrierStage {

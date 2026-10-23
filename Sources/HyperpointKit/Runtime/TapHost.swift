@@ -15,7 +15,7 @@ enum TapSignal: Sendable {
 
 @TapActor
 final class TapHost {
-    private var pipeline = TapPipeline(rules: .empty)
+    private var pipeline = TapPipeline(rules: .empty, sender: { _ in nil })
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
     private var watchdog: CFRunLoopTimer?
@@ -73,7 +73,10 @@ final class TapHost {
             reenable()
             return Unmanaged.passUnretained(event)
         default:
-            return pipeline.process(type, event) == .drop ? nil : Unmanaged.passUnretained(event)
+            switch pipeline.process(type, event) {
+            case .pass: return Unmanaged.passUnretained(event)
+            case .drop, .scroll: return nil
+            }
         }
     }
 
