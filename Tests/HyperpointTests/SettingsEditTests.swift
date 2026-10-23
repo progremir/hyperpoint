@@ -103,6 +103,7 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         .gestureDistance(mx, 2000),
         .smooth(mx, nil),
         .smooth(mouse24G, .default),
+        .curve(mx, CurveGraph.dragging(.default, point: 1, to: SpeedCurve.Point(stepsPerSecond: 6, pointsPerSecond: 400))),
     ] + SmoothKnob.allCases.map { .smoothKnob(mx, $0, $0.scale.value(at: 0.7)) }
 
     @Test(arguments: everyEdit)

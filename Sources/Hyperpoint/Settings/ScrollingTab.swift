@@ -19,16 +19,6 @@ struct ScrollingTab: View {
                 Text("The wheel glides like a trackpad instead of jumping a few lines per step.")
             }
             .disabled(device.profile == nil)
-            ForEach(SmoothKnob.allCases, id: \.self) { knob in
-                KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
-                    .disabled(smooth == nil)
-            }
-            HStack {
-                Text("Puts every smooth scrolling setting above back to how Hyperpoint ships.").foregroundStyle(.secondary)
-                Spacer()
-                Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
-                    .disabled(smooth == nil || smooth == .default)
-            }
         } header: {
             Text("Wheel")
         } footer: {
@@ -37,6 +27,36 @@ struct ScrollingTab: View {
             }
         }
         .disabled(!model.editable)
+
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("How fast the page scrolls")
+                    Text("Spin the wheel faster and the page scrolls faster. The shaded bands are how fast this wheel spins.")
+                        .foregroundStyle(.secondary)
+                }
+                SpeedGraph(curve: shown.curve) { model.apply(.curve(match, $0)) }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Scroll speed")
+        }
+        .disabled(!model.editable || smooth == nil)
+
+        Section {
+            ForEach(SmoothKnob.allCases, id: \.self) { knob in
+                KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
+            }
+            HStack {
+                Text("Puts the scroll speed and every glide setting back to how Hyperpoint ships.").foregroundStyle(.secondary)
+                Spacer()
+                Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
+                    .disabled(smooth == .default)
+            }
+        } header: {
+            Text("Glide")
+        }
+        .disabled(!model.editable || smooth == nil)
 
         Section("More") {
             if device.speaksHIDPP {

@@ -29,6 +29,7 @@ enum SettingsEdit: Equatable, Sendable {
     /// Nil turns smooth scrolling off.
     case smooth(DeviceMatch, SmoothScroll?)
     case smoothKnob(DeviceMatch, SmoothKnob, Double)
+    case curve(DeviceMatch, SpeedCurve)
 
     func applied(to config: Config) -> Config {
         var config = config
@@ -70,6 +71,8 @@ enum SettingsEdit: Equatable, Sendable {
                 guard let smooth = profile.scrolling?.smooth else { return }
                 profile.scrolling?.smooth = knob.setting(value, in: smooth)
             }
+        case .curve(let match, let curve):
+            config.editProfile(match) { $0.scrolling?.smooth?.curve = curve }
         }
         return config
     }
@@ -91,6 +94,7 @@ enum SettingsEdit: Equatable, Sendable {
             "\(Self.profile(match)).scrolling.smooth = \(smooth.map(Self.json) ?? "none")"
         case .smoothKnob(let match, let knob, let value):
             "\(Self.profile(match)).scrolling.smooth.\(knob.key) = \(value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never)))"
+        case .curve(let match, let curve): "\(Self.profile(match)).scrolling.smooth.curve = \(Self.json(curve))"
         }
     }
 
