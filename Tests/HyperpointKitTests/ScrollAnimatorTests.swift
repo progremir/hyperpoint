@@ -2,42 +2,43 @@ import CoreGraphics
 @testable import HyperpointKit
 import Testing
 
-private let frameRate = 120.0
-private let smooth = Config.default.devices[0].scrolling!.smooth!
+private let smooth = SmoothScroll.default
 
-private struct Glide {
+private struct Step {
+    var time: Double
+    var sign = ScrollTick.Sign.positive
+    var detents = 1
+}
+
+private struct Run {
     var frames: [(time: Double, frame: ScrollFrame)]
     var idleAtEnd: Bool
 
-    var distance: Int { frames.reduce(0) { $0 + Int($1.frame.points) } }
-    func distance(from start: Double, to stop: Double) -> Int {
-        frames.filter { $0.time >= start && $0.time < stop }.reduce(0) { $0 + Int($1.frame.points) }
+    var distance: Double { frames.reduce(0) { $0 + $1.frame.points } }
+    func distance(from start: Double, to stop: Double) -> Double {
+        frames.filter { $0.time >= start && $0.time < stop }.reduce(0) { $0 + $1.frame.points }
     }
-    var lastMovingFrame: Double { frames.last { $0.frame.points != 0 }?.time ?? 0 }
+    var moving: [(time: Double, frame: ScrollFrame)] { frames.filter { $0.frame.phase != .ended } }
 }
 
-/// Drives the animator at 120 Hz with a fake clock. Ticks land between frames.
-private func glide(
-    _ ticks: [(time: Double, sign: ScrollTick.Sign)], _ settings: SmoothScroll = smooth, seconds: Double = 3
-) -> Glide {
+/// Drives the animator with a fake display clock. Steps land between frames.
+private func run(_ steps: [Step], _ settings: SmoothScroll = smooth, seconds: Double = 3, hertz: Double = 120) -> Run {
     var animator = ScrollAnimator()
-    var pending = ticks[...]
+    var pending = steps[...]
     var frames: [(Double, ScrollFrame)] = []
-    for index in 0...Int(seconds * frameRate) {
-        let now = Double(index) / frameRate
+    for index in 0...Int(seconds * hertz) {
+        let now = Double(index) / hertz
         while let next = pending.first, next.time <= now {
-            animator.tick(ScrollTick(sign: next.sign, settings: settings), at: next.time)
+            animator.tick(ScrollTick(sign: next.sign, steps: next.detents, settings: settings), at: next.time)
             pending.removeFirst()
         }
         if let frame = animator.frame(at: now) { frames.append((now, frame)) }
     }
-    return Glide(frames: frames, idleAtEnd: animator.isIdle)
+    return Run(frames: frames, idleAtEnd: animator.isIdle)
 }
 
-private func burst(_ count: Int, perSecond rate: Double, from start: Double = 0.0005, _ sign: ScrollTick.Sign = .positive)
-    -> [(time: Double, sign: ScrollTick.Sign)]
-{
-    (0..<count).map { (start + Double($0) / rate, sign) }
+private func spin(_ count: Int, perSecond rate: Double, from start: Double = 0.0005, detents: Int = 1) -> [Step] {
+    (0..<count).map { Step(time: start + Double($0) / rate, detents: detents) }
 }
 
 private func with(_ change: (inout SmoothScroll) -> Void) -> SmoothScroll {
@@ -46,187 +47,197 @@ private func with(_ change: (inout SmoothScroll) -> Void) -> SmoothScroll {
     return settings
 }
 
-private func perTickInSteadyStream(_ rate: Double, _ settings: SmoothScroll) -> Double {
-    let stream = glide(burst(Int(5 * rate), perSecond: rate), settings, seconds: 6)
-    return Double(stream.distance(from: 1, to: 3)) / (2 * rate)
+private func speedInSteadySpin(_ rate: Double, _ settings: SmoothScroll = smooth, detents: Int = 1) -> Double {
+    let events = rate / Double(detents)
+    let stream = run(spin(Int(6 * events), perSecond: events, detents: detents), settings, seconds: 7)
+    return stream.distance(from: 2, to: 5) / 3
 }
 
 @Suite struct ScrollAnimatorTests {
-    @Test func aTickAfterIdleGoesFartherThanAPlainNotch() {
-        let notch = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: 1, wheel2: 0, wheel3: 0)!
-        let plainNotch = Int(notch.getIntegerValueField(.scrollWheelEventPointDeltaAxis1))
-
-        let single = glide(burst(1, perSecond: 1))
-
-        #expect(single.distance > 2 * plainNotch)
-        #expect(abs(single.distance - Int(smooth.speed * smooth.startBoost)) <= 1, "it scrolls startBoost × speed")
+    @Test func aSingleStepGoesTheCurvesDistanceAtTheSlowestRate() {
+        let single = run(spin(1, perSecond: 1))
+        let curve = smooth.curve
+        #expect(abs(single.distance - curve.pointsPerSecond(at: curve.slowest) / curve.slowest) < 1e-9)
         #expect(single.frames.first?.frame.phase == .began)
         #expect(single.frames.last?.frame == ScrollFrame(points: 0, phase: .ended))
-        #expect(single.frames.dropFirst().dropLast().allSatisfy { $0.frame.phase == .changed && $0.frame.points > 0 })
+        #expect(single.moving.dropFirst().allSatisfy { $0.frame.phase == .changed && $0.frame.points > 0 })
         #expect(single.idleAtEnd)
     }
 
-    @Test func aFastBurstAcceleratesWhenAccelerationIsOn() {
-        let fast = burst(20, perSecond: 60)
-        let accelerated = glide(fast).distance
-        let flat = glide(fast, with { $0.acceleration = nil }).distance
-        #expect(accelerated > 2 * flat)
-        #expect(glide(burst(20, perSecond: 60)).distance > glide(burst(20, perSecond: 10)).distance)
+    @Test func aStepFromRestStartsNearStillAndNeverJumps() {
+        let single = run(spin(1, perSecond: 1))
+        let speeds = single.moving.map(\.frame.points)
+        let peak = speeds.max()!
+        #expect(speeds[0] < 0.05 * peak, "the first frame barely moves")
+        #expect(zip(speeds, speeds.dropFirst()).allSatisfy { abs($1 - $0) < 0.3 * peak }, "speed changes by small steps")
+
+        let abrupt = run(spin(1, perSecond: 1), with { $0.easeIn = 0 }).moving.map(\.frame.points)
+        #expect(abrupt[0] > 0.9 * abrupt.max()!, "without the ease-in the first frame moves at full speed")
     }
 
-    @Test func aSteadyStreamScrollsSpeedPerTickWhateverTheGlide() {
-        for (duration, brake) in [(4.0, 1.0), (4.0, 4.0), (10.0, 2.0)] {
-            let settings = with {
-                $0.duration = duration
-                $0.brake = brake
-                $0.acceleration = nil
-                $0.startBoost = 1
-            }
-            let stream = glide(burst(40, perSecond: 10), settings, seconds: 6)
-            let perTick = Double(stream.distance(from: 1, to: 3)) / 20
-            #expect(abs(perTick - settings.speed) < 0.1 * settings.speed, "duration \(duration), brake \(brake)")
-        }
-    }
-
-    @Test func accelerationGainRisesLinearlyWithTickRate() {
-        let settings = with {
-            $0.startBoost = 1
-            $0.acceleration = Acceleration(from: 4, to: 40, max: 3)
-        }
-        let expected: [(rate: Double, gain: Double)] = [(3, 1), (4, 1), (13, 1.5), (22, 2), (31, 2.5), (40, 3), (80, 3)]
-        for (rate, gain) in expected {
-            let perTick = perTickInSteadyStream(rate, settings)
-            #expect(abs(perTick / (settings.speed * gain) - 1) < 0.05, "\(rate) ticks/s scroll \(perTick) per tick")
+    @Test(arguments: [4.0, 10, 16, 36])
+    func aSteadySpinScrollsAtTheCurvesSpeed(_ rate: Double) {
+        for settings in [smooth, with { $0.brake = 1 }, with { $0.duration = 10; $0.easeIn = 300 }] {
+            let speed = speedInSteadySpin(rate, settings)
+            let expected = settings.curve.pointsPerSecond(at: rate)
+            #expect(abs(speed / expected - 1) < 0.03, "\(rate) steps/s scroll \(speed) pt/s, not \(expected)")
         }
     }
 
-    @Test func withoutAccelerationEveryRateScrollsSpeedPerTick() {
-        let settings = with {
-            $0.startBoost = 1
-            $0.acceleration = nil
-        }
-        for rate in [3.0, 22, 80] {
-            let perTick = perTickInSteadyStream(rate, settings)
-            #expect(abs(perTick / settings.speed - 1) < 0.05, "\(rate) ticks/s scroll \(perTick) per tick")
+    @Test func aFlickCountsEveryDetentInAnEvent() {
+        #expect(abs(speedInSteadySpin(40, detents: 2) / speedInSteadySpin(40) - 1) < 0.03)
+        let curve = smooth.curve
+        let three = run([Step(time: 0.0005, detents: 3)])
+        #expect(abs(three.distance - 3 * curve.distancePerStep(at: curve.slowest)) < 1e-9)
+    }
+
+    @Test func framesCarryTheFractionAndAddUpToTheDistance() throws {
+        let sixtyPerStep = try SpeedCurve([
+            .init(stepsPerSecond: 1, pointsPerSecond: 60), .init(stepsPerSecond: 150, pointsPerSecond: 9000),
+        ])
+        let stream = run(spin(8, perSecond: 15), with { $0.curve = sixtyPerStep })
+        #expect(stream.moving.contains { $0.frame.points != $0.frame.points.rounded() }, "frames are not whole points")
+        #expect(abs(stream.distance - 8 * 60) < 1e-9)
+    }
+
+    @Test(arguments: [60.0, 120])
+    func theGlideEndsAtAnEvenCadenceInsteadOfTrickling(_ hertz: Double) {
+        let cases = [(spin(1, perSecond: 1), smooth), (spin(12, perSecond: 30), with { $0.brake = 1 }), (spin(1, perSecond: 1), with { $0.brake = 6 })]
+        for (steps, settings) in cases {
+            let glide = run(steps, settings, hertz: hertz)
+            var whole = WholePoints()
+            let posted = glide.frames.map { whole.take($0.frame) }
+            let moving = posted.drop { $0 == 0 }.dropLast()
+            #expect(!moving.isEmpty)
+            let gaps = zip(moving, moving.dropFirst()).filter { $0 == 0 && $1 == 0 }
+            #expect(gaps.isEmpty, "\(hertz) Hz: whole points \(posted)")
+            let tail = glide.moving.suffix(4).dropLast().map(\.frame.points)
+            #expect(tail.allSatisfy { $0 >= ScrollAnimator.stoppingSpeed / hertz - 1e-9 }, "the last frames keep the stopping speed")
+            #expect(glide.frames.last?.frame.phase == .ended)
         }
     }
 
-    @Test func theGlideStopsWithinDurationAfterTheLastTick() {
+    @Test func theGlideStopsWithinTheEaseInAndDurationAfterTheLastStep() {
         for duration in [4.0, 8.0] {
             let settings = with { $0.duration = duration }
-            let ticks = burst(10, perSecond: 30)
-            let lastTick = ticks.last!.time
-            let length = duration / 10
-            let run = glide(ticks, settings)
-
-            #expect(run.lastMovingFrame <= lastTick + length + 1 / frameRate)
-            #expect(run.lastMovingFrame > lastTick + length / 2, "it glides on after the last tick")
-            #expect(run.frames.last?.frame.phase == .ended)
-            #expect(run.idleAtEnd)
-            let firstHalf = run.distance(from: lastTick, to: lastTick + length / 2)
-            let secondHalf = run.distance(from: lastTick + length / 2, to: lastTick + length + 1)
-            #expect(firstHalf > 3 * secondHalf, "it decays")
+            let steps = spin(10, perSecond: 30)
+            let last = steps.last!.time
+            let glide = run(steps, settings)
+            let length = settings.easeIn / 1000 + duration / 10
+            #expect(glide.moving.last!.time <= last + length + 1.0 / 120)
+            #expect(glide.moving.last!.time > last + length / 2, "it glides on after the last step")
+            #expect(glide.idleAtEnd)
         }
     }
 
     @Test func brakeFrontLoadsTheStop() {
-        func shareOfFirstQuarter(_ brake: Double) -> Double {
-            let run = glide(burst(1, perSecond: 1), with { $0.brake = brake })
-            return Double(run.distance(from: 0, to: 0.1)) / Double(run.distance)
+        func shareOfFirstTenth(_ brake: Double) -> Double {
+            let glide = run(spin(1, perSecond: 1), with { $0.brake = brake })
+            return glide.distance(from: 0, to: 0.1) / glide.distance
         }
-        #expect(shareOfFirstQuarter(1) < shareOfFirstQuarter(2))
-        #expect(shareOfFirstQuarter(2) < shareOfFirstQuarter(4))
+        #expect(shareOfFirstTenth(1) < shareOfFirstTenth(2))
+        #expect(shareOfFirstTenth(2) < shareOfFirstTenth(4))
     }
 
-    @Test func aTickTheOtherWayCancelsTheGlideAtOnce() throws {
-        let up = burst(10, perSecond: 30)
+    @Test func aStepTheOtherWayEndsTheGlideAtOnce() throws {
+        let up = spin(10, perSecond: 30)
         let reversal = up.last!.time + 0.05
-        let run = glide(up + [(reversal, .negative)])
+        let glide = run(up + [Step(time: reversal, sign: .negative)])
 
-        let after = run.frames.filter { $0.time >= reversal }
+        let after = glide.frames.filter { $0.time >= reversal }
         let first = try #require(after.first)
         #expect(first.frame == ScrollFrame(points: 0, phase: .ended), "the glide ends on the next frame")
-        #expect(first.time < reversal + 1 / frameRate)
         #expect(after.dropFirst().first?.frame.phase == .began)
         #expect(after.allSatisfy { $0.frame.points <= 0 }, "nothing moves the old way after the reversal")
-        #expect(after.reduce(0) { $0 + Int($1.frame.points) } <= -Int(smooth.speed), "the new tick scrolls the other way")
+        let back = after.reduce(0) { $0 + $1.frame.points }
+        #expect(abs(back + smooth.curve.distancePerStep(at: smooth.curve.slowest)) < 1e-9, "a fresh step the other way")
     }
 
-    @Test func distanceIsFiniteAndGrowsWithSpeed() {
-        let distances = [10.0, 20, 40, 80].map { speed in glide(burst(15, perSecond: 40), with { $0.speed = speed }) }
-        #expect(distances.allSatisfy { $0.idleAtEnd }, "every glide ends")
-        #expect(zip(distances, distances.dropFirst()).allSatisfy { $0.distance < $1.distance })
+    @Test func theDisplaysRefreshRateChangesNoDistance() {
+        let steps = spin(20, perSecond: 12)
+        let at60 = run(steps, hertz: 60)
+        let at120 = run(steps, hertz: 120)
+        #expect(abs(at60.distance - at120.distance) < 1e-9)
+        #expect(abs(at60.distance(from: 0.5, to: 1.5) / at120.distance(from: 0.5, to: 1.5) - 1) < 0.02)
     }
 
-    @Test func easeInStartsAnIsolatedTickSlowerWithoutChangingItsDistance() throws {
-        let flat = with {
-            $0.startBoost = 1
-            $0.brake = 1
+    @Test func aSettingsChangeAppliesFromTheNextStep() {
+        let faster = with {
+            $0.curve = try! SpeedCurve([.init(stepsPerSecond: 1, pointsPerSecond: 100), .init(stepsPerSecond: 150, pointsPerSecond: 15_000)])
         }
-        let abrupt = glide(burst(1, perSecond: 1), flat)
-        let firstAbrupt = try #require(abrupt.frames.first { $0.frame.points != 0 })
-        for easeIn in [60.0, 300] {
-            let eased = glide(burst(1, perSecond: 1), with { $0 = flat; $0.easeIn = easeIn })
-            let firstEased = try #require(eased.frames.first { $0.frame.points != 0 })
-            #expect(eased.distance(from: 0, to: firstAbrupt.time + 0.001) < Int(firstAbrupt.frame.points), "\(easeIn) ms")
-            #expect(firstEased.time >= firstAbrupt.time)
-            #expect(abs(eased.distance - Int(flat.speed)) <= 1, "\(easeIn) ms still scrolls speed × startBoost")
-            #expect(eased.lastMovingFrame <= 0.0005 + (easeIn / 1000 + flat.duration / 10) + 1 / frameRate)
-            #expect(eased.lastMovingFrame > 0.0005 + flat.duration / 10, "the ease-in lengthens the glide")
-            #expect(eased.idleAtEnd)
-        }
-        let boosted = glide(burst(1, perSecond: 1), with { $0.easeIn = 300 })
-        #expect(abs(boosted.distance - Int(smooth.speed * smooth.startBoost)) <= 1)
-    }
-
-    @Test func easeInLeavesASteadyStreamAlone() {
-        for accelerated in [false, true] {
-            let settings = with {
-                $0.startBoost = 1
-                if !accelerated { $0.acceleration = nil }
-            }
-            for rate in [5.0, 30] {
-                let plain = perTickInSteadyStream(rate, settings)
-                let eased = perTickInSteadyStream(rate, with { $0 = settings; $0.easeIn = 300 })
-                #expect(abs(eased / plain - 1) < 0.01, "\(rate) ticks/s, acceleration \(accelerated)")
-            }
-        }
-    }
-
-    @Test func ticksDuringTheEaseInKeepTheFirstTicksDistance() {
-        let settings = with {
-            $0.easeIn = 300
-            $0.acceleration = nil
-            $0.startBoost = 1
-        }
-        let two = glide([(0.0005, .positive), (0.1005, .positive)], settings)
-        let single = glide(burst(1, perSecond: 1), settings)
-        #expect(two.distance > single.distance + Int(settings.speed) / 2, "the second tick adds to the first")
-        #expect(two.frames.dropFirst().dropLast().allSatisfy { $0.frame.phase == .changed && $0.frame.points > 0 })
-    }
-
-    @Test func easeInOfZeroPostsTheFramesItAlwaysHas() {
-        let isolated: [Int32] = [
-            4, 5, 4, 5, 4, 4, 3, 4, 3, 4, 3, 3, 2, 3, 2, 3, 2, 2, 2, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-        ]
-        let burstThenReversal: [Int32] = [
-            4, 5, 4, 5, 4, 8, 8, 7, 7, 9, 10, 10, 10, 9, 11, 12, 12, 11, 11, 14, 14, 13, 13, 12, 15, 16, 14, 14, 13, 13,
-            12, 11, 11, 11, 9, 10, 9, 8, 8, 7, 7, 7, 6, 5, 6, 5, 4, 0, -4, -5, -5, -4, -4, -4, -4, -3, -4, -3, -3, -3, -2,
-            -3, -3, -2, -2, -2, -2, -2, -1, -2, -1, -1, -2, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,
-        ]
-        #expect(smooth.easeIn == 0)
-        #expect(glide(burst(1, perSecond: 1)).frames.map(\.frame.points) == isolated)
-        let ticks = burst(6, perSecond: 25) + [(0.4, .negative)]
-        #expect(glide(ticks).frames.map(\.frame.points) == burstThenReversal)
+        var animator = ScrollAnimator()
+        animator.tick(ScrollTick(sign: .positive, steps: 1, settings: smooth), at: 0)
+        animator.tick(ScrollTick(sign: .positive, steps: 1, settings: faster), at: 2)
+        var total = 0.0
+        for index in 1...600 { total += animator.frame(at: Double(index) / 120)?.points ?? 0 }
+        #expect(abs(total - 140) < 1e-9, "40 points, then 100")
     }
 
     @Test func stopEndsAnOpenGestureOnce() {
         var animator = ScrollAnimator()
         #expect(animator.stop() == nil, "nothing to end")
-        animator.tick(ScrollTick(sign: .positive, settings: smooth), at: 0)
-        _ = animator.frame(at: 1 / frameRate)
+        animator.tick(ScrollTick(sign: .positive, steps: 1, settings: smooth), at: 0)
+        _ = animator.frame(at: 1.0 / 120)
         #expect(animator.stop() == ScrollFrame(points: 0, phase: .ended))
         #expect(animator.isIdle)
-        #expect(animator.frame(at: 2 / frameRate) == nil)
+        #expect(animator.frame(at: 2.0 / 120) == nil)
+    }
+}
+
+@Suite struct SpinRateTests {
+    @Test func aStepAfterAPauseCountsAsTheSlowestRate() {
+        var rate = SpinRate()
+        #expect(rate.record(1, at: 10, slowest: 1) == 1)
+        #expect(rate.record(1, at: 12, slowest: 1) == 1, "two seconds apart is slower than the slowest point")
+        #expect(abs(rate.record(1, at: 12.1, slowest: 1) - 10) < 1e-9, "the first interval sets the rate")
+    }
+
+    @Test func theRateFollowsTheLastFewIntervals() {
+        var rate = SpinRate()
+        var time = 0.0
+        _ = rate.record(1, at: time, slowest: 1)
+        for _ in 0..<10 {
+            time += 0.1
+            _ = rate.record(1, at: time, slowest: 1)
+        }
+        time += 1.0 / 40
+        let first = rate.record(1, at: time, slowest: 1)
+        #expect(first > 10 && first < 30, "one fast step moves the rate only part of the way")
+        var latest = first
+        for _ in 0..<7 {
+            time += 1.0 / 40
+            latest = rate.record(1, at: time, slowest: 1)
+        }
+        #expect(abs(latest - 40) < 1, "eight steps at 40 per second bring it to about 40")
+        time += 1.0 / 20
+        #expect(rate.record(2, at: time, slowest: 1) > 30, "two detents in one event count as two steps")
+    }
+}
+
+@Suite struct WholePointsTests {
+    @Test func wholePointsTrackTheExactTotalWithinHalfAPoint() {
+        var whole = WholePoints()
+        var exact = 0.0
+        var posted: Int32 = 0
+        let frames = [ScrollFrame(points: 0.3, phase: .began)] + (0..<200).map { ScrollFrame(points: 2.7 + sin(Double($0)) * 0.4, phase: .changed) }
+        for frame in frames {
+            exact += frame.points
+            posted += whole.take(frame)
+            #expect(abs(Double(posted) - exact) <= 0.5)
+        }
+    }
+
+    @Test func aSteadyGlidePostsEvenWholePoints() {
+        var whole = WholePoints()
+        _ = whole.take(ScrollFrame(points: 2.7, phase: .began))
+        let posted = (0..<100).map { _ in whole.take(ScrollFrame(points: 2.7, phase: .changed)) }
+        #expect(Set(posted) == [2, 3], "never 4 next to 2")
+    }
+
+    @Test func aNewGestureStartsFromZero() {
+        var whole = WholePoints()
+        _ = whole.take(ScrollFrame(points: 0.4, phase: .began))
+        #expect(whole.take(ScrollFrame(points: 0, phase: .ended)) == 0)
+        #expect(whole.take(ScrollFrame(points: 0.4, phase: .began)) == 0, "the last gesture's fraction does not carry")
     }
 }

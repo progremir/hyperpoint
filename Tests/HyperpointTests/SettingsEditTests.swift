@@ -82,16 +82,10 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
     }
 
     @Test func knobEditsChangeOneValue() {
-        let faster = SettingsEdit.smoothKnob(mx, .speed, 55).applied(to: base)
+        let longer = SettingsEdit.smoothKnob(mx, .duration, 7).applied(to: base)
         var expected = SmoothScroll.default
-        expected.speed = 55
-        #expect(profile(faster, mx)?.scrolling?.smooth == expected)
-
-        let noAcceleration = SettingsEdit.acceleration(mx, nil).applied(to: base)
-        #expect(profile(noAcceleration, mx)?.scrolling?.smooth?.acceleration == nil)
-        #expect(
-            SettingsEdit.smoothKnob(mx, .accelerationMax, 5).applied(to: noAcceleration) == noAcceleration,
-            "an acceleration knob does nothing while acceleration is off")
+        expected.duration = 7
+        #expect(profile(longer, mx)?.scrolling?.smooth == expected)
     }
 
     static let everyEdit: [SettingsEdit] = [
@@ -109,9 +103,7 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         .gestureDistance(mx, 2000),
         .smooth(mx, nil),
         .smooth(mouse24G, .default),
-        .acceleration(mx, nil),
-        .acceleration(mx, Acceleration(from: 0, to: 1, max: 10)),
-    ] + SmoothKnob.allCases.map { .smoothKnob(mx, $0, $0.scale(in: .default).value(at: 0.7)) }
+    ] + SmoothKnob.allCases.map { .smoothKnob(mx, $0, $0.scale.value(at: 0.7)) }
 
     @Test(arguments: everyEdit)
     func everyEditChangesTheFileAndSurvivesTheCodec(_ edit: SettingsEdit) throws {
@@ -122,11 +114,8 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
 
     @Test func theLogLineUsesTheFileKeys() {
         #expect(
-            SettingsEdit.smoothKnob(mx, .speed, 55).logDescription
-                == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.speed = 55"#)
-        #expect(
-            SettingsEdit.smoothKnob(mx, .accelerationMax, 2.5).logDescription
-                == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.acceleration.max = 2.5"#)
+            SettingsEdit.smoothKnob(mx, .brake, 2.5).logDescription
+                == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.brake = 2.5"#)
     }
 }
 

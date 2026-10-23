@@ -177,94 +177,68 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     }
 }
 
-/// Smooth scrolling for the main wheel. Each tick feeds a glide that stops `duration` after the last tick.
+/// Smooth scrolling for the main wheel. Each wheel step glides the page by the distance the speed curve gives it.
 public struct SmoothScroll: Codable, Equatable, Sendable {
-    /// How long the glide lasts after the last tick, in tenths of a second.
+    /// How long a step's glide lasts after it reaches full speed, in tenths of a second.
     public var duration: Double
-    /// The glide's velocity falls as (1 - t / duration) ^ brake. At 1 it slows evenly, and higher values brake hard
-    /// first and coast into a soft stop.
+    /// A step's glide slows as (1 - t / duration) ^ brake. At 1 it slows evenly, and higher values brake hard first
+    /// and coast into a soft stop.
     public var brake: Double
-    /// How ticks in quick succession each scroll farther, or nil for no acceleration. The file says `false`, `true`
-    /// for the defaults, or an object.
-    public var acceleration: Acceleration?
-    /// Points one tick scrolls before the start boost and acceleration.
-    public var speed: Double
-    /// How much farther a tick scrolls when no glide is running, as a multiple of `speed`.
-    public var startBoost: Double
-    /// Milliseconds a new glide takes to rise from rest to its full velocity, without changing how far it goes.
-    /// 0 starts it at full velocity.
+    /// Milliseconds a step's glide takes to rise from rest to full speed, without changing how far it goes.
     public var easeIn: Double
+    /// How fast the page scrolls for how fast the wheel spins.
+    public var curve: SpeedCurve
 
-    private enum CodingKeys: String, CodingKey { case duration, brake, acceleration, speed, startBoost, easeIn }
+    private enum CodingKeys: String, CodingKey { case duration, brake, easeIn, curve }
+    /// Files written before the curve still parse, and these keys convert to an equivalent curve.
+    private enum LegacyKeys: String, CodingKey { case speed, startBoost, acceleration }
 
-    public static let defaultSpeed = 40.0
-    public static let defaultStartBoost = 2.0
-    public static let defaultEaseIn = 0.0
+    public static let defaultEaseIn = 60.0
 
-    public static let `default` = SmoothScroll(
-        duration: 4, brake: 2, acceleration: .default, speed: defaultSpeed, startBoost: defaultStartBoost,
-        easeIn: defaultEaseIn)
+    public static let `default` = SmoothScroll(duration: 4, brake: 2, easeIn: defaultEaseIn, curve: .default)
 
     /// The values the parser accepts.
     public static let durationRange: ClosedRange<Double> = 1...20
     public static let brakeRange: ClosedRange<Double> = 0.5...10
-    public static let speedRange: ClosedRange<Double> = 1...500
-    public static let startBoostRange: ClosedRange<Double> = 1...10
     public static let easeInRange: ClosedRange<Double> = 0...300
 
-    public init(
-        duration: Double, brake: Double, acceleration: Acceleration?, speed: Double, startBoost: Double, easeIn: Double
-    ) {
+    public init(duration: Double, brake: Double, easeIn: Double, curve: SpeedCurve) {
         self.duration = duration
         self.brake = brake
-        self.acceleration = acceleration
-        self.speed = speed
-        self.startBoost = startBoost
         self.easeIn = easeIn
+        self.curve = curve
     }
 
-    /// `speed`, `startBoost` and `easeIn` came after the first files were written, so a file without them keeps working.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         duration = try container.decode(Double.self, forKey: .duration)
         brake = try container.decode(Double.self, forKey: .brake)
-        if let on = try? container.decode(Bool.self, forKey: .acceleration) {
-            acceleration = on ? .default : nil
-        } else {
-            acceleration = try container.decode(Acceleration.self, forKey: .acceleration)
-        }
-        speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? Self.defaultSpeed
-        startBoost = try container.decodeIfPresent(Double.self, forKey: .startBoost) ?? Self.defaultStartBoost
         easeIn = try container.decodeIfPresent(Double.self, forKey: .easeIn) ?? Self.defaultEaseIn
+        let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+        if let curve = try container.decodeIfPresent(SpeedCurve.self, forKey: .curve) {
+            self.curve = curve
+        } else if legacy.allKeys.isEmpty {
+            curve = .default
+        } else {
+            let acceleration: SpeedCurve.LegacyAcceleration?
+            if let on = try? legacy.decode(Bool.self, forKey: .acceleration) {
+                acceleration = on ? .default : nil
+            } else {
+                acceleration = try legacy.decodeIfPresent(SpeedCurve.LegacyAcceleration.self, forKey: .acceleration)
+            }
+            curve = SpeedCurve(
+                speed: try legacy.decodeIfPresent(Double.self, forKey: .speed) ?? 40,
+                startBoost: try legacy.decodeIfPresent(Double.self, forKey: .startBoost) ?? 2,
+                acceleration: acceleration, glide: duration / 10)
+        }
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(duration, forKey: .duration)
         try container.encode(brake, forKey: .brake)
-        if let acceleration {
-            try container.encode(acceleration, forKey: .acceleration)
-        } else {
-            try container.encode(false, forKey: .acceleration)
-        }
-        try container.encode(speed, forKey: .speed)
-        try container.encode(startBoost, forKey: .startBoost)
         try container.encode(easeIn, forKey: .easeIn)
-    }
-}
-
-/// The gain on each tick rises linearly with the tick rate, from 1× at `from` ticks per second to `max`× at `to`.
-public struct Acceleration: Codable, Equatable, Sendable {
-    public var from: Double
-    public var to: Double
-    public var max: Double
-
-    public static let `default` = Acceleration(from: 4, to: 40, max: 3)
-
-    public init(from: Double, to: Double, max: Double) {
-        self.from = from
-        self.to = to
-        self.max = max
+        try container.encode(curve, forKey: .curve)
     }
 }
 

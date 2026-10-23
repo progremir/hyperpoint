@@ -19,9 +19,15 @@ struct ScrollingTab: View {
                 Text("The wheel glides like a trackpad instead of jumping a few lines per step.")
             }
             .disabled(device.profile == nil)
-            ForEach(SmoothKnob.glide, id: \.self) { knob in
+            ForEach(SmoothKnob.allCases, id: \.self) { knob in
                 KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
                     .disabled(smooth == nil)
+            }
+            HStack {
+                Text("Puts every smooth scrolling setting above back to how Hyperpoint ships.").foregroundStyle(.secondary)
+                Spacer()
+                Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
+                    .disabled(smooth == nil || smooth == .default)
             }
         } header: {
             Text("Wheel")
@@ -31,30 +37,6 @@ struct ScrollingTab: View {
             }
         }
         .disabled(!model.editable)
-
-        Section {
-            Toggle(
-                isOn: Binding(
-                    get: { smooth?.acceleration != nil },
-                    set: { model.apply(.acceleration(match, $0 ? model.accelerationWhenOn(match) : nil)) })
-            ) {
-                Text("Speed up when you spin fast")
-                Text("Each step goes farther the faster you spin the wheel.")
-            }
-            ForEach(SmoothKnob.acceleration, id: \.self) { knob in
-                KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
-                    .disabled(smooth?.acceleration == nil)
-            }
-            HStack {
-                Text("Puts every smooth scrolling setting above back to how Hyperpoint ships.").foregroundStyle(.secondary)
-                Spacer()
-                Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
-                    .disabled(smooth == .default)
-            }
-        } header: {
-            Text("Acceleration")
-        }
-        .disabled(!model.editable || smooth == nil)
 
         Section("More") {
             if device.speaksHIDPP {
@@ -96,7 +78,7 @@ struct KnobRow: View {
 
     init(knob: SmoothKnob, smooth: SmoothScroll, commit: @escaping (Double) -> Void) {
         self.init(
-            title: knob.title, detail: knob.detail, scale: knob.scale(in: smooth), unit: knob.unit,
+            title: knob.title, detail: knob.detail, scale: knob.scale, unit: knob.unit,
             value: knob.value(in: smooth), commit: commit)
     }
 

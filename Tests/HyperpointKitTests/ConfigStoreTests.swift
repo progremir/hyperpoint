@@ -18,10 +18,10 @@ import Testing
         let store = ConfigStore(url: url)
         try await store.update { config in
             var config = config
-            config.devices[0].scrolling?.smooth?.speed = 55
+            config.devices[0].scrolling?.smooth?.duration = 7
             return config
         }
-        #expect(try onDisk().devices[0].scrolling?.smooth?.speed == 55)
+        #expect(try onDisk().devices[0].scrolling?.smooth?.duration == 7)
         let published = await store.snapshots().first { _ in true }
         #expect(published?.config == (try onDisk()))
         #expect(published?.error == nil)
@@ -39,12 +39,12 @@ import Testing
         try ConfigCodec.encode(handEdited).write(to: url)
         try await store.update { config in
             var config = config
-            config.devices[0].scrolling?.smooth?.speed = 55
+            config.devices[0].scrolling?.smooth?.duration = 7
             return config
         }
         #expect(try onDisk().devices[1].name == "Edited by hand")
         #expect(try onDisk().hyper.key == HIDUsage(name: "f5"))
-        #expect(try onDisk().devices[0].scrolling?.smooth?.speed == 55)
+        #expect(try onDisk().devices[0].scrolling?.smooth?.duration == 7)
     }
 
     @Test func updateRefusesWhileTheFileIsInvalid() async throws {
@@ -67,11 +67,11 @@ import Testing
         let error = await #expect(throws: ConfigError.self) {
             try await store.update { config in
                 var config = config
-                config.devices[0].scrolling?.smooth?.speed = 0
+                config.devices[0].scrolling?.smooth?.duration = 0
                 return config
             }
         }
-        #expect(error?.path == "devices[0].scrolling.smooth.speed")
+        #expect(error?.path == "devices[0].scrolling.smooth.duration")
         #expect(try Data(contentsOf: url) == before)
     }
 }

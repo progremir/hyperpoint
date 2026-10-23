@@ -46,7 +46,11 @@ func rejection(_ json: String) -> ConfigError? {
                     gestures: GestureSettings(fire: .onRelease, distance: 300),
                     scrolling: ScrollSettings(
                         smooth: SmoothScroll(
-                            duration: 8, brake: 1, acceleration: nil, speed: 60, startBoost: 1, easeIn: 120),
+                            duration: 8, brake: 1, easeIn: 120,
+                            curve: try SpeedCurve([
+                                .init(stepsPerSecond: 2, pointsPerSecond: 80), .init(stepsPerSecond: 2.5, pointsPerSecond: 80),
+                                .init(stepsPerSecond: 150, pointsPerSecond: 30_000),
+                            ])),
                         hiResWheel: false),
                     hyper: false
                 )
@@ -60,32 +64,58 @@ func rejection(_ json: String) -> ConfigError? {
         }
     }
 
-    @Test func aFileWrittenBeforeTheScrollKnobsKeepsItsDefaults() throws {
-        let older = documentedDefaultJSON.replacingOccurrences(of: ", \"speed\": 40, \"startBoost\": 2", with: "")
-        #expect(older != documentedDefaultJSON, "the documented file names both knobs")
+    @Test func aFileWithoutEaseInEasesIn() throws {
+        let older = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 60, ", with: "")
+        #expect(older != documentedDefaultJSON, "the documented file names easeIn")
+        #expect(try decode(older).devices[0].scrolling?.smooth?.easeIn == SmoothScroll.defaultEaseIn)
         #expect(try decode(older) == Config.default)
     }
 
-    @Test func aFileWithoutEaseInStartsGlidesAtFullVelocity() throws {
-        let older = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 0, ", with: "")
-        #expect(older != documentedDefaultJSON, "the documented file names easeIn")
-        let config = try decode(older)
-        #expect(config.devices[0].scrolling?.smooth?.easeIn == 0)
-        #expect(config == Config.default)
-        let longest = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 0,", with: "\"easeIn\": 300,")
-        #expect(try decode(longest).devices[0].scrolling?.smooth?.easeIn == 300)
+    @Test func aFileWithoutACurveGetsTheDefaultOne() throws {
+        let curve = try #require(documentedDefaultJSON.range(of: #",\s*"curve": \[[^\]]*\]"#, options: .regularExpression))
+        var without = documentedDefaultJSON
+        without.removeSubrange(curve)
+        #expect(try decode(without) == Config.default)
     }
 
-    @Test func accelerationIsFalseTrueOrAnObject() throws {
-        let object = "\"acceleration\": { \"from\": 4, \"to\": 40, \"max\": 3 }"
-        #expect(documentedDefaultJSON.contains(object), "the documented file spells out the knobs")
-        func acceleration(_ value: String) throws -> Acceleration? {
-            let json = documentedDefaultJSON.replacingOccurrences(of: object, with: "\"acceleration\": \(value)")
-            return try decode(json).devices[0].scrolling?.smooth?.acceleration
+    /// The smooth section as the settings window wrote it before the curve, with the user's own values.
+    static let beforeTheCurve = #"{ "acceleration": false, "brake": 1, "duration": 4, "easeIn": 60, "speed": 60, "startBoost": 1 }"#
+
+    static func withSmooth(_ section: String) throws -> String {
+        let range = try #require(documentedDefaultJSON.range(of: #""smooth": \{[^\]]*\]\s*\}"#, options: .regularExpression))
+        return documentedDefaultJSON.replacingCharacters(in: range, with: "\"smooth\": \(section)")
+    }
+
+    @Test func theOldSpeedKeysConvertToACurveThatScrollsTheSame() throws {
+        let smooth = try #require(try decode(Self.withSmooth(Self.beforeTheCurve)).devices[0].scrolling?.smooth)
+        #expect(smooth.duration == 4 && smooth.brake == 1 && smooth.easeIn == 60)
+        for rate in [1.0, 3, 10, 36, 121, 150] {
+            #expect(abs(smooth.curve.distancePerStep(at: rate) - 60) < 1e-9, "60 points a step at \(rate) steps/s")
         }
-        #expect(try acceleration("true") == Acceleration(from: 4, to: 40, max: 3))
-        #expect(try acceleration("false") == nil)
-        #expect(try acceleration("{ \"from\": 2, \"to\": 30, \"max\": 5 }") == Acceleration(from: 2, to: 30, max: 5))
+    }
+
+    @Test func aConvertedFileIsWrittenWithTheCurveAlone() throws {
+        let config = try decode(Self.withSmooth(Self.beforeTheCurve))
+        let written = try #require(String(data: ConfigCodec.encode(config), encoding: .utf8))
+        #expect(written.contains("\"curve\""))
+        for old in ["\"speed\"", "\"startBoost\"", "\"acceleration\""] { #expect(!written.contains(old), "\(old)") }
+        #expect(try ConfigCodec.decode(ConfigCodec.encode(config)) == config)
+    }
+
+    @Test func theOldBoostAndAccelerationConvertWhereTheyBend() throws {
+        let old = #"{ "duration": 4, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2 }"#
+        let curve = try #require(try decode(Self.withSmooth(old)).devices[0].scrolling?.smooth?.curve)
+        func oldDistance(_ rate: Double) -> Double {
+            let boost = 1 + min(1, 1 / (rate * 0.4))
+            let gain = 1 + min(1, max(0, (rate - 4) / 36)) * 2
+            return 40 * boost * gain
+        }
+        #expect(curve.distancePerStep(at: curve.slowest) == 80, "a step from rest went speed × startBoost")
+        for rate in [2.5, 4, 40] { #expect(abs(curve.distancePerStep(at: rate) - oldDistance(rate)) < 1e-9, "\(rate) steps/s") }
+        for rate in stride(from: 1.0, through: 150, by: 0.25) {
+            #expect(abs(curve.distancePerStep(at: rate) / oldDistance(rate) - 1) < 0.07, "\(rate) steps/s")
+        }
+        #expect(try decode(Self.withSmooth(old.replacingOccurrences(of: #"{ "from": 4, "to": 40, "max": 3 }"#, with: "true"))).devices[0].scrolling?.smooth?.curve == curve)
     }
 
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
@@ -162,23 +192,32 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(find: "\"brake\": 2,", replace: "", path: "devices[0].scrolling.smooth.brake"),
         Mutation(find: "\"duration\": 4,", replace: "\"duration\": 40,", path: "devices[0].scrolling.smooth.duration"),
         Mutation(find: "\"brake\": 2,", replace: "\"brake\": 0,", path: "devices[0].scrolling.smooth.brake"),
-        Mutation(find: "\"speed\": 40", replace: "\"speed\": 0", path: "devices[0].scrolling.smooth.speed"),
+        Mutation(find: "\"easeIn\": 60,", replace: "\"easeIn\": -1,", path: "devices[0].scrolling.smooth.easeIn"),
+        Mutation(find: "\"easeIn\": 60,", replace: "\"easeIn\": 301,", path: "devices[0].scrolling.smooth.easeIn"),
         Mutation(
-            find: "\"startBoost\": 2", replace: "\"startBoost\": 0.5", path: "devices[0].scrolling.smooth.startBoost"),
+            find: "\"pointsPerSecond\": 250", replace: "\"pointsPerSecond\": 25",
+            path: "devices[0].scrolling.smooth.curve[1].pointsPerSecond"),
         Mutation(
-            find: "\"startBoost\": 2", replace: "\"startBoost\": 2, \"boost\": 2",
-            path: "devices[0].scrolling.smooth.boost"),
-        Mutation(find: "\"easeIn\": 0,", replace: "\"easeIn\": -1,", path: "devices[0].scrolling.smooth.easeIn"),
-        Mutation(find: "\"easeIn\": 0,", replace: "\"easeIn\": 301,", path: "devices[0].scrolling.smooth.easeIn"),
-        Mutation(find: "\"from\": 4", replace: "\"from\": -1", path: "devices[0].scrolling.smooth.acceleration.from"),
-        Mutation(find: "\"to\": 40", replace: "\"to\": 4", path: "devices[0].scrolling.smooth.acceleration.to"),
-        Mutation(find: "\"max\": 3", replace: "\"max\": 0.5", path: "devices[0].scrolling.smooth.acceleration.max"),
-        Mutation(find: ", \"max\": 3", replace: "", path: "devices[0].scrolling.smooth.acceleration.max"),
+            find: "\"stepsPerSecond\": 15,", replace: "\"stepsPerSecond\": 4,",
+            path: "devices[0].scrolling.smooth.curve[2].stepsPerSecond"),
         Mutation(
-            find: "\"max\": 3", replace: "\"max\": 3, \"min\": 1", path: "devices[0].scrolling.smooth.acceleration.min"),
+            find: "\"stepsPerSecond\": 120,", replace: "\"stepsPerSecond\": 200,",
+            path: "devices[0].scrolling.smooth.curve[4].stepsPerSecond"),
         Mutation(
-            find: "{ \"from\": 4, \"to\": 40, \"max\": 3 }", replace: "\"fast\"",
-            path: "devices[0].scrolling.smooth.acceleration"),
+            find: "\"pointsPerSecond\": 9000", replace: "\"pointsPerSecond\": 90000",
+            path: "devices[0].scrolling.smooth.curve[4].pointsPerSecond"),
+        Mutation(
+            find: "{ \"stepsPerSecond\": 5, \"pointsPerSecond\": 250 }", replace: "{ \"stepsPerSecond\": 5 }",
+            path: "devices[0].scrolling.smooth.curve[1].pointsPerSecond"),
+        Mutation(
+            find: "{ \"stepsPerSecond\": 1, \"pointsPerSecond\": 40 }",
+            replace: "{ \"stepsPerSecond\": 1, \"pointsPerSecond\": 40, \"weight\": 1 }",
+            path: "devices[0].scrolling.smooth.curve[0].weight"),
+        Mutation(
+            find: "\"curve\": [", replace: "\"curve\": [{ \"stepsPerSecond\": 1, \"pointsPerSecond\": 40 }], \"unused\": [",
+            path: "devices[0].scrolling.smooth.curve"),
+        Mutation(
+            find: "\"easeIn\": 60,", replace: "\"easeIn\": 60, \"speed\": 40,", path: "devices[0].scrolling.smooth.speed"),
         Mutation(find: "\"hiResWheel\": true", replace: "\"hiResWheels\": true", path: "devices[0].scrolling.hiResWheels"),
         Mutation(
             find: "\"product\": \"0x0321\"", replace: "\"product\": \"0x0321\", \"location\": 1",

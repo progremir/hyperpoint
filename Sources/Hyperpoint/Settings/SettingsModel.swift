@@ -29,10 +29,9 @@ final class SettingsModel {
     private let engine: Engine
     private let edits: AsyncStream<SettingsEdit>.Continuation
     private let log = Logger(subsystem: "dev.emir.hyperpoint", category: "settings")
-    /// Switching smooth scrolling or acceleration off removes its section from the file, so the values tuned before
-    /// are kept here and come back when it is switched on again.
+    /// Switching smooth scrolling off removes its section from the file, so the values tuned before are kept here
+    /// and come back when it is switched on again.
     @ObservationIgnored private var lastSmooth: [DeviceMatch: SmoothScroll] = [:]
-    @ObservationIgnored private var lastAcceleration: [DeviceMatch: Acceleration] = [:]
     /// Discovery runs again on every connection, so the rule pickers keep a mouse's controls while it is away.
     @ObservationIgnored private var seenCapabilities: [DeviceMatch: HIDPPCapabilities] = [:]
 
@@ -70,7 +69,6 @@ final class SettingsModel {
         for profile in config.devices {
             guard let smooth = profile.scrolling?.smooth else { continue }
             lastSmooth[profile.match] = smooth
-            if let acceleration = smooth.acceleration { lastAcceleration[profile.match] = acceleration }
         }
     }
 
@@ -94,8 +92,6 @@ final class SettingsModel {
     }
 
     func smoothWhenOn(_ match: DeviceMatch) -> SmoothScroll { lastSmooth[match] ?? .default }
-
-    func accelerationWhenOn(_ match: DeviceMatch) -> Acceleration { lastAcceleration[match] ?? .default }
 
     private func saved(_ edit: SettingsEdit) {
         saveError = nil

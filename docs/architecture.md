@@ -37,7 +37,14 @@ Three things make the shape non-obvious.
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
         "smooth": {
-          "duration": 4, "easeIn": 0, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2
+          "duration": 4, "easeIn": 60, "brake": 2,
+          "curve": [
+            { "stepsPerSecond": 1, "pointsPerSecond": 40 },
+            { "stepsPerSecond": 5, "pointsPerSecond": 250 },
+            { "stepsPerSecond": 15, "pointsPerSecond": 900 },
+            { "stepsPerSecond": 40, "pointsPerSecond": 2800 },
+            { "stepsPerSecond": 120, "pointsPerSecond": 9000 }
+          ]
         },
         "hiResWheel": true,
         "rightButtonPan": { "momentum": true },
@@ -193,7 +200,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 
 All four live in `TapPipeline` as stages, each with `static let interests`. `TapPipeline.mask` is derived from the stages, never hand-listed. Their settings reach the tap as per-sender entries in `TapRules`.
 
-- **Smooth scrolling.** `ScrollStage` drops wheel ticks from enabled senders and feeds `ScrollAnimator`, a pure velocity model driven by a timer on the tap run loop. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
+- **Smooth scrolling.** `ScrollStage` drops wheel steps from enabled senders and feeds `ScrollAnimator`, a pure model of one velocity pulse per step, driven by a timer on the tap run loop. It posts marked continuous scroll events. [Smooth scrolling](#smooth-scrolling) has the model.
 - **High-resolution wheel.** HID++ feature 0x2121 adds one write and one read-back to the device setup. `ScrollStage` then treats the finer deltas as input.
 - **Right-button pan.** `PanStage` holds a right-button down from an enabled sender. Drag past a few points turns it into scrolling, with momentum through `ScrollAnimator`. A release without drag replays the right click.
 - **Click-through.** `ClickThroughStage` sees a click from an enabled sender on a background window and makes it act at once. How it activates the window without eating the click is open ([Open questions](#open-questions-and-risks)).
@@ -202,24 +209,22 @@ All four live in `TapPipeline` as stages, each with `static let interests`. `Tap
 
 The MX wheel without BetterMouse sends line-based wheel events, and apps such as Telegram animate each one as a separate jump. Hyperpoint replaces those events with a glide of continuous pixel scrolls, the kind a trackpad sends.
 
-`ScrollStage` takes a wheel event when it is line-based, vertical, has no modifier held, and comes from a sender in `TapRules.smoothScroll`. Every other scroll passes untouched. Trackpad scrolls are continuous, the thumb wheel is horizontal, shift-scroll and zoom carry a modifier, and other mice have no entry. Each taken event is one tick, and only the sign of its delta counts, so macOS's own wheel acceleration never stacks on Hyperpoint's.
+`ScrollStage` takes a wheel event when it is line-based, vertical, has no modifier held, and comes from a sender in `TapRules.smoothScroll`. Every other scroll passes untouched. Trackpad scrolls are continuous, the thumb wheel is horizontal, shift-scroll and zoom carry a modifier, and other mice have no entry. macOS has already accelerated the event's line delta (up to 13 lines for one detent, measured), so `ScrollStage` ignores it. It counts the wheel's own detents from the event's IOHIDEvent (`IOHIDEventGetFloatValue`, field `0x60001`) instead, 1 to 3 per event in a free spin, and counts 1 when there is none.
 
-`ScrollAnimator` keeps one velocity. Each tick adds an impulse to it. Between ticks the velocity falls as `(1 - t / duration) ^ brake`, so it reaches zero exactly `duration` after the last tick. A new glide can ease in first. Its velocity rises from 0 to the peak along a smoothstep curve over `easeIn`, then falls as usual, so the glide ends `easeIn` + `duration` after its tick. With both in seconds and `D = duration / (brake + 1)`, the decay covers `peak × D` and the smoothstep covers `peak × easeIn / 2`. The peak is multiplied by `D / (easeIn / 2 + D)`, so the tick travels as far as it would without the ease-in. A tick that arrives during the ease-in ends it. The glide's remaining distance carries on as a plain decay from that tick, plus the new tick's impulse, and later ticks never ease in, so a spin does not stutter. A tick in the other direction ends the glide on the next frame and starts a new one. The impulse is sized to give each knob one job:
+The speed comes from `curve`, a list of points that map the spin rate, in steps per second, to a scroll speed, in points per second. Points join with straight lines on log-log axes, so a fixed distance per step is a straight line and stays exact between points. Beyond the last point the speed stays flat. One step goes `curve(r) / r` points, where `r` is the spin rate. `SpinRate` estimates it from the intervals between steps, moving halfway to each new interval. A step after a pause longer than one step at the curve's first rate counts as that rate, so a single step goes `curve(r₀) / r₀`. With the default curve that is 40 points, a native notch is 10, and a step goes 50 points at 5 steps per second, 60 at 15 and 75 at 120.
 
-- A tick when no glide is running scrolls `startBoost` × `speed` points. This is the faster start the user asked for.
-- A steady stream scrolls `speed` × gain points per tick whatever `duration` and `brake` are, so those two shape only the glide. The boost fades as ticks come closer together, so the distance per tick has no step where a glide ends.
-- The gain is linear in the tick rate `r`, in ticks per second: `1 + (r - from) / (to - from) × (max - 1)`, held between 1 and `max`. With the defaults a tick scrolls 1× at 4 ticks per second or slower, 2× at 22 and 3× at 40 or faster. `acceleration: false` keeps the gain at 1, and `true` uses the defaults.
+`ScrollAnimator` turns each step into a pulse of velocity. The pulse rises from rest along smoothstep over `easeIn`, so the page never jumps from rest, then falls as `(1 - t / duration) ^ brake`. Pulses add up. A step travels exactly its distance, and a steady spin at rate `r` scrolls at `curve(r)` whatever `duration`, `brake` and `easeIn` are, so those three shape only the glide. A step the other way ends the gesture on the next frame and starts a new one.
+
+AppKit takes the precise delta of a posted scroll from its integer point field alone (measured, see Appendix A), so the frames post whole points. `WholePoints` rounds the running total, which keeps the page within half a point of the exact glide, and a steady 2.7 points a frame posts 3, 3, 2, never 4 next to 2. The fixed-point field carries the exact value, for apps that read `deltaY`. A glide slowing through a few points a second would still move by single points at growing intervals. So once its steps have eased in, a glide never moves slower than 60 points a second. It finishes at that speed, a point every other frame at 120 Hz, and stops.
 
 | Key | Meaning | Default | Range |
 | --- | --- | --- | --- |
-| `duration` | Glide length after the last tick, in tenths of a second | 4 | 1 to 20 |
+| `duration` | How long a step's glide lasts after it reaches full speed, in tenths of a second | 4 | 1 to 20 |
 | `brake` | Exponent of the velocity decay. At 1 the glide slows evenly. Higher values brake hard first and coast into a soft stop. | 2 | 0.5 to 10 |
-| `acceleration` | `false`, `true` for the defaults, or `{ "from", "to", "max" }`. The gain starts above 1 at `from` ticks per second and reaches `max` at `to`. | `{ "from": 4, "to": 40, "max": 3 }` | `from` 0 or more, `to` more than `from`, `max` 1 or more |
-| `speed` | Points per tick in a steady stream | 40 | 1 to 500 |
-| `startBoost` | Distance of a tick when no glide is running, as a multiple of `speed` | 2 | 1 to 10 |
-| `easeIn` | Milliseconds a new glide takes to reach its full velocity. The distance stays the same. 0 starts it at full velocity. | 0 | 0 to 300 |
+| `easeIn` | Milliseconds a step takes to reach full speed. The distance stays the same. 0 starts it at full speed. | 60 | 0 to 300 |
+| `curve` | `[{ "stepsPerSecond", "pointsPerSecond" }]`, at least two points, rates rising, speeds never falling | (1, 40), (5, 250), (15, 900), (40, 2800), (120, 9000) | rates 1 to 150, speeds 10 to 30,000 |
 
-`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed`, `startBoost` or `easeIn` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s. A steady stream of 10 ticks per second scrolls about 670 points per second, 20 about 1,700, 30 about 3,200 and 60 about 7,500 (measured on the animator with a fake clock).
+`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `easeIn` gets 60, and one without `curve` gets the default curve. A file written before the curve, with `speed`, `startBoost` and `acceleration`, still parses. Each step there went `speed × boost × gain`, so the parser samples that at 1, 5, 15, 40 and 150 steps per second and where the boost and gain bend, and the next save writes `curve` alone. A fixed distance per step converts exactly. The old default with acceleration on converts within 6.3%, at 8.6 steps per second.
 
 `TapHost` arms a 120 Hz run-loop timer on the tap thread when a tick starts a glide and disarms it when the animator is idle. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed knobs apply from the next tick.
 
@@ -280,7 +285,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 7. **Click-through mechanics.** Making a background click act at once may need activating the window first and replaying the click. It needs a prototype in v2.
 8. **Gesture distance.** 120 sensor counts is a guess. It is tuned by feel.
 9. **Carrier collisions.** A keyboard with physical F13 to F24 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
-10. **Smooth scrolling feel.** The defaults are a starting point for tuning by feel. Nobody measured them against BetterMouse. A free-spinning wheel may also send one tick backwards as it stops. That tick would end the glide and scroll back one boosted tick. Neither has been tried on the MX yet.
+10. **Smooth scrolling feel.** The default curve comes from the MX wheel's measured rates, and the glide's defaults are a starting point for tuning by feel. A free-spinning wheel may also send one step backwards as it stops. That step would end the glide and scroll back one step.
 
 ## Next implementation step
 
@@ -308,6 +313,8 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | After a BLE reconnect the MX's `AppleUserHIDEventService` is published after its IOHIDDevice matches, so a walk down from the device at match time finds no event service. A first-match notification for `IOHIDEventService` reports it, and its registry ancestors include the IOHIDDevice's service. | measured |
 | CG converts a one-line wheel event to 10 points. A pixel-unit scroll event is continuous, and setting one of its delta fields rewrites the others. | measured |
 | AppKit reads a posted pixel scroll that carries a scroll phase as precise deltas, with `NSEvent` phases began, changed and ended. | measured |
+| `NSEvent.scrollingDeltaY` of a posted pixel scroll is its integer point delta (field 96). Setting each field from 0 to 1023 in turn to 2.7 changed it only through field 96 (truncated) and the line delta. The fixed-point delta (field 93) keeps its fraction but reaches only `deltaY`. A float scroll IOHIDEvent attached with `SLEventSetIOHIDEvent` survives delivery through the window server and is ignored. | measured |
+| The MX wheel's events carry 1 detent each up to 36 events per second, and 1 to 3 in a free spin at 121 events per second. Their line delta is accelerated, up to 13 lines per event. | measured |
 
 ## Appendix B. Prototype results
 

@@ -145,7 +145,7 @@ private struct ButtonsTab: View {
                 }
                 .pickerStyle(.segmented)
                 KnobRow(
-                    title: GestureKnob.title, detail: GestureKnob.detail, scale: GestureKnob.scale(for: gestures.distance),
+                    title: GestureKnob.title, detail: GestureKnob.detail, scale: GestureKnob.scale,
                     unit: GestureKnob.unit, value: Double(gestures.distance)
                 ) { model.apply(.gestureDistance(device.match, Int($0))) }
             }
