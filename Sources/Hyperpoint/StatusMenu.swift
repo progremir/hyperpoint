@@ -1,5 +1,6 @@
 import AppKit
 import HyperpointKit
+import os
 
 /// The menu-bar item. It renders `MenuPresentation` and sends every action to `AppModel`.
 @MainActor
@@ -8,6 +9,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private let model: AppModel
     private var presentation: MenuPresentation
+    private let log = Logger(subsystem: "dev.emir.hyperpoint", category: "menu")
 
     init(model: AppModel) {
         self.model = model
@@ -23,7 +25,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     }
 
     func show(_ status: EngineStatus) {
-        presentation = MenuPresentation(status, time: Self.time)
+        let next = MenuPresentation(status, time: Self.time)
+        if next != presentation { log.notice("\(next.summary, privacy: .public)") }
+        presentation = next
         item.button?.contentTintColor = presentation.needsAttention ? .systemOrange : nil
         item.button?.setAccessibilityLabel(presentation.needsAttention ? "Hyperpoint, needs attention" : "Hyperpoint")
         rebuild()

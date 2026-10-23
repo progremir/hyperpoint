@@ -57,6 +57,13 @@ struct MenuPresentation: Equatable {
         self.paused = paused
     }
 
+    /// One line for the log, so what the menu showed can be read back with `log show`.
+    var summary: String {
+        let notices = notices.map(\.title).joined(separator: "; ")
+        let rows = rows.map { "\($0.name)=\($0.detail)" }.joined(separator: "; ")
+        return "state=\(state) notices=[\(notices)] devices=[\(rows)]" + (footnote.map { " footnote=\($0)" } ?? "")
+    }
+
     private static func notice(_ attention: Attention) -> Notice {
         switch attention {
         case .permission(.accessibility):
