@@ -28,7 +28,7 @@ final class TapHost {
     }
 
     func apply(_ order: TapOrder) {
-        pipeline.apply(order.rules)
+        pipeline.replaceRulesAndForgetHeldKeys(order.rules)
         if order.install { install() } else { uninstall() }
     }
 

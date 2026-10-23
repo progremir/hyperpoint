@@ -117,14 +117,14 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
     @Test mutating func newRulesForgetHeldHyper() {
         _ = pipeline.process(.keyDown, key(f18, down: true))
-        pipeline.apply(Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap)
+        pipeline.replaceRulesAndForgetHeldKeys(Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap)
         let rDown = key(r, down: true)
         _ = pipeline.process(.keyDown, rDown)
         #expect(rDown.flags.isDisjoint(with: hyperFlags))
     }
 
     @Test mutating func withoutRulesF18IsAnOrdinaryKey() {
-        pipeline.apply(.empty)
+        pipeline.replaceRulesAndForgetHeldKeys(.empty)
         let down = key(f18, down: true)
         #expect(pipeline.process(.keyDown, down) == .pass)
         #expect(down.type == .keyDown && keyCode(down) == Int64(f18))

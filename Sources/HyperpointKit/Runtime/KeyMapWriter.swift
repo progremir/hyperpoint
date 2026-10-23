@@ -1,13 +1,15 @@
 import Foundation
 
 enum KeyMapError: Error, Equatable, CustomStringConvertible {
-    case serviceNotReady
+    case noServiceMatched
+    case serviceLagsDevice
     case hidutilFailed(status: Int32, output: String)
     case timedOut
 
     var description: String {
         switch self {
-        case .serviceNotReady: "keyboard service not ready"
+        case .noServiceMatched: "no keyboard service matched"
+        case .serviceLagsDevice: "keyboard service not ready"
         case .hidutilFailed(let status, let output): "hidutil exited \(status): \(output)"
         case .timedOut: "hidutil timed out"
         }
@@ -23,7 +25,8 @@ enum KeyMapWriter {
         guard set.status == 0 else { throw .hidutilFailed(status: set.status, output: set.output) }
         // hidutil exits 0 and changes nothing when no service matches, so only the read-back proves the write.
         let services = try await readBack(matching: matching)
-        guard !services.isEmpty, services.values.allSatisfy({ $0 == setup.pairs }) else { throw .serviceNotReady }
+        guard !services.isEmpty else { throw .noServiceMatched }
+        guard services.values.allSatisfy({ $0 == setup.pairs }) else { throw .serviceLagsDevice }
     }
 
     @concurrent

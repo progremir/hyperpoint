@@ -5,14 +5,14 @@ import Testing
     @Test func triggersDuringAnApplyCollapseIntoOneFollowUp() {
         var scheduler = ApplyScheduler()
         let first = scheduler.request(.connected)
-        #expect(first, "the first trigger starts a worker")
+        #expect(first == .startWorker, "the first trigger starts a worker")
         let job = scheduler.nextJob()
         #expect(job == .init(reasons: [.connected], attempt: 1))
 
         let duringApply = [scheduler.request(.configChanged), scheduler.request(.manual), scheduler.request(.configChanged)]
-        #expect(duringApply == [false, false, false], "a running worker picks the triggers up")
-        let delay = scheduler.finished(failed: false)
-        #expect(delay == nil)
+        #expect(duringApply == [.queued, .queued, .queued], "a running worker picks the triggers up")
+        let retryAfter = scheduler.finished(failed: false)
+        #expect(retryAfter == nil)
 
         let followUp = scheduler.nextJob()
         #expect(followUp == .init(reasons: [.configChanged, .manual], attempt: 1))
@@ -20,18 +20,18 @@ import Testing
         let idle = scheduler.nextJob()
         #expect(idle == nil, "the worker exits when nothing is queued")
         let restart = scheduler.request(.manual)
-        #expect(restart, "a trigger after that starts a new worker")
+        #expect(restart == .startWorker, "a trigger after that starts a new worker")
     }
 
     @Test func failuresBackOffThenStop() {
         var scheduler = ApplyScheduler()
         _ = scheduler.request(.connected)
-        var delays: [Duration] = []
+        var delays: [ApplyScheduler.RetryAfter] = []
         var attempts: [Int] = []
         while let job = scheduler.nextJob() {
             attempts.append(job.attempt)
-            if let delay = scheduler.finished(failed: true) {
-                delays.append(delay)
+            if let retryAfter = scheduler.finished(failed: true) {
+                delays.append(retryAfter)
                 _ = scheduler.request(.retry)
             }
         }
@@ -51,7 +51,7 @@ import Testing
         _ = scheduler.request(.manual)
         let fresh = scheduler.nextJob()
         #expect(fresh == .init(reasons: [.manual], attempt: 1))
-        let delay = scheduler.finished(failed: true)
-        #expect(delay == .milliseconds(300), "the backoff starts over too")
+        let retryAfter = scheduler.finished(failed: true)
+        #expect(retryAfter == .milliseconds(300), "the backoff starts over too")
     }
 }

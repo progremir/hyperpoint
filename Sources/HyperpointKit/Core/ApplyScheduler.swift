@@ -10,6 +10,13 @@ enum ApplyReason: String, Hashable, Sendable {
 }
 
 struct ApplyScheduler: Sendable {
+    enum RequestOutcome: Equatable, Sendable {
+        case startWorker
+        case queued
+    }
+
+    typealias RetryAfter = Duration
+
     struct Job: Equatable, Sendable {
         var reasons: Set<ApplyReason>
         var attempt: Int
@@ -19,12 +26,12 @@ struct ApplyScheduler: Sendable {
     private var queued: Set<ApplyReason> = []
     private var failures = 0
 
-    mutating func request(_ reason: ApplyReason) -> Bool {
+    mutating func request(_ reason: ApplyReason) -> RequestOutcome {
         queued.insert(reason)
         if reason != .retry { failures = 0 }
-        guard !running else { return false }
+        guard !running else { return .queued }
         running = true
-        return true
+        return .startWorker
     }
 
     mutating func nextJob() -> Job? {
@@ -36,7 +43,7 @@ struct ApplyScheduler: Sendable {
         return Job(reasons: queued, attempt: failures + 1)
     }
 
-    mutating func finished(failed: Bool) -> Duration? {
+    mutating func finished(failed: Bool) -> RetryAfter? {
         guard failed else {
             failures = 0
             return nil

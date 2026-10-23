@@ -73,7 +73,7 @@ struct KeyMapSetup: Equatable, Sendable {
         desired.routes.isEmpty && (written?.routes.isEmpty ?? true) ? nil : desired
     }
 
-    static func recovered(from pairs: Set<Pair>) -> KeyMapSetup? {
+    static func hyperpointLeftover(in pairs: Set<Pair>) -> KeyMapSetup? {
         let routes = pairs.compactMap { pair in
             Carrier.pool.first { hidutilValue($0.usage) == pair.destination }.map { carrier in
                 KeyRoute(
@@ -84,7 +84,9 @@ struct KeyMapSetup: Equatable, Sendable {
         return routes.isEmpty ? nil : KeyMapSetup(routes: routes)
     }
 
-    private static func hidutilValue(_ usage: HIDUsage) -> UInt64 { 0x7_0000_0000 | UInt64(usage.rawValue) }
+    private static let keyboardUsagePageHighWord: UInt64 = 0x07 << 32
+
+    private static func hidutilValue(_ usage: HIDUsage) -> UInt64 { keyboardUsagePageHighWord | UInt64(usage.rawValue) }
 
     private static func hex(_ value: UInt64) -> String { "0x" + String(value, radix: 16, uppercase: true) }
 }

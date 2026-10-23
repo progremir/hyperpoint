@@ -36,7 +36,7 @@ struct TapPipeline {
         CarrierStage.interests.reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) }
     }
 
-    mutating func apply(_ rules: TapRules) { carriers = CarrierStage(rules: rules) }
+    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { carriers = CarrierStage(rules: rules) }
 
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else { return .pass }
@@ -49,7 +49,7 @@ struct TapPipeline {
 struct CarrierStage {
     static let interests: [CGEventType] = [.keyDown, .keyUp]
 
-    private static let modifierKeyCode: Int64 = 55
+    private static let leftCommandKeyCode: Int64 = 55
 
     let rules: TapRules
     private var held: [KeyCode: Modifiers] = [:]
@@ -76,7 +76,7 @@ struct CarrierStage {
                 event.flags.subtract(modifiers.cgFlags.subtracting(heldFlags))
             }
             event.type = .flagsChanged
-            event.setIntegerValueField(.keyboardEventKeycode, value: Self.modifierKeyCode)
+            event.setIntegerValueField(.keyboardEventKeycode, value: Self.leftCommandKeyCode)
             // F-key events carry Fn, and a flagsChanged event with it marks Fn held.
             event.flags.remove(.maskSecondaryFn)
             return .pass

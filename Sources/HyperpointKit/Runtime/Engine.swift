@@ -152,7 +152,7 @@ public final class Engine {
         let reconnect = lastReconnect.map { last in
             Reconnect(
                 device: last.name, at: last.at,
-                reapplied: slots[last.device].map { $0.phase == .idle && $0.written?.carriesHyper == true } ?? false)
+                reapplied: slots[last.device].map { $0.phase == .idle && $0.ownedOnDevice?.carriesHyper == true } ?? false)
         }
         statusSink.yield(
             EngineStatus(
@@ -164,7 +164,7 @@ public final class Engine {
         switch slot.phase {
         case .applying: .applying
         case .failed(let error): .failed(error.description)
-        case .idle: slot.written?.carriesHyper == true ? .on : .off
+        case .idle: slot.ownedOnDevice?.carriesHyper == true ? .on : .off
         }
     }
 }

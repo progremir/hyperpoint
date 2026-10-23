@@ -61,17 +61,17 @@ import Testing
     let returnToF21 = KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0070)
 
     @Test func aCarrierDestinationMakesTheMapOurs() {
-        #expect(KeyMapSetup.recovered(from: [capsLockToF18])?.carriesHyper == true)
-        #expect(KeyMapSetup.recovered(from: [escapeToF13]) != nil, "every carrier in the pool counts")
-        #expect(KeyMapSetup.recovered(from: [capsLockToF18, escapeToRightOption]) != nil)
+        #expect(KeyMapSetup.hyperpointLeftover(in: [capsLockToF18])?.carriesHyper == true)
+        #expect(KeyMapSetup.hyperpointLeftover(in: [escapeToF13]) != nil, "every carrier in the pool counts")
+        #expect(KeyMapSetup.hyperpointLeftover(in: [capsLockToF18, escapeToRightOption]) != nil)
     }
 
     @Test func aMapWithNoCarrierIsSomeoneElses() {
-        #expect(KeyMapSetup.recovered(from: [escapeToRightOption, returnToF21]) == nil)
+        #expect(KeyMapSetup.hyperpointLeftover(in: [escapeToRightOption, returnToF21]) == nil)
     }
 
     @Test func anEmptyMapIsNotOurs() {
-        #expect(KeyMapSetup.recovered(from: []) == nil)
+        #expect(KeyMapSetup.hyperpointLeftover(in: []) == nil)
     }
 
     @Test func aStaleHyperMapIsClearedOnceHyperIsDisabled() {
@@ -86,14 +86,14 @@ import Testing
 
             """
         let held = HidutilReadback.parse(leftByACrash).values.reduce(into: Set()) { $0.formUnion($1) }
-        let written = KeyMapSetup.recovered(from: held)
+        let written = KeyMapSetup.hyperpointLeftover(in: held)
         #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == .neutral)
         let hyper = KeyMapSetup(routes: [.hyper(from: capsLock)])
         #expect(KeyMapSetup.pendingWrite(desired: hyper, written: written) == hyper)
     }
 
     @Test func aForeignMapIsLeftAloneWhenNothingIsWanted() {
-        let written = KeyMapSetup.recovered(from: [escapeToRightOption])
+        let written = KeyMapSetup.hyperpointLeftover(in: [escapeToRightOption])
         #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == nil)
     }
 }

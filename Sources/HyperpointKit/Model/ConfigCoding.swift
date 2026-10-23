@@ -195,7 +195,7 @@ extension Action: Codable {
 }
 
 extension Chord: Codable {
-    static let modifierNames: [(Modifiers, [String])] = [
+    static let modifierNamesInWrittenOrder: [(Modifiers, [String])] = [
         (.control, ["ctrl", "control"]),
         (.option, ["opt", "option", "alt"]),
         (.shift, ["shift"]),
@@ -212,7 +212,7 @@ extension Chord: Codable {
         }
         var modifiers: Modifiers = []
         for token in tokens {
-            guard let (modifier, _) = Self.modifierNames.first(where: { $0.1.contains(token.lowercased()) }) else {
+            guard let (modifier, _) = Self.modifierNamesInWrittenOrder.first(where: { $0.1.contains(token.lowercased()) }) else {
                 throw DecodingError.dataCorruptedError(
                     in: container, debugDescription: "unknown modifier \"\(token)\" in \"\(text)\"")
             }
@@ -225,7 +225,7 @@ extension Chord: Codable {
         guard let keyName = key.name else {
             throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "unnamed key"))
         }
-        let names = Self.modifierNames.filter { modifiers.contains($0.0) }.map { $0.1[0] }
+        let names = Self.modifierNamesInWrittenOrder.filter { modifiers.contains($0.0) }.map { $0.1[0] }
         var container = encoder.singleValueContainer()
         try container.encode((names + [keyName]).joined(separator: "+"))
     }

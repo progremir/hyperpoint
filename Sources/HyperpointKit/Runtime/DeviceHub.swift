@@ -10,6 +10,12 @@ final class DeviceHub {
         case disappeared(PresentDevice)
     }
 
+    fileprivate enum Arrival {
+        case newDevice(PresentDevice)
+        case anotherInterface
+        case alreadyTracked
+    }
+
     private struct Entry {
         var device: PresentDevice
         var interfaces: Set<UInt64>
@@ -41,9 +47,9 @@ final class DeviceHub {
         return devices
     }
 
-    fileprivate func interfaceAppeared(_ interface: IOHIDDevice) -> PresentDevice? {
+    fileprivate func interfaceAppeared(_ interface: IOHIDDevice) -> Arrival {
         let registryID = Self.registryID(of: IOHIDDeviceGetService(interface))
-        guard keyOfInterface[registryID] == nil else { return nil }
+        guard keyOfInterface[registryID] == nil else { return .alreadyTracked }
         var bag: [String: Any] = [:]
         for key in HIDProperties.keys {
             if let value = IOHIDDeviceGetProperty(interface, key as CFString) { bag[key] = value }
@@ -56,17 +62,17 @@ final class DeviceHub {
             entry.interfaces.insert(registryID)
             entry.device.eventServices += services
             entries[key] = entry
-            return nil
+            return .anotherInterface
         }
         let device = PresentDevice(
             id: DeviceInstanceID(rawValue: nextID), key: key, properties: properties, eventServices: services)
         nextID += 1
         entries[key] = Entry(device: device, interfaces: [registryID])
-        return device
+        return .newDevice(device)
     }
 
     fileprivate func matched(_ interface: IOHIDDevice) {
-        if let device = interfaceAppeared(interface) { onEvent(.appeared(device)) }
+        if case .newDevice(let device) = interfaceAppeared(interface) { onEvent(.appeared(device)) }
     }
 
     fileprivate func removed(_ interface: IOHIDDevice) {
