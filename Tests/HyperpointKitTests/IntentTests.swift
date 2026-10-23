@@ -206,10 +206,7 @@ import Testing
                         moves: .swipes(
                             [.down: .system(.appExpose), .left: .system(.spaceLeft), .right: .system(.spaceRight)],
                             fire: .pastDistance))),
-                topButton: .gesture(
-                    GesturePlan(
-                        distance: 120, click: shot,
-                        moves: .scroll(HoldScrollPlan(.default, glide: .default, pointsPerUnit: HoldScrollPlan.pointsPerCount)))),
+                topButton: .press(shot),
             ],
             thumbWheelInverted: true)
     }
@@ -225,8 +222,7 @@ import Testing
     @Test func theFirmwareFlagsFollowTheBehavior() {
         let control = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: true)
         #expect(defaultMX.behavior(of: gestureButton).reporting(for: control).writeFlags == 0x33)
-        #expect(defaultMX.behavior(of: topButton).reporting(for: control).writeFlags == 0x33, "scrolling reads raw movement")
-        #expect(ControlBehavior.press(shot).reporting(for: control).writeFlags == 0x23)
+        #expect(defaultMX.behavior(of: topButton).reporting(for: control).writeFlags == 0x23)
         #expect(defaultMX.behavior(of: CID(rawValue: 0x52)).reporting(for: control).writeFlags == 0x22, "no rule is native")
         let noRawXY = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: false)
         #expect(defaultMX.behavior(of: gestureButton).reporting(for: noRawXY).writeFlags == 0x23)

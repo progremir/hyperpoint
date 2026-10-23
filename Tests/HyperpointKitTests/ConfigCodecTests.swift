@@ -199,13 +199,13 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(find: "\"shift+cmd+4\"", replace: "\"shift+cmd+\"", path: "devices[0].rules[4].do.shortcut"),
         Mutation(
             find: "\"when\": \"scroll\", \"do\": \"reverse\"", replace: "\"when\": \"scroll\", \"do\": \"missionControl\"",
-            path: "devices[0].rules[6].do"),
+            path: "devices[0].rules[5].do"),
         Mutation(
             find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\"",
-            replace: "{ \"control\": \"thumbWheel\", \"when\": \"click\"", path: "devices[0].rules[6].when"),
+            replace: "{ \"control\": \"thumbWheel\", \"when\": \"click\"", path: "devices[0].rules[5].when"),
         Mutation(
             find: "{ \"control\": \"thumbWheel\"", replace: "{ \"control\": \"thumbwheel\"",
-            path: "devices[0].rules[6].control"),
+            path: "devices[0].rules[5].control"),
         Mutation(
             find: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"hold\"",
             replace: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"holdMoveDown\"",
@@ -266,16 +266,17 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(
             find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"reverse\" }",
             replace: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"scroll\" }",
-            path: "devices[0].rules[6].do"),
-        Mutation(
-            find: "\"when\": \"holdMove\", \"do\": \"scroll\" },\n        { \"control\": \"thumbWheel\"",
-            replace: "\"when\": \"holdMove\", \"do\": \"missionControl\" },\n        { \"control\": \"thumbWheel\"",
             path: "devices[0].rules[5].do"),
         Mutation(
+            find: "{ \"button\": 1 }, \"when\": \"holdMove\", \"do\": \"scroll\"",
+            replace: "{ \"button\": 1 }, \"when\": \"holdMove\", \"do\": \"missionControl\"",
+            path: "devices[0].rules[6].do"),
+        Mutation(
             find: "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"click\", \"do\": { \"shortcut\": \"shift+cmd+4\" } }",
-            replace: "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"holdMoveUp\", \"do\": \"appExpose\" }",
+            replace: "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"holdMove\", \"do\": \"scroll\" }, "
+                + "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"holdMoveUp\", \"do\": \"appExpose\" }",
             path: "devices[0].rules[5].when"),
-        Mutation(find: "{ \"button\": 1 }", replace: "{ \"button\": 0 }", path: "devices[0].rules[7].control.button"),
+        Mutation(find: "{ \"button\": 1 }", replace: "{ \"button\": 0 }", path: "devices[0].rules[6].control.button"),
         Mutation(
             find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",
             replace: "{ \"control\": { \"button\": 0 }, \"when\": \"click\"", path: "devices[1].rules[1].control.button"),

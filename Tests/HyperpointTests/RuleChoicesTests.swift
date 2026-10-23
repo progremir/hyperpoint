@@ -89,8 +89,8 @@ let mxCapabilities = HIDPPCapabilities(
             #expect(saves(config), "\(rule)")
         }
         #expect(
-            profile(config, mx)?.rules?.count == 30,
-            "5 each for four fresh controls and the gesture button (click, four swipes), 2 each for the top and right buttons (click, scroll), 1 for the wheel")
+            profile(config, mx)?.rules?.count == 33,
+            "5 each for six HID++ controls (click, four swipes), 2 for the right button (click, scroll), 1 for the wheel")
     }
 
     @Test func movingARuleKeepsWhatStillWorks() {

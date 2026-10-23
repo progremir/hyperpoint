@@ -32,7 +32,6 @@ Three things make the shape non-obvious.
         { "control": { "hidpp": "0xC3" }, "when": "holdMoveLeft", "do": "spaceLeft" },
         { "control": { "hidpp": "0xC3" }, "when": "holdMoveRight", "do": "spaceRight" },
         { "control": { "hidpp": "0xC4" }, "when": "click", "do": { "shortcut": "shift+cmd+4" } },
-        { "control": { "hidpp": "0xC4" }, "when": "holdMove", "do": "scroll" },
         { "control": "thumbWheel", "when": "scroll", "do": "reverse" },
         { "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }
       ],
@@ -82,7 +81,7 @@ The rules for the file:
 
 1. The IOHIDManager matching callback fires on the HID thread. `DeviceHub` groups the new IOHIDDevice interfaces into one `PresentDevice` and finds its profile by `match`.
 2. The device has a HID++ collection, so its slot opens a `HIDPPSession`. Discovery reads the feature table and the control list (`getCount`, `getCidInfo`), which become the device's `Capabilities`.
-3. `Intent.compile` turns the profile and the capabilities into a `DeviceSetup`. For the MX, that is `0xC3` as a gesture control that swipes and `0xC4` as one that scrolls (both divert plus rawXY, flags `0x33`), and the thumb wheel undiverted and inverted. The right button cannot be diverted on this mouse, so its scroll rule goes to `TapRules` instead, keyed by the MX's event service.
+3. `Intent.compile` turns the profile and the capabilities into a `DeviceSetup`. For the MX, that is `0xC3` as a gesture control that swipes (divert plus rawXY, flags `0x33`), `0xC4` as a press (divert only, flags `0x23`), and the thumb wheel undiverted and inverted. The right button cannot be diverted on this mouse, so its scroll rule goes to `TapRules` instead, keyed by the MX's event service.
 4. The slot's worker writes all of it and reads it back. A timeout right after a BLE connect is normal, so `RetryPolicy` retries at 0.3, 1, 2, 4 and 8 seconds.
 5. The journal logs the connect and the apply, and the menu shows "MX Master 3 reconnected at 15:06. Settings re-applied."
 
@@ -243,7 +242,7 @@ The settings window's Scrolling and clicks tab draws `curve` as a graph on the s
 
 ### Hold to scroll
 
-The user asked to generalize right-button pan into an action any button can have, the MX top button above all. So it is one action, `"do": "scroll"`, on the non-directional trigger `"when": "holdMove"`, and the right-button pan of the earlier design is that rule on button 1. A file that still has `scrolling.rightButtonPan` decodes to the rule plus `holdToScroll` with its momentum, and the next save writes the new form.
+The user asked to generalize right-button pan into an action any button can have. So it is one action, `"do": "scroll"`, on the non-directional trigger `"when": "holdMove"`, and the right-button pan of the earlier design is that rule on button 1. The default gives it to the right button only, because holding the top button to scroll felt wrong in the user's live test. A file that still has `scrolling.rightButtonPan` decodes to the rule plus `holdToScroll` with its momentum, and the next save writes the new form.
 
 A press does nothing yet. A release before the movement passes the profile's `gestures.distance` is the click. That is the control's click rule, or for a plain button with none, the original click replayed. Movement past the distance starts scrolling. From then on each movement scrolls the page by movement × speed on both axes, and the pointer stays where it is. On release the page keeps the hand's speed and glides to a stop if `momentum` is on.
 
