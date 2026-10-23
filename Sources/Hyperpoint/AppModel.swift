@@ -5,6 +5,7 @@ import HyperpointKit
 final class AppModel {
     private let store = ConfigStore()
     private let engine = Engine()
+    private let performer = ActionPerformer()
     private var menu: StatusMenu?
     private var engineRun: Task<Void, Never>?
 
@@ -17,6 +18,9 @@ final class AppModel {
         }
         Task { [engine] in
             for await status in engine.statuses { menu.show(status) }
+        }
+        Task { [engine, performer] in
+            for await action in engine.actions { performer.perform(action) }
         }
     }
 
