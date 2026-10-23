@@ -48,13 +48,16 @@ final class HIDPPSession {
         pump(link.request(reason, plan: plan, now: .now))
     }
 
+    /// A scroll the device was driving ends here, since its release will never arrive.
     func close() {
         guard !closed else { return }
+        let ending = link.close()
         closed = true
         wake?.cancel()
         IOHIDDeviceRegisterInputReportCallback(device, buffer, bufferSize, nil, nil)
         IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
         buffer.deallocate()
+        for event in ending.events { onEvent(event) }
     }
 
     fileprivate func received(_ report: UnsafeBufferPointer<UInt8>) {

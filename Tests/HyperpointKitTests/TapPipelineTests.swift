@@ -218,3 +218,138 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
         #expect(tick.settings.duration == 9)
     }
 }
+
+private let shotAction = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
+
+private func mouse(_ type: CGEventType, button: Int, dx: Double = 0, dy: Double = 0, marked: Bool = false) -> CGEvent {
+    let event = CGEvent(
+        mouseEventSource: nil, mouseType: type, mouseCursorPosition: CGPoint(x: 400, y: 300),
+        mouseButton: CGMouseButton(rawValue: UInt32(button))!)!
+    event.setIntegerValueField(.mouseEventButtonNumber, value: Int64(button))
+    event.setDoubleValueField(.mouseEventDeltaX, value: dx)
+    event.setDoubleValueField(.mouseEventDeltaY, value: dy)
+    if marked { event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker) }
+    return event
+}
+
+private func isMarked(_ event: CGEvent) -> Bool {
+    event.getIntegerValueField(.eventSourceUserData) == TapPipeline.syntheticMarker
+}
+
+@Suite struct ButtonStageTests {
+    let rightScroll = HoldScrollPlan(.default, glide: .default, pointsPerUnit: 1)
+    var rules: TapRules {
+        var config = Config.default
+        config.devices[0].rules = [
+            Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
+            Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft)),
+            Rule(control: .button(3), trigger: .holdMove(nil), action: .scroll),
+            Rule(control: .button(4), trigger: .click, action: shotAction),
+        ]
+        return Intent.compile(
+            config, paused: false, tapAvailable: true, present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue])]
+        ).tap
+    }
+    var distance: Double { 120 * HoldScrollPlan.pointsPerCount }
+
+    func pipeline(_ sender: SenderID? = mxSender) -> TapPipeline {
+        TapPipeline(rules: rules, origin: { _ in sender.map { HIDOrigin(sender: $0, wheelDetents: 0) } })
+    }
+
+    @Test func aShortRightPressReplaysTheClickMarked() throws {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .drop, "the press waits")
+        #expect(pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: 3, dy: -2)) == .drop)
+        guard case .replay(let press, let release) = pipeline.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) else {
+            Issue.record("the click is replayed")
+            return
+        }
+        #expect(press.type == .rightMouseDown && release.type == .rightMouseUp)
+        #expect(press.getIntegerValueField(.mouseEventButtonNumber) == 1)
+        #expect(isMarked(press) && isMarked(release))
+        #expect(pipeline.process(press.type, press) == .pass, "the replay passes the tap untouched")
+        #expect(pipeline.process(release.type, release) == .pass)
+    }
+
+    @Test func aDragPastTheDistanceScrollsAndAppsSeeNoDrag() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        #expect(pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: distance - 1)) == .drop)
+        #expect(
+            pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: 1, dy: 2))
+                == .holdScroll(.began(rightScroll)))
+        #expect(
+            pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: -4, dy: 7))
+                == .holdScroll(.moved(dx: -4, dy: 7)), "at speed 1 the page moves as far as the pointer would")
+        #expect(pipeline.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) == .holdScroll(.ended))
+        #expect(pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 5)) == .pass, "released")
+    }
+
+    @Test func aShortPressOfAButtonWithAClickRulePerformsIt() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .drop)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .perform(.system(.spaceLeft)))
+    }
+
+    @Test func aClickOnlyButtonActsOnPressAndHidesTheRest() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 4)) == .perform(shotAction))
+        #expect(pipeline.process(.otherMouseDragged, mouse(.otherMouseDragged, button: 4, dx: 500)) == .drop)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 4)) == .drop)
+    }
+
+    @Test func otherSendersButtonsAndMarkedEventsPass() {
+        var trackpad = pipeline(trackpadSender)
+        #expect(trackpad.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .pass)
+        var unattributed = pipeline(nil)
+        #expect(unattributed.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .pass)
+        var mx = pipeline()
+        #expect(mx.process(.otherMouseDown, mouse(.otherMouseDown, button: 2)) == .pass, "the middle button has no rule")
+        #expect(mx.process(.otherMouseUp, mouse(.otherMouseUp, button: 2)) == .pass)
+        #expect(mx.process(.rightMouseDown, mouse(.rightMouseDown, button: 1, marked: true)) == .pass)
+        #expect(mx.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 500)) == .pass, "nothing is held")
+    }
+
+    @Test func aSecondButtonWhileOneIsHeldPasses() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .pass)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .pass)
+        guard case .replay = pipeline.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) else {
+            Issue.record("the held button still clicks")
+            return
+        }
+    }
+
+    @Test func resetHandsAHeldPressToAppsAndEndsAScroll() throws {
+        var held = pipeline()
+        _ = held.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        let release = held.reset()
+        let press = try #require(release.press, "the held press goes to apps")
+        #expect(press.type == .rightMouseDown && isMarked(press) && !release.endsScroll)
+        #expect(held.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) == .pass, "so its release passes too")
+
+        var scrolling = pipeline()
+        _ = scrolling.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        _ = scrolling.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: distance))
+        #expect(scrolling.reset() == ButtonStage.Release(press: nil, endsScroll: true), "the host frees the pointer")
+        #expect(scrolling.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 9)) == .pass)
+
+        var idle = pipeline()
+        #expect(idle.reset() == ButtonStage.Release(press: nil, endsScroll: false))
+    }
+
+    @Test func aLostReleaseEndsTheScrollOnTheNextPress() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1))
+        _ = pipeline.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dx: distance))
+        #expect(pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .holdScroll(.ended))
+    }
+
+    @Test func theTapListensForRightAndOtherButtons() {
+        for type in ButtonStage.interests {
+            #expect(TapPipeline.mask & (1 << CGEventMask(type.rawValue)) != 0, "\(type.rawValue)")
+        }
+        #expect(TapPipeline.mask & (1 << CGEventMask(CGEventType.leftMouseDown.rawValue)) == 0, "the left button is left alone")
+    }
+}

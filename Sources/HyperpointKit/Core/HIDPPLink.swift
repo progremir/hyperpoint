@@ -90,6 +90,14 @@ struct HIDPPLink: Sendable {
         return finished(out)
     }
 
+    /// For a link that is going away: a scroll in progress ends.
+    mutating func close() -> HIDPPOutput {
+        var out = HIDPPOutput()
+        gestureControl = nil
+        perform(gesture.step(.cancel), into: &out)
+        return out
+    }
+
     mutating func tick(now: Instant) -> HIDPPOutput {
         var out = HIDPPOutput()
         if var flight = run?.inFlight, flight.deadline <= now {
@@ -124,7 +132,7 @@ struct HIDPPLink: Sendable {
     private mutating func startNextJob(now: Instant, into out: inout HIDPPOutput) {
         guard let job = scheduler.nextJob() else { return }
         retryAt = nil
-        _ = gesture.step(.cancel)
+        perform(gesture.step(.cancel), into: &out)
         if let capabilities {
             run = Run(job: job, plan: plan, steps: Self.applySteps(plan, capabilities))
         } else {
@@ -209,7 +217,7 @@ struct HIDPPLink: Sendable {
             held = current
         case .rawXY(let dx, let dy):
             guard gestureControl != nil else { return }
-            perform(gesture.step(.move(dx: dx, dy: dy)), into: &out)
+            perform(gesture.step(.move(dx: Double(dx), dy: Double(dy))), into: &out)
         case .wirelessStatus(let reconfigure):
             if reconfigure { request(.deviceAsked, now: now, into: &out) }
         }
@@ -233,8 +241,12 @@ struct HIDPPLink: Sendable {
         perform(gesture.step(.release), into: &out)
     }
 
-    private func perform(_ action: Action?, into out: inout HIDPPOutput) {
-        if let action { out.events.append(.perform(action)) }
+    private func perform(_ output: GestureMachine.Output?, into out: inout HIDPPOutput) {
+        switch output {
+        case .click(let action?), .perform(let action): out.events.append(.perform(action))
+        case .scroll(let event): out.events.append(.holdScroll(event))
+        case .click(nil), nil: break
+        }
     }
 }
 
@@ -294,6 +306,7 @@ enum HIDPPEvent: Equatable, Sendable {
     case applyStarted(ApplyScheduler.Job)
     case applyFinished(ApplyScheduler.Job, HIDPPOutcome)
     case perform(Action)
+    case holdScroll(HoldScrollEvent)
 }
 
 enum HIDPPOutcome: Equatable, Sendable {

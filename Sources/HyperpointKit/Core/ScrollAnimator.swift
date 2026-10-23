@@ -144,16 +144,21 @@ struct ScrollAnimator {
 
 /// One step's glide, scaled to a distance of 1: a smoothstep rise over `easeIn`, then a fall as
 /// (1 - t / decay) ^ brake.
-struct PulseShape {
+struct PulseShape: Equatable {
     let easeIn: Double
     let decay: Double
     let brake: Double
     private let peak: Double
 
     init(_ settings: SmoothScroll) {
-        easeIn = settings.easeIn / 1000
-        decay = settings.duration / 10
-        brake = settings.brake
+        self.init(easeIn: settings.easeIn / 1000, decay: settings.duration / 10, brake: settings.brake)
+    }
+
+    /// In seconds.
+    init(easeIn: Double, decay: Double, brake: Double) {
+        self.easeIn = easeIn
+        self.decay = decay
+        self.brake = brake
         peak = 1 / (easeIn / 2 + decay / (brake + 1))
     }
 
@@ -204,9 +209,12 @@ struct WholePoints {
     private var exact = 0.0
     private var posted = 0.0
 
-    mutating func take(_ frame: ScrollFrame) -> Int32 {
-        if frame.phase == .began { (exact, posted) = (0, 0) }
-        exact += frame.points
+    mutating func take(_ frame: ScrollFrame) -> Int32 { take(frame.points, restart: frame.phase == .began) }
+
+    /// `restart` starts a new gesture from zero, so the last one's fraction does not carry.
+    mutating func take(_ points: Double, restart: Bool) -> Int32 {
+        if restart { (exact, posted) = (0, 0) }
+        exact += points
         let whole = exact.rounded() - posted
         posted += whole
         return Int32(whole)

@@ -29,6 +29,7 @@ final class Slot {
     private let changed: @HIDActor () -> Void
     private let discovered: @HIDActor (HIDPPCapabilities) -> Void
     private let perform: @HIDActor (Action) -> Void
+    private let holdScroll: @HIDActor (HoldScrollEvent) -> Void
     private let journal: Journal
     private let matching: String
     private let hasKeyMap: Bool
@@ -41,7 +42,8 @@ final class Slot {
     init(
         device: PresentDevice, hidppInterface: IOHIDDevice?, journal: Journal,
         desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
-        discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void
+        discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void,
+        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void
     ) {
         self.device = device
         self.hidppInterface = hidppInterface
@@ -50,6 +52,7 @@ final class Slot {
         self.changed = changed
         self.discovered = discovered
         self.perform = perform
+        self.holdScroll = holdScroll
         hasKeyMap = device.properties.usagePairs.contains(.keyboard)
         matching = DeviceMatch(identifying: device.properties).hidutilKeyboardMatching
     }
@@ -115,6 +118,8 @@ final class Slot {
             changed()
         case .perform(let action):
             perform(action)
+        case .holdScroll(let event):
+            holdScroll(event)
         }
     }
 

@@ -241,3 +241,142 @@ private func speedInSteadySpin(_ rate: Double, _ settings: SmoothScroll = smooth
         #expect(whole.take(ScrollFrame(points: 0.4, phase: .began)) == 0, "the last gesture's fraction does not carry")
     }
 }
+
+private let holdPlan = HoldScrollPlan(.default, glide: .default, pointsPerUnit: 1)
+
+/// A hand that moves `perFrame` points each 120 Hz frame for `seconds`, then lets go, with every frame after.
+private func handScroll(
+    _ plan: HoldScrollPlan = holdPlan, perFrame: (dx: Double, dy: Double), seconds: Double, stillBeforeRelease: Double = 0,
+    after: Double = 2
+) -> (frames: [(time: Double, frame: HoldScrollFrame)], idle: Bool) {
+    var animator = HoldScrollAnimator()
+    var frames: [(Double, HoldScrollFrame)] = []
+    animator.receive(.began(plan), at: 0)
+    let moving = Int(seconds * 120)
+    let release = seconds + stillBeforeRelease
+    for index in 1...Int((release + after) * 120) {
+        let now = Double(index) / 120
+        if index <= moving { animator.receive(.moved(dx: perFrame.dx, dy: perFrame.dy), at: now - 0.002) }
+        if now - 1.0 / 120 < release, now >= release { animator.receive(.ended, at: release) }
+        if let frame = animator.frame(at: now) { frames.append((now, frame)) }
+    }
+    return (frames, animator.isIdle)
+}
+
+@Suite struct HoldScrollAnimatorTests {
+    @Test func theHandsMovementPostsPerFrameWithTrackpadPhases() {
+        var animator = HoldScrollAnimator()
+        animator.receive(.began(holdPlan), at: 0)
+        #expect(animator.frame(at: 0.008) == nil, "nothing to post before the hand moves")
+        #expect(!animator.wantsFrames, "a still hand needs no frames")
+        animator.receive(.moved(dx: 1, dy: 2), at: 0.009)
+        animator.receive(.moved(dx: 0.5, dy: 3), at: 0.012)
+        #expect(animator.wantsFrames)
+        #expect(animator.frame(at: 0.016) == HoldScrollFrame(dx: 1.5, dy: 5, phase: .began), "one frame carries both moves")
+        animator.receive(.moved(dx: 0, dy: -4), at: 0.02)
+        #expect(animator.frame(at: 0.025) == HoldScrollFrame(dx: 0, dy: -4, phase: .changed))
+        #expect(animator.frame(at: 0.033) == nil)
+    }
+
+    @Test func aFlingGlidesOnWithTheMomentumPhasesAndEndsCleanly() throws {
+        let run = handScroll(perFrame: (dx: 3, dy: 12), seconds: 0.3)
+        let phases = run.frames.map(\.frame.phase)
+        let ended = try #require(phases.firstIndex(of: .ended))
+        #expect(phases[..<ended].first == .began && phases[1..<ended].allSatisfy { $0 == .changed })
+        #expect(phases[ended + 1] == .momentumBegan)
+        #expect(phases.last == .momentumEnded, "the glide closes its momentum")
+        #expect(phases.filter { $0 == .momentumEnded }.count == 1 && phases.filter { $0 == .ended }.count == 1)
+        let glide = run.frames[(ended + 1)...].map(\.frame)
+        #expect(glide.dropLast().allSatisfy { $0.phase == .momentum || $0.phase == .momentumBegan })
+        #expect(run.idle)
+
+        let speed = (3.0 * 3 + 12 * 12).squareRoot() * 120
+        let glideSeconds = SmoothScroll.default.duration / 10
+        let travelled = glide.reduce(0) { $0 + ($1.dx * $1.dx + $1.dy * $1.dy).squareRoot() }
+        #expect(abs(travelled / (speed * glideSeconds / (SmoothScroll.default.brake + 1)) - 1) < 0.05, "\(travelled) points")
+        #expect(glide.dropLast().allSatisfy { abs($0.dx * 4 - $0.dy) < 1e-6 }, "it glides the way the hand went")
+        #expect(abs(glide[0].dy * 120 / (12 * 120) - 1) < 0.1, "it starts at the hand's speed")
+        let last = try #require(run.frames.last?.time)
+        #expect(last <= 0.3 + 1.0 / 120 * 2 + glideSeconds + 0.05, "it stops when the wheel's glide would")
+    }
+
+    @Test func aHandThatStoppedBeforeLettingGoDoesNotGlide() {
+        let run = handScroll(perFrame: (dx: 0, dy: 12), seconds: 0.3, stillBeforeRelease: 0.25)
+        #expect(run.frames.last?.frame.phase == .ended)
+        #expect(!run.frames.contains { $0.frame.phase == .momentumBegan })
+        #expect(run.idle)
+    }
+
+    @Test func withoutMomentumTheScrollEndsOnRelease() {
+        let still = HoldScrollPlan(HoldToScroll(speed: 1, direction: .grab, momentum: false), glide: .default, pointsPerUnit: 1)
+        let run = handScroll(still, perFrame: (dx: 0, dy: 12), seconds: 0.3)
+        #expect(run.frames.last?.frame.phase == .ended)
+        #expect(run.idle)
+    }
+
+    @Test func movementNotYetPostedGoesOutBeforeTheEnd() {
+        var animator = HoldScrollAnimator()
+        animator.receive(.began(holdPlan), at: 0)
+        animator.receive(.moved(dx: 0, dy: 6), at: 0.004)
+        animator.receive(.ended, at: 0.3)
+        #expect(animator.frame(at: 0.308) == HoldScrollFrame(dx: 0, dy: 6, phase: .began))
+        #expect(animator.frame(at: 0.316) == HoldScrollFrame(dx: 0, dy: 0, phase: .ended))
+        #expect(animator.isIdle)
+    }
+
+    @Test func aHoldWithoutMovementPostsNothing() {
+        var animator = HoldScrollAnimator()
+        animator.receive(.began(holdPlan), at: 0)
+        animator.receive(.ended, at: 0.5)
+        #expect(animator.isIdle && animator.frame(at: 0.508) == nil)
+    }
+
+    @Test func aNewHoldDuringTheGlideEndsItFirst() {
+        var animator = HoldScrollAnimator()
+        animator.receive(.began(holdPlan), at: 0)
+        for index in 1...30 {
+            animator.receive(.moved(dx: 0, dy: 15), at: Double(index) / 120 - 0.002)
+            _ = animator.frame(at: Double(index) / 120)
+        }
+        animator.receive(.ended, at: 0.25)
+        #expect(animator.frame(at: 0.258)?.phase == .ended)
+        #expect(animator.frame(at: 0.266)?.phase == .momentumBegan)
+        animator.receive(.began(holdPlan), at: 0.27)
+        animator.receive(.moved(dx: 2, dy: 0), at: 0.272)
+        #expect(animator.frame(at: 0.275) == HoldScrollFrame(dx: 0, dy: 0, phase: .momentumEnded))
+        #expect(animator.frame(at: 0.283) == HoldScrollFrame(dx: 2, dy: 0, phase: .began))
+    }
+
+    @Test func stopClosesWhateverIsOpenOnce() {
+        var following = HoldScrollAnimator()
+        following.receive(.began(holdPlan), at: 0)
+        #expect(following.stop() == nil, "nothing posted yet")
+        following.receive(.began(holdPlan), at: 0)
+        following.receive(.moved(dx: 0, dy: 3), at: 0.001)
+        _ = following.frame(at: 0.008)
+        #expect(following.stop() == HoldScrollFrame(dx: 0, dy: 0, phase: .ended))
+        #expect(following.isIdle && following.stop() == nil)
+        following.receive(.moved(dx: 0, dy: 3), at: 0.01)
+        #expect(following.frame(at: 0.016) == nil, "moves after a stop do nothing")
+
+        var gliding = HoldScrollAnimator()
+        gliding.receive(.began(holdPlan), at: 0)
+        for index in 1...30 {
+            gliding.receive(.moved(dx: 0, dy: 15), at: Double(index) / 120 - 0.002)
+            _ = gliding.frame(at: Double(index) / 120)
+        }
+        gliding.receive(.ended, at: 0.25)
+        _ = gliding.frame(at: 0.258)
+        _ = gliding.frame(at: 0.266)
+        #expect(gliding.stop() == HoldScrollFrame(dx: 0, dy: 0, phase: .momentumEnded))
+        #expect(gliding.isIdle)
+    }
+}
+
+@Suite struct HoldScrollPhaseTests {
+    @Test func framesCarryATrackpadsScrollAndMomentumPhases() {
+        let phases: [HoldScrollPhase] = [.began, .changed, .ended, .momentumBegan, .momentum, .momentumEnded]
+        #expect(phases.map(\.scrollPhase) == [.began, .changed, .ended, nil, nil, nil])
+        #expect(phases.map(\.momentumPhase) == [.none, .none, .none, .begin, .continuous, .end])
+    }
+}
