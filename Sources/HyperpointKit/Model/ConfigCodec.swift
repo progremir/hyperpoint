@@ -84,6 +84,7 @@ public enum ConfigCodec {
                 let bounds: [(key: String, value: Double, range: ClosedRange<Double>)] = [
                     ("duration", smooth.duration, 1...20), ("brake", smooth.brake, 0.5...10),
                     ("speed", smooth.speed, 1...500), ("startBoost", smooth.startBoost, 1...10),
+                    ("easeIn", smooth.easeIn, 0...300),
                 ]
                 if let bad = bounds.first(where: { !$0.range.contains($0.value) }) {
                     return ConfigError(

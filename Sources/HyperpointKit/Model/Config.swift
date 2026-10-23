@@ -187,21 +187,28 @@ public struct SmoothScroll: Codable, Equatable, Sendable {
     public var speed: Double
     /// How much farther a tick scrolls when no glide is running, as a multiple of `speed`.
     public var startBoost: Double
+    /// Milliseconds a new glide takes to rise from rest to its full velocity, without changing how far it goes.
+    /// 0 starts it at full velocity.
+    public var easeIn: Double
 
-    private enum CodingKeys: String, CodingKey { case duration, brake, acceleration, speed, startBoost }
+    private enum CodingKeys: String, CodingKey { case duration, brake, acceleration, speed, startBoost, easeIn }
 
     public static let defaultSpeed = 40.0
     public static let defaultStartBoost = 2.0
+    public static let defaultEaseIn = 0.0
 
-    public init(duration: Double, brake: Double, acceleration: Acceleration?, speed: Double, startBoost: Double) {
+    public init(
+        duration: Double, brake: Double, acceleration: Acceleration?, speed: Double, startBoost: Double, easeIn: Double
+    ) {
         self.duration = duration
         self.brake = brake
         self.acceleration = acceleration
         self.speed = speed
         self.startBoost = startBoost
+        self.easeIn = easeIn
     }
 
-    /// `speed` and `startBoost` came after the first files were written, so a file without them keeps working.
+    /// `speed`, `startBoost` and `easeIn` came after the first files were written, so a file without them keeps working.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         duration = try container.decode(Double.self, forKey: .duration)
@@ -213,6 +220,7 @@ public struct SmoothScroll: Codable, Equatable, Sendable {
         }
         speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? Self.defaultSpeed
         startBoost = try container.decodeIfPresent(Double.self, forKey: .startBoost) ?? Self.defaultStartBoost
+        easeIn = try container.decodeIfPresent(Double.self, forKey: .easeIn) ?? Self.defaultEaseIn
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -226,6 +234,7 @@ public struct SmoothScroll: Codable, Equatable, Sendable {
         }
         try container.encode(speed, forKey: .speed)
         try container.encode(startBoost, forKey: .startBoost)
+        try container.encode(easeIn, forKey: .easeIn)
     }
 }
 
@@ -282,7 +291,7 @@ extension Config {
                 scrolling: ScrollSettings(
                     smooth: SmoothScroll(
                         duration: 4, brake: 2, acceleration: .default, speed: SmoothScroll.defaultSpeed,
-                        startBoost: SmoothScroll.defaultStartBoost),
+                        startBoost: SmoothScroll.defaultStartBoost, easeIn: SmoothScroll.defaultEaseIn),
                     hiResWheel: true,
                     rightButtonPan: RightButtonPan(momentum: true),
                     clickThrough: ClickThrough(left: true, right: true)

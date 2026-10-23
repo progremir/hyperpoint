@@ -158,6 +158,68 @@ private func perTickInSteadyStream(_ rate: Double, _ settings: SmoothScroll) -> 
         #expect(zip(distances, distances.dropFirst()).allSatisfy { $0.distance < $1.distance })
     }
 
+    @Test func easeInStartsAnIsolatedTickSlowerWithoutChangingItsDistance() throws {
+        let flat = with {
+            $0.startBoost = 1
+            $0.brake = 1
+        }
+        let abrupt = glide(burst(1, perSecond: 1), flat)
+        let firstAbrupt = try #require(abrupt.frames.first { $0.frame.points != 0 })
+        for easeIn in [60.0, 300] {
+            let eased = glide(burst(1, perSecond: 1), with { $0 = flat; $0.easeIn = easeIn })
+            let firstEased = try #require(eased.frames.first { $0.frame.points != 0 })
+            #expect(eased.distance(from: 0, to: firstAbrupt.time + 0.001) < Int(firstAbrupt.frame.points), "\(easeIn) ms")
+            #expect(firstEased.time >= firstAbrupt.time)
+            #expect(abs(eased.distance - Int(flat.speed)) <= 1, "\(easeIn) ms still scrolls speed × startBoost")
+            #expect(eased.lastMovingFrame <= 0.0005 + (easeIn / 1000 + flat.duration / 10) + 1 / frameRate)
+            #expect(eased.lastMovingFrame > 0.0005 + flat.duration / 10, "the ease-in lengthens the glide")
+            #expect(eased.idleAtEnd)
+        }
+        let boosted = glide(burst(1, perSecond: 1), with { $0.easeIn = 300 })
+        #expect(abs(boosted.distance - Int(smooth.speed * smooth.startBoost)) <= 1)
+    }
+
+    @Test func easeInLeavesASteadyStreamAlone() {
+        for accelerated in [false, true] {
+            let settings = with {
+                $0.startBoost = 1
+                if !accelerated { $0.acceleration = nil }
+            }
+            for rate in [5.0, 30] {
+                let plain = perTickInSteadyStream(rate, settings)
+                let eased = perTickInSteadyStream(rate, with { $0 = settings; $0.easeIn = 300 })
+                #expect(abs(eased / plain - 1) < 0.01, "\(rate) ticks/s, acceleration \(accelerated)")
+            }
+        }
+    }
+
+    @Test func ticksDuringTheEaseInKeepTheFirstTicksDistance() {
+        let settings = with {
+            $0.easeIn = 300
+            $0.acceleration = nil
+            $0.startBoost = 1
+        }
+        let two = glide([(0.0005, .positive), (0.1005, .positive)], settings)
+        let single = glide(burst(1, perSecond: 1), settings)
+        #expect(two.distance > single.distance + Int(settings.speed) / 2, "the second tick adds to the first")
+        #expect(two.frames.dropFirst().dropLast().allSatisfy { $0.frame.phase == .changed && $0.frame.points > 0 })
+    }
+
+    @Test func easeInOfZeroPostsTheFramesItAlwaysHas() {
+        let isolated: [Int32] = [
+            4, 5, 4, 5, 4, 4, 3, 4, 3, 4, 3, 3, 2, 3, 2, 3, 2, 2, 2, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+        ]
+        let burstThenReversal: [Int32] = [
+            4, 5, 4, 5, 4, 8, 8, 7, 7, 9, 10, 10, 10, 9, 11, 12, 12, 11, 11, 14, 14, 13, 13, 12, 15, 16, 14, 14, 13, 13,
+            12, 11, 11, 11, 9, 10, 9, 8, 8, 7, 7, 7, 6, 5, 6, 5, 4, 0, -4, -5, -5, -4, -4, -4, -4, -3, -4, -3, -3, -3, -2,
+            -3, -3, -2, -2, -2, -2, -2, -1, -2, -1, -1, -2, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0,
+        ]
+        #expect(smooth.easeIn == 0)
+        #expect(glide(burst(1, perSecond: 1)).frames.map(\.frame.points) == isolated)
+        let ticks = burst(6, perSecond: 25) + [(0.4, .negative)]
+        #expect(glide(ticks).frames.map(\.frame.points) == burstThenReversal)
+    }
+
     @Test func stopEndsAnOpenGestureOnce() {
         var animator = ScrollAnimator()
         #expect(animator.stop() == nil, "nothing to end")

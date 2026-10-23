@@ -19,7 +19,8 @@ struct ScrollFrame: Equatable, Sendable {
 }
 
 /// Turns wheel ticks into a glide. Each tick adds to the velocity, which then falls as (1 - t / duration) ^ brake
-/// and reaches zero `duration` after the last tick. Time is passed in, in seconds.
+/// and reaches zero `duration` after the last tick. A new glide first eases in over `easeIn`, so it starts at rest
+/// and ends `easeIn + duration` after its tick. Time is passed in, in seconds.
 struct ScrollAnimator {
     private enum State {
         case idle
@@ -89,7 +90,9 @@ private struct Glide {
     let sign: ScrollTick.Sign
     var settings: SmoothScroll
     var lastTick: Double
-    /// Points per second just after `lastTick`.
+    /// When the velocity reaches `peak` and starts to fall. Later than `lastTick` only while a new glide eases in.
+    var decayFrom: Double
+    var easeIn: Double
     var peak: Double
     var postedUntil: Double
     var unposted = 0.0
@@ -100,20 +103,26 @@ private struct Glide {
         settings = tick.settings
         lastTick = now
         postedUntil = now
-        peak = Self.impulse(tick.settings, interval: nil)
+        easeIn = tick.settings.easeIn / 1000
+        decayFrom = now + easeIn
+        let decay = tick.settings.duration / 10 / (tick.settings.brake + 1)
+        peak = Self.impulse(tick.settings, interval: nil) * decay / (easeIn / 2 + decay)
     }
 
     var length: Double { settings.duration / 10 }
-    var end: Double { lastTick + length }
+    var end: Double { decayFrom + length }
 
     func continues(with tick: ScrollTick, at now: Double) -> Bool { tick.sign == sign && now < end }
 
     mutating func add(_ tick: ScrollTick, at now: Double) {
         unposted += travelled(from: postedUntil, to: now)
         postedUntil = now
-        peak = velocity(at: now) + Self.impulse(tick.settings, interval: now - lastTick)
+        let carried = now < decayFrom ? travelled(from: now, to: end) * (settings.brake + 1) / length : velocity(at: now)
+        peak = carried + Self.impulse(tick.settings, interval: now - lastTick)
         settings = tick.settings
         lastTick = now
+        decayFrom = now
+        easeIn = 0
     }
 
     /// The whole points to post up to `now`. The fraction waits for the next frame, and the last frame rounds it.
@@ -127,13 +136,20 @@ private struct Glide {
     }
 
     private func velocity(at time: Double) -> Double {
-        let left = 1 - (time - lastTick) / length
+        let left = 1 - (time - decayFrom) / length
         return left > 0 ? peak * pow(left, settings.brake) : 0
     }
 
+    /// The ease-in follows smoothstep, 3u² - 2u³, whose integral u³ - u⁴ / 2 is half the ease-in at its end.
     private func travelled(from start: Double, to stop: Double) -> Double {
-        func untravelled(_ time: Double) -> Double { pow(min(1, max(0, 1 - (time - lastTick) / length)), settings.brake + 1) }
+        func untravelled(_ time: Double) -> Double { pow(min(1, max(0, 1 - (time - decayFrom) / length)), settings.brake + 1) }
+        func eased(_ time: Double) -> Double {
+            guard easeIn > 0 else { return 0 }
+            let u = min(1, max(0, 1 - (decayFrom - time) / easeIn))
+            return easeIn * (u * u * u - u * u * u * u / 2)
+        }
         return peak * length / (settings.brake + 1) * (untravelled(start) - untravelled(stop))
+            + peak * (eased(stop) - eased(start))
     }
 
     /// The velocity one tick adds, chosen so the tick travels `speed` times its multiplier: on its own when no glide

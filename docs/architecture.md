@@ -37,7 +37,7 @@ Three things make the shape non-obvious.
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
         "smooth": {
-          "duration": 4, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2
+          "duration": 4, "easeIn": 0, "brake": 2, "acceleration": { "from": 4, "to": 40, "max": 3 }, "speed": 40, "startBoost": 2
         },
         "hiResWheel": true,
         "rightButtonPan": { "momentum": true },
@@ -204,7 +204,7 @@ The MX wheel without BetterMouse sends line-based wheel events, and apps such as
 
 `ScrollStage` takes a wheel event when it is line-based, vertical, has no modifier held, and comes from a sender in `TapRules.smoothScroll`. Every other scroll passes untouched. Trackpad scrolls are continuous, the thumb wheel is horizontal, shift-scroll and zoom carry a modifier, and other mice have no entry. Each taken event is one tick, and only the sign of its delta counts, so macOS's own wheel acceleration never stacks on Hyperpoint's.
 
-`ScrollAnimator` keeps one velocity. Each tick adds an impulse to it. Between ticks the velocity falls as `(1 - t / duration) ^ brake`, so it reaches zero exactly `duration` after the last tick. A tick in the other direction ends the glide on the next frame and starts a new one. The impulse is sized to give each knob one job:
+`ScrollAnimator` keeps one velocity. Each tick adds an impulse to it. Between ticks the velocity falls as `(1 - t / duration) ^ brake`, so it reaches zero exactly `duration` after the last tick. A new glide can ease in first. Its velocity rises from 0 to the peak along a smoothstep curve over `easeIn`, then falls as usual, so the glide ends `easeIn` + `duration` after its tick. With both in seconds and `D = duration / (brake + 1)`, the decay covers `peak × D` and the smoothstep covers `peak × easeIn / 2`. The peak is multiplied by `D / (easeIn / 2 + D)`, so the tick travels as far as it would without the ease-in. A tick that arrives during the ease-in ends it. The glide's remaining distance carries on as a plain decay from that tick, plus the new tick's impulse, and later ticks never ease in, so a spin does not stutter. A tick in the other direction ends the glide on the next frame and starts a new one. The impulse is sized to give each knob one job:
 
 - A tick when no glide is running scrolls `startBoost` × `speed` points. This is the faster start the user asked for.
 - A steady stream scrolls `speed` × gain points per tick whatever `duration` and `brake` are, so those two shape only the glide. The boost fades as ticks come closer together, so the distance per tick has no step where a glide ends.
@@ -217,8 +217,9 @@ The MX wheel without BetterMouse sends line-based wheel events, and apps such as
 | `acceleration` | `false`, `true` for the defaults, or `{ "from", "to", "max" }`. The gain starts above 1 at `from` ticks per second and reaches `max` at `to`. | `{ "from": 4, "to": 40, "max": 3 }` | `from` 0 or more, `to` more than `from`, `max` 1 or more |
 | `speed` | Points per tick in a steady stream | 40 | 1 to 500 |
 | `startBoost` | Distance of a tick when no glide is running, as a multiple of `speed` | 2 | 1 to 10 |
+| `easeIn` | Milliseconds a new glide takes to reach its full velocity. The distance stays the same. 0 starts it at full velocity. | 0 | 0 to 300 |
 
-`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed` or `startBoost` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s. A steady stream of 10 ticks per second scrolls about 670 points per second, 20 about 1,700, 30 about 3,200 and 60 about 7,500 (measured on the animator with a fake clock).
+`duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `speed`, `startBoost` or `easeIn` gets the defaults. With the defaults, one tick scrolls 80 points over 0.4 s. A steady stream of 10 ticks per second scrolls about 670 points per second, 20 about 1,700, 30 about 3,200 and 60 about 7,500 (measured on the animator with a fake clock).
 
 `TapHost` arms a 120 Hz run-loop timer on the tap thread when a tick starts a glide and disarms it when the animator is idle. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed knobs apply from the next tick.
 
