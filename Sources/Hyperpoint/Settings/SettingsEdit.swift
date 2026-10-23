@@ -28,9 +28,8 @@ enum SettingsEdit: Equatable, Sendable {
     case gestureDistance(DeviceMatch, Int)
     /// Nil turns smooth scrolling off.
     case smooth(DeviceMatch, SmoothScroll?)
-    /// Nil turns acceleration off.
-    case acceleration(DeviceMatch, Acceleration?)
     case smoothKnob(DeviceMatch, SmoothKnob, Double)
+    case curve(DeviceMatch, SpeedCurve)
 
     func applied(to config: Config) -> Config {
         var config = config
@@ -67,13 +66,13 @@ enum SettingsEdit: Equatable, Sendable {
                 scrolling.smooth = smooth
                 profile.scrolling = scrolling
             }
-        case .acceleration(let match, let acceleration):
-            config.editProfile(match) { $0.scrolling?.smooth?.acceleration = acceleration }
         case .smoothKnob(let match, let knob, let value):
             config.editProfile(match) { profile in
                 guard let smooth = profile.scrolling?.smooth else { return }
                 profile.scrolling?.smooth = knob.setting(value, in: smooth)
             }
+        case .curve(let match, let curve):
+            config.editProfile(match) { $0.scrolling?.smooth?.curve = curve }
         }
         return config
     }
@@ -93,10 +92,9 @@ enum SettingsEdit: Equatable, Sendable {
         case .gestureDistance(let match, let distance): "\(Self.profile(match)).gestures.distance = \(distance)"
         case .smooth(let match, let smooth):
             "\(Self.profile(match)).scrolling.smooth = \(smooth.map(Self.json) ?? "none")"
-        case .acceleration(let match, let acceleration):
-            "\(Self.profile(match)).scrolling.smooth.acceleration = \(acceleration.map(Self.json) ?? "false")"
         case .smoothKnob(let match, let knob, let value):
             "\(Self.profile(match)).scrolling.smooth.\(knob.key) = \(value.formatted(.number.locale(Locale(identifier: "en_US_POSIX")).grouping(.never)))"
+        case .curve(let match, let curve): "\(Self.profile(match)).scrolling.smooth.curve = \(Self.json(curve))"
         }
     }
 

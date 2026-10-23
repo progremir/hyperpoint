@@ -16,7 +16,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
 @Suite struct TapPipelineTests {
     var pipeline = TapPipeline(
-        rules: Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap, sender: { _ in nil })
+        rules: Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap, origin: { _ in nil })
 
     @Test mutating func hyperHeldIsAModifierChangeAndKeysCarryIt() {
         let down = key(f18, down: true)
@@ -154,12 +154,23 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
         present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue])]
     ).tap
 
-    func pipeline(_ sender: SenderID?) -> TapPipeline { TapPipeline(rules: rules, sender: { _ in sender }) }
+    func pipeline(_ sender: SenderID?, detents: Double = 1) -> TapPipeline {
+        TapPipeline(rules: rules, origin: { _ in sender.map { HIDOrigin(sender: $0, wheelDetents: detents) } })
+    }
 
-    @Test func aWheelTickFromASmoothSenderIsTakenForTheAnimator() {
+    @Test func aWheelStepFromASmoothSenderIsTakenForTheAnimator() {
         var pipeline = pipeline(mxSender)
-        #expect(pipeline.process(.scrollWheel, wheel(1)) == .scroll(ScrollTick(sign: .positive, settings: smooth)))
-        #expect(pipeline.process(.scrollWheel, wheel(-3)) == .scroll(ScrollTick(sign: .negative, settings: smooth)))
+        #expect(pipeline.process(.scrollWheel, wheel(1)) == .scroll(ScrollTick(sign: .positive, steps: 1, settings: smooth)))
+        #expect(
+            pipeline.process(.scrollWheel, wheel(-3)) == .scroll(ScrollTick(sign: .negative, steps: 1, settings: smooth)),
+            "macOS's accelerated line delta is not the step count")
+    }
+
+    @Test func theStepsAreTheWheelsDetents() {
+        var flick = pipeline(mxSender, detents: -3)
+        #expect(flick.process(.scrollWheel, wheel(-13)) == .scroll(ScrollTick(sign: .negative, steps: 3, settings: smooth)))
+        var unknown = pipeline(mxSender, detents: 0)
+        #expect(unknown.process(.scrollWheel, wheel(2)) == .scroll(ScrollTick(sign: .positive, steps: 1, settings: smooth)))
     }
 
     @Test func continuousScrollsPass() {
@@ -195,15 +206,15 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
         }
     }
 
-    @Test func newRulesApplyFromTheNextTick() {
+    @Test func newRulesApplyFromTheNextStep() {
         var pipeline = pipeline(mxSender)
         var faster = rules
-        faster.smoothScroll[mxSender]?.speed = 90
+        faster.smoothScroll[mxSender]?.duration = 9
         pipeline.replaceRulesAndForgetHeldKeys(faster)
         guard case .scroll(let tick) = pipeline.process(.scrollWheel, wheel(1)) else {
             Issue.record("the tick is taken")
             return
         }
-        #expect(tick.settings.speed == 90)
+        #expect(tick.settings.duration == 9)
     }
 }

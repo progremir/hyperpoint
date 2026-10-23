@@ -31,24 +31,32 @@ enum TapVerdict: Equatable, Sendable {
     case scroll(ScrollTick)
 }
 
+/// What the HID event behind a tap event says about it.
+struct HIDOrigin: Equatable, Sendable {
+    /// The registry id of the HID event service that sent it.
+    var sender: SenderID
+    /// The wheel's own vertical travel in detents, before macOS accelerates it into lines. 0 for other events.
+    var wheelDetents: Double
+}
+
 struct TapPipeline {
     static let syntheticMarker: Int64 = 0x4859_5052
 
-    private let sender: @Sendable (CGEvent) -> SenderID?
+    private let origin: @Sendable (CGEvent) -> HIDOrigin?
     private var carriers: CarrierStage
     private var scroll: ScrollStage
 
-    init(rules: TapRules, sender: @escaping @Sendable (CGEvent) -> SenderID?) {
-        self.sender = sender
+    init(rules: TapRules, origin: @escaping @Sendable (CGEvent) -> HIDOrigin?) {
+        self.origin = origin
         carriers = CarrierStage(rules: rules)
-        scroll = ScrollStage(settings: rules.smoothScroll, sender: sender)
+        scroll = ScrollStage(settings: rules.smoothScroll, origin: origin)
     }
 
     static var mask: CGEventMask {
         (CarrierStage.interests + ScrollStage.interests).reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) }
     }
 
-    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { self = TapPipeline(rules: rules, sender: sender) }
+    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { self = TapPipeline(rules: rules, origin: origin) }
 
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else { return .pass }
@@ -59,15 +67,16 @@ struct TapPipeline {
     mutating func reset() { carriers.reset() }
 }
 
-/// Takes vertical wheel ticks from senders with smooth scrolling. Continuous scrolls, horizontal ones such as the
+/// Takes vertical wheel steps from senders with smooth scrolling. Continuous scrolls, horizontal ones such as the
 /// thumb wheel's, and scrolls with a modifier held pass, so trackpads, other mice, shift-scroll and zoom stay native.
+/// The line delta is already accelerated, so the steps come from the wheel's detents, or 1 when it has none.
 struct ScrollStage {
     static let interests: [CGEventType] = [.scrollWheel]
 
     private static let modifiers: CGEventFlags = [.maskShift, .maskControl, .maskAlternate, .maskCommand]
 
     let settings: [SenderID: SmoothScroll]
-    let sender: @Sendable (CGEvent) -> SenderID?
+    let origin: @Sendable (CGEvent) -> HIDOrigin?
 
     func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
         guard type == .scrollWheel, !settings.isEmpty,
@@ -76,8 +85,9 @@ struct ScrollStage {
             event.flags.isDisjoint(with: Self.modifiers)
         else { return .pass }
         let vertical = Self.delta(event, .scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventDeltaAxis1)
-        guard vertical != 0, let sender = sender(event), let smooth = settings[sender] else { return .pass }
-        return .scroll(ScrollTick(sign: vertical > 0 ? .positive : .negative, settings: smooth))
+        guard vertical != 0, let origin = origin(event), let smooth = settings[origin.sender] else { return .pass }
+        let steps = max(1, Int(abs(origin.wheelDetents).rounded()))
+        return .scroll(ScrollTick(sign: vertical > 0 ? .positive : .negative, steps: steps, settings: smooth))
     }
 
     private static func delta(_ event: CGEvent, _ fixed: CGEventField, _ lines: CGEventField) -> Double {

@@ -54,7 +54,9 @@ public enum ConfigCodec {
                 if user[key] is NSNull {
                     return ConfigError(path: child, message: "null is not allowed. Leave the key out instead")
                 }
-                guard let known = schema[key] else { return ConfigError(path: child, message: "unknown key") }
+                guard let known = schema[key] ?? legacySchema(at: path, in: user)?[key] else {
+                    return ConfigError(path: child, message: "unknown key")
+                }
                 if let error = unknownKey(in: user[key]!, against: known, path: child) { return error }
             }
         } else if let user = user as? [Any], let schema = schema as? [Any] {
@@ -63,6 +65,12 @@ public enum ConfigCodec {
             }
         }
         return nil
+    }
+
+    /// A smooth scrolling section written before the speed curve names the knobs it replaced, which decoding converts.
+    private static func legacySchema(at path: String, in section: [String: Any]) -> [String: Any]? {
+        guard path.hasSuffix("scrolling.smooth"), section["curve"] == nil else { return nil }
+        return ["speed": 0, "startBoost": 0, "acceleration": ["from": 0, "to": 0, "max": 0]]
     }
 
     static func validate(_ config: Config) -> ConfigError? {
@@ -86,24 +94,13 @@ public enum ConfigCodec {
             if let smooth = profile.scrolling?.smooth {
                 let bounds: [(key: String, value: Double, range: ClosedRange<Double>)] = [
                     ("duration", smooth.duration, SmoothScroll.durationRange),
-                    ("brake", smooth.brake, SmoothScroll.brakeRange), ("speed", smooth.speed, SmoothScroll.speedRange),
-                    ("startBoost", smooth.startBoost, SmoothScroll.startBoostRange),
+                    ("brake", smooth.brake, SmoothScroll.brakeRange),
                     ("easeIn", smooth.easeIn, SmoothScroll.easeInRange),
                 ]
                 if let bad = bounds.first(where: { !$0.range.contains($0.value) }) {
                     return ConfigError(
                         path: "\(path).scrolling.smooth.\(bad.key)",
                         message: String(format: "must be between %g and %g", bad.range.lowerBound, bad.range.upperBound))
-                }
-                if let acceleration = smooth.acceleration {
-                    let rules: [(key: String, holds: Bool, message: String)] = [
-                        ("from", acceleration.from >= 0, "must be 0 or more"),
-                        ("to", acceleration.to > acceleration.from, "must be more than from"),
-                        ("max", acceleration.max >= 1, "must be 1 or more"),
-                    ]
-                    if let bad = rules.first(where: { !$0.holds }) {
-                        return ConfigError(path: "\(path).scrolling.smooth.acceleration.\(bad.key)", message: bad.message)
-                    }
                 }
             }
             for (ruleIndex, rule) in (profile.rules ?? []).enumerated() {

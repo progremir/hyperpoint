@@ -10,165 +10,205 @@ struct ScrollTick: Equatable, Sendable {
     }
 
     var sign: Sign
+    /// Wheel detents in the event. A freely spinning wheel packs up to three into one.
+    var steps: Int
     var settings: SmoothScroll
 }
 
 struct ScrollFrame: Equatable, Sendable {
-    var points: Int32
+    /// Points to scroll, fraction included.
+    var points: Double
     var phase: CGScrollPhase
 }
 
-/// Turns wheel ticks into a glide. Each tick adds to the velocity, which then falls as (1 - t / duration) ^ brake
-/// and reaches zero `duration` after the last tick. A new glide first eases in over `easeIn`, so it starts at rest
-/// and ends `easeIn + duration` after its tick. Time is passed in, in seconds.
+/// Turns wheel steps into a glide. Each step starts a pulse of velocity that rises from rest along smoothstep over
+/// `easeIn`, then falls as (1 - t / duration) ^ brake. Pulses add up, so a step travels exactly the distance the curve
+/// gives it at the current spin rate, and a steady spin scrolls at the curve's speed whatever the glide's shape. Time
+/// is passed in, in seconds.
 struct ScrollAnimator {
-    private enum State {
+    /// Apps take whole points (measured), so a glide slowing through a few points a second would move by single
+    /// points at growing intervals. Once its steps have eased in, a glide never moves slower than this, in points per
+    /// second. It finishes at this speed, one point every other frame at 120 Hz, and stops.
+    static let stoppingSpeed = 60.0
+    /// More pulses than a free spin fits in the longest glide. Past this a step joins the latest pulse.
+    private static let capacity = 512
+
+    private enum Gesture: Equatable {
         case idle
-        case gliding(Glide)
-        /// The posted gesture still owes its ended frame. `next` starts a new gesture after it.
-        case ending(next: Glide?)
+        case gliding(began: Bool)
+        /// The posted gesture still owes its ended frame. With `next`, the pulses belong to a new gesture that starts
+        /// after it.
+        case ending(next: Bool)
     }
 
-    private var state = State.idle
-
-    var isIdle: Bool {
-        if case .idle = state { true } else { false }
+    private struct Pulse {
+        var start: Double
+        var distance: Double
     }
+
+    private var gesture = Gesture.idle
+    private var sign = ScrollTick.Sign.positive
+    private var shape = PulseShape(.default)
+    /// In start order, and outside `gesture` so that a step appends in place.
+    private var pulses: [Pulse] = []
+    private var rate = SpinRate()
+    /// Since the gesture began: the distance of pulses that are over, and the distance posted.
+    private var finished = 0.0
+    private var posted = 0.0
+    private var lastFrame = 0.0
+
+    init() { pulses.reserveCapacity(Self.capacity) }
+
+    var isIdle: Bool { gesture == .idle }
 
     mutating func tick(_ tick: ScrollTick, at now: Double) {
-        switch state {
-        case .idle:
-            state = .gliding(Glide(tick, at: now))
-        case .gliding(var glide) where glide.continues(with: tick, at: now):
-            glide.add(tick, at: now)
-            state = .gliding(glide)
-        case .gliding(let glide):
-            state = glide.posted ? .ending(next: Glide(tick, at: now)) : .gliding(Glide(tick, at: now))
-        case .ending(.some(var next)) where next.continues(with: tick, at: now):
-            next.add(tick, at: now)
-            state = .ending(next: next)
-        case .ending:
-            state = .ending(next: Glide(tick, at: now))
+        switch gesture {
+        case .gliding where tick.sign == sign, .ending(next: true) where tick.sign == sign:
+            add(tick, at: now)
+        case .idle, .gliding(began: false):
+            restart(tick, at: now)
+            gesture = .gliding(began: false)
+        case .gliding(began: true), .ending:
+            restart(tick, at: now)
+            gesture = .ending(next: true)
         }
     }
 
     mutating func frame(at now: Double) -> ScrollFrame? {
-        switch state {
+        switch gesture {
         case .idle:
             return nil
         case .ending(let next):
-            state = next.map(State.gliding) ?? .idle
+            gesture = next ? .gliding(began: false) : .idle
             return ScrollFrame(points: 0, phase: .ended)
-        case .gliding(var glide):
-            let points = glide.advance(to: now)
-            let finished = now >= glide.end
-            guard points != 0 else {
-                state = finished ? .idle : .gliding(glide)
-                return finished && glide.posted ? ScrollFrame(points: 0, phase: .ended) : nil
+        case .gliding(let began):
+            let over = pulses.prefix { now - $0.start >= shape.length }.count
+            finished += pulses[..<over].reduce(0) { $0 + $1.distance }
+            pulses.removeFirst(over)
+            var travelled = finished
+            var total = finished
+            for pulse in pulses {
+                travelled += pulse.distance * shape.share(after: now - pulse.start)
+                total += pulse.distance
             }
-            let phase: CGScrollPhase = glide.posted ? .changed : .began
-            glide.posted = true
-            state = finished ? .ending(next: nil) : .gliding(glide)
-            return ScrollFrame(points: points, phase: phase)
+            let easing = pulses.last.map { now - $0.start < shape.easeIn } ?? false
+            let slowest = easing ? 0 : Self.stoppingSpeed * (now - lastFrame)
+            let move = min(max(travelled - posted, slowest, 0), total - posted)
+            posted += move
+            lastFrame = now
+            if total - posted < 1e-9 {
+                pulses.removeAll(keepingCapacity: true)
+                gesture = .ending(next: false)
+            } else if move == 0 {
+                return nil
+            } else {
+                gesture = .gliding(began: true)
+            }
+            return ScrollFrame(points: sign.factor * move, phase: began ? .changed : .began)
         }
     }
 
     /// Ends the gesture at once, for a tap that is going away.
     mutating func stop() -> ScrollFrame? {
-        defer { state = .idle }
-        switch state {
-        case .gliding(let glide) where glide.posted: return ScrollFrame(points: 0, phase: .ended)
-        case .ending: return ScrollFrame(points: 0, phase: .ended)
-        case .idle, .gliding: return nil
+        defer {
+            gesture = .idle
+            pulses.removeAll(keepingCapacity: true)
+        }
+        switch gesture {
+        case .gliding(began: true), .ending: return ScrollFrame(points: 0, phase: .ended)
+        case .idle, .gliding(began: false): return nil
         }
     }
-}
 
-private struct Glide {
-    static let minimumInterval = 0.001
-
-    let sign: ScrollTick.Sign
-    var settings: SmoothScroll
-    var lastTick: Double
-    /// When the velocity reaches `peak` and starts to fall. Later than `lastTick` only while a new glide eases in.
-    var decayFrom: Double
-    var easeIn: Double
-    var peak: Double
-    var postedUntil: Double
-    var unposted = 0.0
-    var posted = false
-
-    init(_ tick: ScrollTick, at now: Double) {
+    /// A new gesture. The spin rate carries over unless the wheel turned the other way.
+    private mutating func restart(_ tick: ScrollTick, at now: Double) {
+        if tick.sign != sign { rate.reset() }
         sign = tick.sign
-        settings = tick.settings
-        lastTick = now
-        postedUntil = now
-        easeIn = tick.settings.easeIn / 1000
-        decayFrom = now + easeIn
-        let decay = tick.settings.duration / 10 / (tick.settings.brake + 1)
-        peak = Self.impulse(tick.settings, interval: nil) * decay / (easeIn / 2 + decay)
+        shape = PulseShape(tick.settings)
+        pulses.removeAll(keepingCapacity: true)
+        (finished, posted, lastFrame) = (0, 0, now)
+        add(tick, at: now)
     }
 
-    var length: Double { settings.duration / 10 }
-    var end: Double { decayFrom + length }
-
-    func continues(with tick: ScrollTick, at now: Double) -> Bool { tick.sign == sign && now < end }
-
-    mutating func add(_ tick: ScrollTick, at now: Double) {
-        unposted += travelled(from: postedUntil, to: now)
-        postedUntil = now
-        let carried = now < decayFrom ? travelled(from: now, to: end) * (settings.brake + 1) / length : velocity(at: now)
-        peak = carried + Self.impulse(tick.settings, interval: now - lastTick)
-        settings = tick.settings
-        lastTick = now
-        decayFrom = now
-        easeIn = 0
-    }
-
-    /// The whole points to post up to `now`. The fraction waits for the next frame, and the last frame rounds it.
-    mutating func advance(to now: Double) -> Int32 {
-        let until = min(max(now, postedUntil), end)
-        unposted += travelled(from: postedUntil, to: until)
-        postedUntil = until
-        let whole = now >= end ? unposted.rounded() : unposted.rounded(.down)
-        unposted -= whole
-        return Int32(sign.factor * whole)
-    }
-
-    private func velocity(at time: Double) -> Double {
-        let left = 1 - (time - decayFrom) / length
-        return left > 0 ? peak * pow(left, settings.brake) : 0
-    }
-
-    /// The ease-in follows smoothstep, 3u² - 2u³, whose integral u³ - u⁴ / 2 is half the ease-in at its end.
-    private func travelled(from start: Double, to stop: Double) -> Double {
-        func untravelled(_ time: Double) -> Double { pow(min(1, max(0, 1 - (time - decayFrom) / length)), settings.brake + 1) }
-        func eased(_ time: Double) -> Double {
-            guard easeIn > 0 else { return 0 }
-            let u = min(1, max(0, 1 - (decayFrom - time) / easeIn))
-            return easeIn * (u * u * u - u * u * u * u / 2)
+    private mutating func add(_ tick: ScrollTick, at now: Double) {
+        let curve = tick.settings.curve
+        let spin = rate.record(tick.steps, at: now, slowest: curve.slowest)
+        let distance = Double(tick.steps) * curve.distancePerStep(at: spin)
+        if pulses.count < Self.capacity {
+            pulses.append(Pulse(start: now, distance: distance))
+        } else {
+            pulses[pulses.count - 1].distance += distance
         }
-        return peak * length / (settings.brake + 1) * (untravelled(start) - untravelled(stop))
-            + peak * (eased(stop) - eased(start))
-    }
-
-    /// The velocity one tick adds, chosen so the tick travels `speed` times its multiplier: on its own when no glide
-    /// is running, and per tick in a steady stream otherwise, whatever the brake and duration. The start boost fades
-    /// as ticks come closer together, so the distance per tick has no step where a glide ends.
-    static func impulse(_ settings: SmoothScroll, interval: Double?) -> Double {
-        let length = settings.duration / 10
-        let brake = settings.brake
-        let spacing = interval.map { max($0, minimumInterval) }
-        let x = spacing.map { min(1, $0 / length) } ?? 1
-        let boost = 1 + (settings.startBoost - 1) * x
-        let gain = spacing.flatMap { spacing in settings.acceleration?.gain(ticksPerSecond: 1 / spacing) } ?? 1
-        let steady = x < 1 ? (1 - pow(1 - x, brake + 1)) / (1 - pow(1 - x, brake)) : 1
-        return settings.speed * boost * gain * (brake + 1) / (length * steady)
     }
 }
 
-extension Acceleration {
-    func gain(ticksPerSecond rate: Double) -> Double {
-        1 + min(1, Swift.max(0, (rate - from) / (to - from))) * (max - 1)
+/// One step's glide, scaled to a distance of 1: a smoothstep rise over `easeIn`, then a fall as
+/// (1 - t / decay) ^ brake.
+struct PulseShape {
+    let easeIn: Double
+    let decay: Double
+    let brake: Double
+    private let peak: Double
+
+    init(_ settings: SmoothScroll) {
+        easeIn = settings.easeIn / 1000
+        decay = settings.duration / 10
+        brake = settings.brake
+        peak = 1 / (easeIn / 2 + decay / (brake + 1))
+    }
+
+    var length: Double { easeIn + decay }
+
+    /// The share of its distance a step has travelled `t` seconds after it. Smoothstep, 3u² - 2u³, integrates to
+    /// u³ - u⁴ / 2, which is half the ease-in at its end.
+    func share(after t: Double) -> Double {
+        if t <= 0 { return 0 }
+        if t < easeIn {
+            let u = t / easeIn
+            return peak * easeIn * (u * u * u - u * u * u * u / 2)
+        }
+        let s = min(1, (t - easeIn) / decay)
+        return peak * (easeIn / 2 + decay / (brake + 1) * (1 - pow(1 - s, brake + 1)))
+    }
+}
+
+/// The wheel's spin rate in steps per second, smoothed over the last few steps.
+struct SpinRate {
+    /// Each interval moves the estimate halfway, so the last three carry most of it.
+    private static let smoothing = 0.5
+    private static let shortest = 0.001
+
+    private var last: Double?
+    private var interval: Double?
+
+    mutating func reset() { (last, interval) = (nil, nil) }
+
+    /// The rate of `steps` steps arriving at `now`. Steps after a pause longer than a step at `slowest` count as
+    /// `slowest`.
+    mutating func record(_ steps: Int, at now: Double, slowest: Double) -> Double {
+        defer { last = now }
+        guard let last, (now - last) / Double(steps) < 1 / slowest else {
+            interval = nil
+            return slowest
+        }
+        let each = max((now - last) / Double(steps), Self.shortest)
+        let smoothed = interval.map { $0 + Self.smoothing * (each - $0) } ?? each
+        interval = smoothed
+        return 1 / smoothed
+    }
+}
+
+/// AppKit reads a posted scroll's precise delta from its integer point field alone (measured), so frames post whole
+/// points. Rounding the running total keeps what is posted within half a point of the glide.
+struct WholePoints {
+    private var exact = 0.0
+    private var posted = 0.0
+
+    mutating func take(_ frame: ScrollFrame) -> Int32 {
+        if frame.phase == .began { (exact, posted) = (0, 0) }
+        exact += frame.points
+        let whole = exact.rounded() - posted
+        posted += whole
+        return Int32(whole)
     }
 }
