@@ -79,16 +79,16 @@ struct CarrierStage {
             if type == .keyDown {
                 guard held[code] == nil else { return .drop }
                 held[code] = modifiers
-                event.type = .flagsChanged
-                event.setIntegerValueField(.keyboardEventKeycode, value: Self.modifierKeyCode)
                 event.flags.formUnion(modifiers.cgFlags)
             } else {
                 // A key-up always clears, even after a reset, so the system's modifier state cannot stay set.
                 held[code] = nil
-                event.type = .flagsChanged
-                event.setIntegerValueField(.keyboardEventKeycode, value: Self.modifierKeyCode)
                 event.flags.subtract(modifiers.cgFlags.subtracting(heldFlags))
             }
+            event.type = .flagsChanged
+            event.setIntegerValueField(.keyboardEventKeycode, value: Self.modifierKeyCode)
+            // F-key events carry Fn, and a flagsChanged event with it marks Fn held.
+            event.flags.remove(.maskSecondaryFn)
             return .pass
         }
     }

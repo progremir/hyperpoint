@@ -35,15 +35,44 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
         #expect(rUp.flags.isSuperset(of: hyperFlags))
 
         let up = key(f18, down: false)
-        up.flags = hyperFlags.union(.maskSecondaryFn)
+        up.flags = hyperFlags.union(.maskAlphaShift)
         #expect(pipeline.process(.keyUp, up) == .pass)
         #expect(up.type == .flagsChanged)
         #expect(up.flags.isDisjoint(with: hyperFlags), "the release clears the hyper modifiers")
-        #expect(up.flags.contains(.maskSecondaryFn), "the release keeps modifiers hyper does not own")
+        #expect(up.flags.contains(.maskAlphaShift), "the release keeps modifiers hyper does not own")
 
         let after = key(r, down: true)
         #expect(pipeline.process(.keyDown, after) == .pass)
         #expect(after.flags.isDisjoint(with: hyperFlags), "keys after release are plain")
+    }
+
+    @Test mutating func carrierModifierChangesNeverMarkFnHeld() {
+        let down = key(f18, down: true)
+        down.flags = .maskSecondaryFn
+        #expect(pipeline.process(.keyDown, down) == .pass)
+        #expect(down.type == .flagsChanged && down.flags.isSuperset(of: hyperFlags))
+        #expect(!down.flags.contains(.maskSecondaryFn), "the press does not mark Fn held")
+
+        let up = key(f18, down: false)
+        up.flags = hyperFlags.union(.maskSecondaryFn)
+        #expect(pipeline.process(.keyUp, up) == .pass)
+        #expect(up.type == .flagsChanged && up.flags.isDisjoint(with: hyperFlags))
+        #expect(!up.flags.contains(.maskSecondaryFn), "the release does not leave Fn held")
+    }
+
+    @Test mutating func keysUnderHyperKeepTheirOwnFn() {
+        _ = pipeline.process(.keyDown, key(f18, down: true))
+
+        let f5: CGKeyCode = 96
+        let fKey = key(f5, down: true)
+        fKey.flags = .maskSecondaryFn
+        #expect(pipeline.process(.keyDown, fKey) == .pass)
+        #expect(fKey.type == .keyDown && keyCode(fKey) == Int64(f5))
+        #expect(fKey.flags.isSuperset(of: hyperFlags.union(.maskSecondaryFn)), "an F-key keeps Fn and gains hyper")
+
+        let rDown = key(r, down: true)
+        #expect(pipeline.process(.keyDown, rDown) == .pass)
+        #expect(!rDown.flags.contains(.maskSecondaryFn), "a key without Fn does not gain it")
     }
 
     @Test mutating func autoRepeatOfTheHeldCarrierIsDropped() {
