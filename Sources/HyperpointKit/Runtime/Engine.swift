@@ -114,7 +114,7 @@ public final class Engine {
         publish()
     }
 
-    private func handle(_ event: DeviceHub.Event) {
+    private func handle(_ event: DeviceRoster.Change) {
         switch event {
         case .appeared(let device):
             addSlot(for: device, atLaunch: false)

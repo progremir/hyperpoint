@@ -86,6 +86,56 @@ struct PresentDevice: Equatable, Sendable {
     var name: String { properties.name ?? "Unknown device" }
 }
 
+/// Groups the IOHIDDevice interfaces of one physical device into a `PresentDevice`. Interfaces are named by their
+/// IORegistry entry ids, so this is `DeviceHub`'s bookkeeping without the IOKit calls.
+struct DeviceRoster {
+    enum Change: Equatable {
+        case appeared(PresentDevice)
+        case disappeared(PresentDevice)
+    }
+
+    private struct Entry {
+        var device: PresentDevice
+        var interfaces: Set<UInt64>
+    }
+
+    private var entries: [DeviceKey: Entry] = [:]
+    private var keyOfInterface: [UInt64: DeviceKey] = [:]
+    private var nextID: UInt64 = 1
+
+    var devices: [PresentDevice] { entries.values.map(\.device).sorted { $0.id.rawValue < $1.id.rawValue } }
+
+    func tracks(interface: UInt64) -> Bool { keyOfInterface[interface] != nil }
+
+    mutating func interfaceAppeared(_ interface: UInt64, properties: HIDProperties, services: [SenderID]) -> Change? {
+        guard keyOfInterface[interface] == nil else { return nil }
+        let key = DeviceKey(properties)
+        keyOfInterface[interface] = key
+        if var entry = entries[key] {
+            entry.interfaces.insert(interface)
+            entry.device.eventServices += services
+            entries[key] = entry
+            return nil
+        }
+        let device = PresentDevice(
+            id: DeviceInstanceID(rawValue: nextID), key: key, properties: properties, eventServices: services)
+        nextID += 1
+        entries[key] = Entry(device: device, interfaces: [interface])
+        return .appeared(device)
+    }
+
+    mutating func interfaceRemoved(_ interface: UInt64) -> Change? {
+        guard let key = keyOfInterface.removeValue(forKey: interface), var entry = entries[key] else { return nil }
+        entry.interfaces.remove(interface)
+        guard entry.interfaces.isEmpty else {
+            entries[key] = entry
+            return nil
+        }
+        entries[key] = nil
+        return .disappeared(entry.device)
+    }
+}
+
 extension DeviceMatch {
     func matches(_ properties: HIDProperties) -> Bool {
         switch self {
