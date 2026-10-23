@@ -1,0 +1,93 @@
+struct HIDProperties: Equatable, Sendable {
+    var vendor: VendorID
+    var product: ProductID
+    var builtIn: Bool
+    var transport: String?
+    var locationID: UInt32?
+    var name: String?
+    var primaryUsagePage: Int
+    var primaryUsage: Int
+
+    static let keys = [
+        "VendorID", "ProductID", "Built-In", "Transport", "LocationID", "Product", "PrimaryUsagePage", "PrimaryUsage",
+    ]
+
+    /// The built-in keyboard has no VendorID or ProductID at all (measured).
+    init(bag: [String: Any]) {
+        func number(_ key: String) -> Int { (bag[key] as? Int) ?? 0 }
+        vendor = VendorID(rawValue: UInt16(truncatingIfNeeded: number("VendorID")))
+        product = ProductID(rawValue: UInt16(truncatingIfNeeded: number("ProductID")))
+        builtIn = number("Built-In") == 1
+        transport = bag["Transport"] as? String
+        locationID = (bag["LocationID"] as? Int).map { UInt32(truncatingIfNeeded: $0) }
+        name = bag["Product"] as? String
+        primaryUsagePage = number("PrimaryUsagePage")
+        primaryUsage = number("PrimaryUsage")
+    }
+}
+
+struct DeviceKey: Hashable, Sendable {
+    var vendor: VendorID
+    var product: ProductID
+    var builtIn: Bool
+    var locationID: UInt32?
+    var transport: String?
+
+    init(_ properties: HIDProperties) {
+        vendor = properties.vendor
+        product = properties.product
+        builtIn = properties.builtIn
+        locationID = properties.locationID
+        transport = properties.transport
+    }
+}
+
+struct DeviceInstanceID: Hashable, Sendable, CustomStringConvertible {
+    let rawValue: UInt64
+    var description: String { "#\(rawValue)" }
+}
+
+struct SenderID: Hashable, Sendable {
+    let rawValue: UInt64
+}
+
+struct PresentDevice: Equatable, Sendable {
+    var id: DeviceInstanceID
+    var key: DeviceKey
+    var properties: HIDProperties
+    var eventServices: [SenderID]
+
+    var name: String { properties.name ?? "Unknown device" }
+}
+
+extension DeviceMatch {
+    func matches(_ properties: HIDProperties) -> Bool {
+        switch self {
+        case .builtIn: properties.builtIn
+        case .device(let vendor, let product):
+            !properties.builtIn && properties.vendor == vendor && properties.product == product
+        }
+    }
+
+    init(identifying properties: HIDProperties) {
+        self = properties.builtIn ? .builtIn : .device(vendor: properties.vendor, product: properties.product)
+    }
+
+    var hidutilKeyboardMatching: String {
+        let keyboard = "\"PrimaryUsagePage\":1,\"PrimaryUsage\":6"
+        switch self {
+        case .builtIn:
+            return "{\"Built-In\":1,\(keyboard)}"
+        case .device(let vendor, let product):
+            let hex = { (value: UInt16) in "0x" + String(value, radix: 16, uppercase: true) }
+            return "{\"VendorID\":\(hex(vendor.rawValue)),\"ProductID\":\(hex(product.rawValue)),\(keyboard)}"
+        }
+    }
+}
+
+extension Config {
+    func profile(for properties: HIDProperties) -> DeviceProfile? {
+        guard !ignored.contains(where: { $0.matches(properties) }) else { return nil }
+        return devices.first { $0.match.matches(properties) }
+    }
+}

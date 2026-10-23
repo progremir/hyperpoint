@@ -1,0 +1,44 @@
+#!/bin/zsh
+# TCC keys the Accessibility and Input Monitoring grants to the app's
+# designated requirement. An ad-hoc signature makes that a cdhash, which changes on every build and silently
+# revokes both grants, so this script signs with a stable identity and refuses to install anything else.
+set -euo pipefail
+cd "${0:A:h}/.."
+
+IDENTITY="${SIGN_IDENTITY:-Apple Development: Emir Amanbekov (KGBFPV5MVR)}"
+BUNDLE_ID="dev.emir.hyperpoint"
+DEST="${APP_DEST:-$HOME/Applications}"
+APP="$DEST/Hyperpoint.app"
+STAGE_ROOT="$(mktemp -d)"
+trap 'rm -rf "$STAGE_ROOT"' EXIT
+STAGE="$STAGE_ROOT/Hyperpoint.app"
+
+scripts/check-layers.sh
+swift build -c release --product Hyperpoint
+BIN="$(swift build -c release --show-bin-path)/Hyperpoint"
+
+mkdir -p "$STAGE/Contents/MacOS"
+cp "$BIN" "$STAGE/Contents/MacOS/Hyperpoint"
+cp Support/Info.plist "$STAGE/Contents/Info.plist"
+plutil -lint "$STAGE/Contents/Info.plist" >/dev/null
+
+codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$STAGE"
+codesign --verify --strict --verbose=2 "$STAGE"
+
+REQ="$(codesign -d -r- "$STAGE" 2>&1 | grep '^designated' || true)"
+if [[ "$REQ" == *cdhash* || "$REQ" != *"identifier \"$BUNDLE_ID\""* ]]; then
+  print -u2 "refusing to install: the designated requirement would not survive a rebuild"
+  print -u2 -- "$REQ"
+  exit 1
+fi
+
+if pgrep -xq Hyperpoint; then
+  osascript -e 'tell application id "dev.emir.hyperpoint" to quit' >/dev/null 2>&1 || true
+  for _ in {1..30}; do pgrep -xq Hyperpoint || break; sleep 0.1; done
+fi
+
+mkdir -p "$DEST"
+rm -rf "$APP"
+mv "$STAGE" "$APP"
+print "installed $APP"
+print -- "$REQ"
