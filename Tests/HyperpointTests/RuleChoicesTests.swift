@@ -47,7 +47,7 @@ let mxCapabilities = HIDPPCapabilities(
                 == [.button(1)] + [0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7].map { Control.hidpp(CID(rawValue: $0)) } + [.thumbWheel],
             "the right button cannot be diverted, so it is a plain button")
         let offline = RuleChoices(rules: mxRules, capabilities: nil, speaksHIDPP: true)
-        #expect(offline.controls == [gestureButton, topButton, .thumbWheel], "the rules' controls while not connected")
+        #expect(offline.controls == [.button(1), gestureButton, topButton, .thumbWheel], "the rules' controls while not connected")
         #expect(choices24G.controls == (1...4).map(Control.button) + HIDUsage.named.map(Control.key))
     }
 
@@ -89,8 +89,8 @@ let mxCapabilities = HIDPPCapabilities(
             #expect(saves(config), "\(rule)")
         }
         #expect(
-            profile(config, mx)?.rules?.count == 33,
-            "5 each for six HID++ controls (click, four swipes), 2 for the right button (click, scroll), 1 for the wheel")
+            profile(config, mx)?.rules?.count == 30,
+            "5 each for four fresh controls and the gesture button (click, four swipes), 2 each for the top and right buttons (click, scroll), 1 for the wheel")
     }
 
     @Test func movingARuleKeepsWhatStillWorks() {

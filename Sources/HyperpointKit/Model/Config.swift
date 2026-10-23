@@ -327,7 +327,9 @@ extension Config {
                         control: .hidpp(CID(rawValue: 0xC4)), trigger: .click,
                         action: .shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
                     ),
+                    Rule(control: .hidpp(CID(rawValue: 0xC4)), trigger: .holdMove(nil), action: .scroll),
                     Rule(control: .thumbWheel, trigger: .scroll, action: .reverse),
+                    Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
                 ],
                 gestures: GestureSettings(fire: .pastDistance, distance: 120),
                 scrolling: ScrollSettings(

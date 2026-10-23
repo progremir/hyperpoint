@@ -119,36 +119,30 @@ func rejection(_ json: String) -> ConfigError? {
         #expect(try decode(Self.withSmooth(old.replacingOccurrences(of: #"{ "from": 4, "to": 40, "max": 3 }"#, with: "true"))).devices[0].scrolling?.smooth?.curve == curve)
     }
 
-    static let rightButtonScroll = Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)
-
-    /// The scrolling section as files wrote it before hold to scroll.
-    static func withRightButtonPan(momentum: Bool) -> String {
-        documentedDefaultJSON.replacingOccurrences(
+    /// The scrolling section as files wrote it before hold to scroll, without the right-button rule it implied.
+    static func beforeHoldToScroll(momentum: Bool, keepRule: Bool = false) throws -> String {
+        var json = documentedDefaultJSON.replacingOccurrences(
             of: #""holdToScroll": { "speed": 1, "direction": "grab", "momentum": true }"#,
             with: #""rightButtonPan": { "momentum": \#(momentum) }"#)
+        if !keepRule {
+            let rule = try #require(json.range(of: #",\s*\{ "control": \{ "button": 1 \}[^\n]*"#, options: .regularExpression))
+            json.removeSubrange(rule)
+        }
+        #expect(json.contains("rightButtonPan") && json.contains("\"button\"") == keepRule)
+        return json
     }
 
     @Test func rightButtonPanBecomesARightButtonScrollRule() throws {
-        let json = Self.withRightButtonPan(momentum: true)
-        #expect(json.contains("rightButtonPan"))
-        var expected = Config.default
-        expected.devices[0].rules?.append(Self.rightButtonScroll)
-        #expect(try decode(json) == expected)
-        let still = try decode(Self.withRightButtonPan(momentum: false))
+        #expect(try decode(Self.beforeHoldToScroll(momentum: true)) == Config.default)
+        #expect(try decode(Self.beforeHoldToScroll(momentum: true, keepRule: true)) == Config.default, "no second rule")
+        let still = try decode(Self.beforeHoldToScroll(momentum: false))
         #expect(still.devices[0].scrolling?.holdToScroll == HoldToScroll(speed: 1, direction: .grab, momentum: false))
         let written = try #require(String(data: ConfigCodec.encode(still), encoding: .utf8))
         #expect(!written.contains("rightButtonPan") && written.contains("holdToScroll"), "the next save writes the new key")
     }
 
-    @Test func rightButtonPanKeepsAnExistingRightButtonRule() throws {
-        let json = Self.withRightButtonPan(momentum: true).replacingOccurrences(
-            of: #"{ "control": "thumbWheel""#, with: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }, { "control": "thumbWheel""#)
-        let rules = try #require(try decode(json).devices[0].rules)
-        #expect(rules.filter { $0 == Self.rightButtonScroll }.count == 1)
-    }
-
     @Test func rightButtonPanStillRejectsATypo() throws {
-        let json = Self.withRightButtonPan(momentum: true)
+        let json = try Self.beforeHoldToScroll(momentum: true)
             .replacingOccurrences(of: #"{ "momentum": true }"#, with: #"{ "momentum": true, "speed": 2 }"#)
         #expect(rejection(json)?.path == "devices[0].scrolling.rightButtonPan.speed")
     }
@@ -205,13 +199,13 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(find: "\"shift+cmd+4\"", replace: "\"shift+cmd+\"", path: "devices[0].rules[4].do.shortcut"),
         Mutation(
             find: "\"when\": \"scroll\", \"do\": \"reverse\"", replace: "\"when\": \"scroll\", \"do\": \"missionControl\"",
-            path: "devices[0].rules[5].do"),
+            path: "devices[0].rules[6].do"),
         Mutation(
             find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\"",
-            replace: "{ \"control\": \"thumbWheel\", \"when\": \"click\"", path: "devices[0].rules[5].when"),
+            replace: "{ \"control\": \"thumbWheel\", \"when\": \"click\"", path: "devices[0].rules[6].when"),
         Mutation(
             find: "{ \"control\": \"thumbWheel\"", replace: "{ \"control\": \"thumbwheel\"",
-            path: "devices[0].rules[5].control"),
+            path: "devices[0].rules[6].control"),
         Mutation(
             find: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"hold\"",
             replace: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"holdMoveDown\"",
@@ -272,7 +266,16 @@ func rejection(_ json: String) -> ConfigError? {
         Mutation(
             find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"reverse\" }",
             replace: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"scroll\" }",
+            path: "devices[0].rules[6].do"),
+        Mutation(
+            find: "\"when\": \"holdMove\", \"do\": \"scroll\" },\n        { \"control\": \"thumbWheel\"",
+            replace: "\"when\": \"holdMove\", \"do\": \"missionControl\" },\n        { \"control\": \"thumbWheel\"",
             path: "devices[0].rules[5].do"),
+        Mutation(
+            find: "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"click\", \"do\": { \"shortcut\": \"shift+cmd+4\" } }",
+            replace: "{ \"control\": { \"hidpp\": \"0xC4\" }, \"when\": \"holdMoveUp\", \"do\": \"appExpose\" }",
+            path: "devices[0].rules[5].when"),
+        Mutation(find: "{ \"button\": 1 }", replace: "{ \"button\": 0 }", path: "devices[0].rules[7].control.button"),
         Mutation(
             find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",
             replace: "{ \"control\": { \"button\": 0 }, \"when\": \"click\"", path: "devices[1].rules[1].control.button"),

@@ -69,20 +69,13 @@ private func plan(_ config: Config = .default) -> HIDPPSetup {
     Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp!
 }
 
-/// The default, with the top button also scrolling.
-private var scrollingTop: HIDPPSetup {
-    var config = Config.default
-    config.devices[0].rules?.append(Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll))
-    return plan(config)
-}
-
 private func plan(fire: GestureFire) -> HIDPPSetup {
     var config = Config.default
     config.devices[0].gestures = GestureSettings(fire: fire, distance: 120)
     return plan(config)
 }
 
-private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
+private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x11]
 private let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
 private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
@@ -241,21 +234,19 @@ private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
         #expect(bench.performed == [.system(.appExpose)], "exactly once, and the release is not a click")
     }
 
-    @Test func theTopButtonFiresOnPress() {
-        var bench = connected()
+    @Test func aClickOnlyButtonFiresOnPress() {
+        var config = Config.default
+        config.devices[0].rules = config.devices[0].rules?.filter { $0.trigger != .holdMove(nil) }
+        var bench = connected(plan(config))
+        #expect(bench.fake.diverted[0xC4] == 0x01, "a click needs no raw movement")
         bench.deliver(bench.fake.held(0xC4))
         #expect(bench.performed == [shot])
         bench.deliver(bench.fake.held())
         #expect(bench.performed.count == 1)
     }
 
-    @Test func aScrollRuleDivertsTheTopButtonWithRawMovement() {
-        let bench = connected(scrollingTop)
-        #expect(bench.fake.diverted == [0xC3: 0x11, 0xC4: 0x11])
-    }
-
     @Test func aQuickPressOfAScrollingButtonIsItsClickOnRelease() {
-        var bench = connected(scrollingTop)
+        var bench = connected()
         bench.deliver(bench.fake.held(0xC4))
         bench.deliver(bench.fake.rawXY(dx: 30, dy: -40))
         #expect(bench.performed.isEmpty, "the press waits to see whether the hand scrolls")
@@ -265,7 +256,7 @@ private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
     }
 
     @Test func holdingAndMovingTheTopButtonScrolls() {
-        var bench = connected(scrollingTop)
+        var bench = connected()
         let k = HoldScrollPlan.pointsPerCount
         bench.deliver(bench.fake.held(0xC4))
         bench.deliver(bench.fake.rawXY(dx: 0, dy: 80))
@@ -281,17 +272,17 @@ private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
     }
 
     @Test func aScrollEndsWhenAnApplyOrCloseInterruptsIt() {
-        var applied = connected(scrollingTop)
+        var applied = connected()
         applied.deliver(applied.fake.held(0xC4))
         applied.deliver(applied.fake.rawXY(dx: 200, dy: 0))
-        applied.request(.manual, scrollingTop)
+        applied.request(.manual, plan())
         #expect(applied.scrolls.last == .ended, "an apply mid-scroll ends it")
 
-        var closed = connected(scrollingTop)
+        var closed = connected()
         closed.deliver(closed.fake.held(0xC4))
         closed.deliver(closed.fake.rawXY(dx: 200, dy: 0))
         #expect(closed.link.close().events == [.holdScroll(.ended)], "a device going away ends it")
-        var idle = connected(scrollingTop)
+        var idle = connected()
         #expect(idle.link.close().events.isEmpty, "closing an idle link ends nothing")
     }
 

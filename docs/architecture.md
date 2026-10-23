@@ -32,7 +32,9 @@ Three things make the shape non-obvious.
         { "control": { "hidpp": "0xC3" }, "when": "holdMoveLeft", "do": "spaceLeft" },
         { "control": { "hidpp": "0xC3" }, "when": "holdMoveRight", "do": "spaceRight" },
         { "control": { "hidpp": "0xC4" }, "when": "click", "do": { "shortcut": "shift+cmd+4" } },
-        { "control": "thumbWheel", "when": "scroll", "do": "reverse" }
+        { "control": { "hidpp": "0xC4" }, "when": "holdMove", "do": "scroll" },
+        { "control": "thumbWheel", "when": "scroll", "do": "reverse" },
+        { "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }
       ],
       "gestures": { "fire": "pastDistance", "distance": 120 },
       "scrolling": {
