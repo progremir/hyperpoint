@@ -2,7 +2,7 @@ import CoreGraphics
 import Darwin
 import os
 
-/// Posts the events a button action stands for. Main actor, because Mac Mouse Fix reads symbolic hotkeys there.
+/// Posts the events a button action stands for.
 @MainActor
 public final class ActionPerformer {
     private typealias GetSymbolicHotKeyValue = @convention(c) (
@@ -39,8 +39,6 @@ public final class ActionPerformer {
         }
     }
 
-    /// Posts the shortcut the user has bound in System Settings, so a rebound Mission Control key still works.
-    /// Hyperpoint never changes the binding.
     private func postSymbolicHotKey(_ hotKey: SystemAction) {
         guard let getSymbolicHotKeyValue, let isSymbolicHotKeyEnabled else {
             log.error("symbolic hotkeys are unavailable on this macOS")

@@ -42,7 +42,6 @@ let thisMac = [
 
 let capsLock = HIDUsage(name: "capsLock")!
 
-/// getCidInfo on this MX Master 3, read live on 2026-10-23.
 let measuredMXCapabilities = HIDPPCapabilities(
     controls: [
         (0x50, false, false), (0x51, false, false), (0x52, true, true), (0x53, true, true), (0x56, true, true),

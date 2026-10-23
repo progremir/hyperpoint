@@ -1,7 +1,6 @@
 import Foundation
 import IOKit.hid
 
-/// Moves bytes and time between one opened IOHIDDevice and its HIDPPLink. All protocol knowledge is in the link.
 /// The device stays scheduled on the HID run loop by the hub's manager, so input reports arrive on this thread.
 @HIDActor
 final class HIDPPSession {
@@ -49,7 +48,6 @@ final class HIDPPSession {
         pump(link.request(reason, plan: plan, now: .now))
     }
 
-    /// Must run before the session is released, because the callback holds it unretained.
     func close() {
         guard !closed else { return }
         closed = true
@@ -67,7 +65,6 @@ final class HIDPPSession {
         pump(link.tick(now: .now))
     }
 
-    /// Events go last, so a handler that requests again re-arms the timer after this output has.
     private func pump(_ output: HIDPPOutput) {
         guard !closed else { return }
         for report in output.reports {

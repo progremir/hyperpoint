@@ -1,5 +1,5 @@
 /// HID++ 2.0 over a direct Bluetooth LE connection. Only long reports exist and the device answers on index 0xFF
-/// (measured on the MX Master 3). Bytes in, values out. The runtime owns the device, the clock and the threads.
+/// (measured on the MX Master 3).
 enum HIDPP {
     static let reportID: UInt8 = 0x11
     static let reportLength = 20
@@ -88,7 +88,6 @@ struct ControlReporting: Equatable, Sendable {
     private static let rawXYBit: UInt8 = 0x10
     static let readMask = divertBit | rawXYBit
 
-    /// 0x22 native, 0x23 divert, 0x33 divert with rawXY.
     var writeFlags: UInt8 { stateBits | Self.divertBit << 1 | Self.rawXYBit << 1 }
 
     var stateBits: UInt8 { (divert ? Self.divertBit : 0) | (rawXY ? Self.rawXYBit : 0) }
@@ -104,11 +103,9 @@ struct ControlReporting: Equatable, Sendable {
 }
 
 enum HIDPPInbound: Equatable, Sendable {
-    /// A reply to a request carrying our software id. `params` are bytes 4 to 19.
     case reply(featureIndex: UInt8, function: UInt8, params: [UInt8])
     case error(featureIndex: UInt8, function: UInt8, code: UInt8)
     case notification(featureIndex: UInt8, event: UInt8)
-    /// Another report id, another device index, or another client's reply.
     case ignored
 
     init(_ report: UnsafeBufferPointer<UInt8>) {
@@ -131,7 +128,6 @@ enum HIDPPInbound: Equatable, Sendable {
     }
 }
 
-/// The notifications Hyperpoint acts on, decoded straight from the report so the gesture path never allocates.
 enum HIDPPNotice: Equatable, Sendable {
     /// Every diverted control held right now, up to four, zero terminated.
     case heldControls([CID])

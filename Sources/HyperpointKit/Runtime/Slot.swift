@@ -1,8 +1,6 @@
 import Foundation
 import IOKit.hid
 
-/// One present device and the writers for each place its state lives: the key map on its HID service and the
-/// HID++ state in its firmware. `invalidate` is the only way in, and each facet converges on its own.
 @HIDActor
 final class Slot {
     enum Phase: Equatable {
@@ -58,7 +56,6 @@ final class Slot {
 
     var busy: Bool { scheduler.running || session?.isApplying == true }
 
-    /// Every facet with something to apply has applied it.
     var reapplied: Bool {
         let wanted = desired()
         let keyMap = wanted.keyMap.routes.isEmpty ? nil : phase == .idle && ownedOnDevice == wanted.keyMap
@@ -161,7 +158,6 @@ final class Slot {
             retry = Task { [weak self] in
                 try? await Task.sleep(for: retryAfter)
                 guard !Task.isCancelled else { return }
-                // The link retries its own failures, so a key map retry leaves the HID++ facet alone.
                 self?.applyKeyMap(.retry)
             }
         }

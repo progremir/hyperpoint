@@ -1,5 +1,3 @@
-/// What one HID++ device should hold. A control missing from `controls` is native, so the neutral setup needs no
-/// knowledge of the device and every divertable control is written on every apply.
 struct HIDPPSetup: Equatable, Sendable {
     var controls: [CID: ControlBehavior]
     var thumbWheelInverted: Bool
@@ -8,22 +6,16 @@ struct HIDPPSetup: Equatable, Sendable {
 
     func behavior(of cid: CID) -> ControlBehavior { controls[cid] ?? .native }
 
-    /// A device Hyperpoint has opened goes back to native when nothing is wanted any more. One it never opened is
-    /// left alone.
     static func pendingWrite(desired: HIDPPSetup?, opened: Bool) -> HIDPPSetup? {
         desired ?? (opened ? .native : nil)
     }
 }
 
-/// The firmware flags and the host routing of a control both derive from this one value, so a control cannot be
-/// diverted with rawXY without its presses reaching the gesture machine.
 enum ControlBehavior: Equatable, Sendable {
     case native
-    /// The action fires on the press edge.
     case press(Action)
     case gesture(GesturePlan)
 
-    /// A gesture on a control without rawXY still diverts, and its release is a click.
     func reporting(for control: HIDPPCapabilities.Control) -> ControlReporting {
         switch self {
         case .native: .native
@@ -36,8 +28,6 @@ enum ControlBehavior: Equatable, Sendable {
 extension HIDPPSetup {
     static let defaultGestures = GestureSettings(fire: .pastDistance, distance: 120)
 
-    /// Nil when the profile has no rule for a HID++ control or the thumb wheel, so the device is left alone. Before
-    /// discovery `capabilities` is nil and nothing is skipped. The link only writes controls the device has.
     static func compile(_ profile: DeviceProfile, capabilities: HIDPPCapabilities?) -> (HIDPPSetup?, skipped: [Rule]) {
         var clicks: [CID: Action] = [:]
         var swipes: [CID: [Direction: Action]] = [:]

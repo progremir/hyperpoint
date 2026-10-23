@@ -1,14 +1,11 @@
 @testable import HyperpointKit
 import Testing
 
-/// Runs a link against the fake firmware. Replies queue in `inbox` in the order the device sent them, and time
-/// moves only to the link's next deadline.
 struct Bench {
     var link = HIDPPLink()
     var fake = FakeHIDPPDevice()
     var now = ContinuousClock.now
     var events: [HIDPPEvent] = []
-    /// Holds the reply to the next matching request past its deadline, so it lands after the link has asked again.
     var delayReply: (([UInt8]) -> Bool)?
     private var inbox: [[UInt8]] = []
     private var late: [[UInt8]] = []
@@ -21,7 +18,6 @@ struct Bench {
         absorb(report.withUnsafeBufferPointer { link.receive($0, now: now) })
     }
 
-    /// Delivers what the device sends until nothing is in flight and no retry waits.
     mutating func settle(until done: (Bench) -> Bool = { _ in false }) {
         for _ in 0..<10_000 {
             if done(self) { return }
@@ -77,7 +73,6 @@ private func plan(fire: GestureFire) -> HIDPPSetup {
     return plan(config)
 }
 
-/// The default config on the device: 0xC3 diverted with rawXY, 0xC4 diverted, the wheel native and inverted.
 private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
 
 private func connected(_ setup: HIDPPSetup = plan()) -> Bench {

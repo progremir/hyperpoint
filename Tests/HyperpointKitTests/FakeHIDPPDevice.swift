@@ -1,16 +1,11 @@
 @testable import HyperpointKit
 
-/// A model of the MX Master 3's HID++ firmware, seeded with what was measured on this Mac after BetterMouse ran:
-/// 0x1B04 at 0x08, 0x2150 at 0x0E, 0x1D4B at 0x04, eight controls, 0xC3 and 0xC4 diverted without rawXY, and the
-/// thumb wheel diverted and not inverted. It answers requests the way the firmware does, change bits included.
 struct FakeHIDPPDevice {
     var featureIndex: [UInt16: UInt8] = [0x1B04: 0x08, 0x2150: 0x0E, 0x1D4B: 0x04]
-    /// getCidInfo in device order: control, flags, additional flags.
     var controls: [(cid: UInt16, flags: UInt8, additional: UInt8)] = [
         (0x50, 0x01, 0x04), (0x51, 0x01, 0x04), (0x52, 0x31, 0x05), (0x53, 0x31, 0x05), (0x56, 0x31, 0x05),
         (0xC3, 0x31, 0x05), (0xC4, 0x31, 0x05), (0xD7, 0xA0, 0x03),
     ]
-    /// getCidReporting flags per control: divert 0x01, rawXY 0x10.
     var reporting: [UInt16: UInt8] = [0xC3: 0x01, 0xC4: 0x01]
     var wheelDiverted = true
     var wheelInverted = false
@@ -18,7 +13,6 @@ struct FakeHIDPPDevice {
     var unanswered = 0
     private(set) var writes = 0
 
-    /// Every control that is not native, as getCidReporting would report it.
     var diverted: [UInt16: UInt8] { reporting.filter { $0.value != 0 } }
 
     /// What a sleep or power cycle does to volatile state.

@@ -2,7 +2,7 @@ import IOKit
 import IOKit.hid
 
 /// Tracks which keyboards and HID++ devices are present. The manager is never opened, so it seizes nothing, and it
-/// still delivers matching callbacks (measured). A HID++ session opens its own device.
+/// still delivers matching callbacks (measured).
 @HIDActor
 final class DeviceHub {
     enum Event {

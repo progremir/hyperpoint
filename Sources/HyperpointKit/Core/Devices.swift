@@ -81,7 +81,6 @@ struct PresentDevice: Equatable, Sendable {
     var key: DeviceKey
     var properties: HIDProperties
     var eventServices: [SenderID]
-    /// Nil until HID++ discovery finishes on this connection.
     var hidpp: HIDPPCapabilities?
 
     var name: String { properties.name ?? "Unknown device" }

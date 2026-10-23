@@ -1,10 +1,3 @@
-/// The whole HID++ conversation with one connected device, as a value with no I/O. The session passes in every
-/// 0x11 report and the time, writes the reports this returns, hands on its events, and calls `tick` at
-/// `deadline`. A reconnect is a new device and a new link, which discovers again.
-///
-/// One request is in flight at a time. A run writes the plan it started with, and a request during a run queues
-/// one more run, which reads the newest plan, so the device ends on the latest plan however requests interleave.
-/// Presses are routed by the newest plan.
 struct HIDPPLink: Sendable {
     typealias Instant = ContinuousClock.Instant
 
@@ -27,7 +20,6 @@ struct HIDPPLink: Sendable {
         var steps: [HIDPPStep]
         var next = 0
         var inFlight: InFlight?
-        /// Present while this run discovers. Committed only once discovery completes.
         var discovery: Discovery?
     }
 
@@ -58,10 +50,8 @@ struct HIDPPLink: Sendable {
         .findFeature(.reprogControls), .findFeature(.thumbWheel), .findFeature(.wirelessStatus), .countControls,
     ]
 
-    /// An apply is running or queued.
     var isApplying: Bool { scheduler.running }
 
-    /// Read after every report, gesture movement included, so it does not allocate.
     var deadline: Instant? {
         switch (run?.inFlight?.deadline, retryAt) {
         case (let reply?, let retry?): min(reply, retry)
@@ -144,7 +134,6 @@ struct HIDPPLink: Sendable {
         sendNext(now: now, into: &out)
     }
 
-    /// Writes every divertable control, then reads each back, so "applied" means the device said so.
     private static func applySteps(_ plan: HIDPPSetup, _ capabilities: HIDPPCapabilities) -> [HIDPPStep] {
         let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.behavior(of: $0.cid).reporting(for: $0)) }
         let wheel = capabilities.thumbWheel ? [plan.thumbWheelInverted] : []
@@ -249,7 +238,6 @@ struct HIDPPLink: Sendable {
     }
 }
 
-/// One request of a run. A step names a feature, and its index is resolved when it is sent.
 enum HIDPPStep: Equatable, Sendable, CustomStringConvertible {
     case findFeature(HIDPPFeature)
     case countControls
@@ -296,10 +284,8 @@ enum HIDPPStep: Equatable, Sendable, CustomStringConvertible {
 }
 
 struct HIDPPOutput: Equatable, Sendable {
-    /// 20-byte output reports to write in order.
     var reports: [[UInt8]] = []
     var events: [HIDPPEvent] = []
-    /// When to call `tick`. Nil when nothing is in flight and no retry waits.
     var deadline: ContinuousClock.Instant?
 }
 
@@ -319,7 +305,6 @@ enum HIDPPFailure: Error, Equatable, Sendable, CustomStringConvertible {
     /// No reply after every attempt. Normal right after a Bluetooth connect or while the device sleeps.
     case timedOut(HIDPPStep)
     case deviceError(HIDPPStep, code: UInt8)
-    /// The read-back differs from the write. Another app is writing the same controls.
     case mismatch(HIDPPStep)
     case inconsistentDiscovery
 

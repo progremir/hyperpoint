@@ -7,7 +7,6 @@ private func plan(_ fire: GestureFire) -> GesturePlan {
         swipes: [.down: .system(.appExpose), .left: .system(.spaceLeft), .right: .system(.spaceRight)])
 }
 
-/// The thirteen traces of the gesture prototype, then cancel.
 @Suite struct GestureMachineTests {
     @Test(arguments: [GestureFire.pastDistance, .onRelease])
     func movementBelowTheDistanceIsAClick(_ fire: GestureFire) {

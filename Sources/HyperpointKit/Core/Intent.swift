@@ -1,6 +1,5 @@
 struct DeviceSetup: Equatable, Sendable {
     var keyMap: KeyMapSetup
-    /// Nil leaves the device's HID++ state as it is.
     var hidpp: HIDPPSetup?
 
     static let neutral = DeviceSetup(keyMap: .neutral, hidpp: nil)
@@ -9,7 +8,6 @@ struct DeviceSetup: Equatable, Sendable {
 struct Intent: Equatable, Sendable {
     var setups: [DeviceInstanceID: DeviceSetup]
     var tap: TapRules
-    /// Rules a device cannot carry out, such as one on a control it lacks. Status shows them. They are not errors.
     var skipped: [DeviceInstanceID: [Rule]] = [:]
 
     static let neutral = Intent(setups: [:], tap: .empty)

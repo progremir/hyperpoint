@@ -1,7 +1,6 @@
 @testable import HyperpointKit
 import Testing
 
-/// "11 FF 00 0B" to a 20-byte report, zero padded.
 func report(_ hex: String) -> [UInt8] {
     let bytes = hex.split(separator: " ").map { UInt8($0, radix: 16)! }
     return bytes + [UInt8](repeating: 0, count: HIDPP.reportLength - bytes.count)
@@ -27,8 +26,6 @@ let topButton = CID(rawValue: 0xC4)
         var testDescription: String { bytes }
     }
 
-    /// Byte layouts from grounding sections 2 and 3, with software id 0x0B. The first three were sent to this MX
-    /// and answered.
     static let applyScript: [Golden] = [
         Golden(request: .getFeature(.reprogControls), featureIndex: 0x00, bytes: "11 FF 00 0B 1B 04"),
         Golden(request: .getFeature(.thumbWheel), featureIndex: 0x00, bytes: "11 FF 00 0B 21 50"),
