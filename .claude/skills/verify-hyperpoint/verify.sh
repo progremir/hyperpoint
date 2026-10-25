@@ -121,7 +121,7 @@ probe() {
 }
 
 case ${1:-help} in
-  build|launch|quit|hyper-check|record|settings-shots|settings-switches) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
+  build|launch|quit|hyper-check|record|settings-shots|settings-switches|set-up|menu) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
 esac
 
 case ${1:-help} in
