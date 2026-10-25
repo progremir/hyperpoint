@@ -18,10 +18,12 @@ all of it back whenever a device appears.
 - **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission
   Control, App Exposé, Space switching or any shortcut. The thumb wheel can be reversed.
 - **Smooth scrolling.** Each wheel step glides as an eased pulse sized by a speed curve you edit as a graph.
+- **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX right button does it by
+  default, and any button can be given the rule.
 - **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
   modifiers or shortcuts.
-- **Settings window and menu.** Every device Hyperpoint has seen, its rules, and the scroll curve. The menu shows each
-  device's state, re-applies on demand and pauses everything.
+- **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
+  to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
 
 ## Install
 
