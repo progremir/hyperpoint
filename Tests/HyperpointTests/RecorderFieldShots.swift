@@ -26,14 +26,14 @@ import Testing
         (
             "listening", 584,
             .recording(
-                chips: [], hint: .prompt("Press a button on MX Master 3. The left button keeps working."),
+                chips: [], hint: .prompt("Press a button on MX Master 3"),
                 trailing: "9 s")
         ),
         (
             "listening-wheel", 584,
             .recording(
                 chips: [],
-                hint: .prompt("Press a button or turn the thumb wheel on MX Master 3. The left button keeps working."),
+                hint: .prompt("Press a button or turn the thumb wheel on MX Master 3"),
                 trailing: "9 s")
         ),
         ("recording-shortcut", 337, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),

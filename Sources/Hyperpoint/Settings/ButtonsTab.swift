@@ -126,12 +126,13 @@ private struct Rules: View {
                     }
                 }
             }
-            if !device.isNew {
+            if device.isNew {
+                Explanation(footer)
+            } else {
                 AddRule(
                     model: model, device: device, controls: choices.controls,
-                    thumbWheel: choices.capabilities?.thumbWheel == true, note: note)
+                    thumbWheel: choices.capabilities?.thumbWheel == true, note: note, footer: footer)
             }
-            Explanation(footer)
         }
         .disabled(!model.editable)
     }
@@ -152,21 +153,38 @@ private struct AddRule: View {
     let controls: [Control]
     let thumbWheel: Bool
     let note: LearnNote?
+    let footer: String
 
-    /// A listen for a rule's Button cell shows in that row, not here.
+    /// Fits the listening capsule as well as the button, so starting a listen does not grow the page. A page that
+    /// grows in place hides until the window has its height, which flashed it blank on every Add Rule.
+    static let height = 28.0
+
+    /// A listen for a rule's Button cell shows in that row, not here. The line under it always holds one line of text,
+    /// for the same reason.
     var body: some View {
         let blocked = device.cannotListen(paused: model.paused, permissions: model.permissions)
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                switch device.status?.listen {
+                case .gettingReady(let until) where model.listenPurpose == .addRule:
+                    ListenRow(device: device.name, thumbWheel: thumbWheel, ready: false, until: until) { model.stopListening() }
+                case .listening(let until) where model.listenPurpose == .addRule:
+                    ListenRow(device: device.name, thumbWheel: thumbWheel, ready: true, until: until) { model.stopListening() }
+                default:
+                    menu(blocked: blocked)
+                }
+            }
+            .frame(height: Self.height, alignment: .leading)
+            Explanation(status(blocked: blocked)).lineLimit(1)
+        }
+    }
+
+    private func status(blocked: String?) -> String {
         switch device.status?.listen {
-        case .gettingReady(let until) where model.listenPurpose == .addRule:
-            ListenRow(device: device.name, thumbWheel: thumbWheel, ready: false, until: until) { model.stopListening() }
-        case .listening(let until) where model.listenPurpose == .addRule:
-            ListenRow(device: device.name, thumbWheel: thumbWheel, ready: true, until: until) { model.stopListening() }
-        case .ended(let why):
-            menu(blocked: blocked)
-            Explanation(Labels.listenEnded(why, device: device.name))
-        case nil, .gettingReady, .listening:
-            menu(blocked: blocked)
-            if let text = note.flatMap(Labels.learned) ?? blocked { Explanation(text) }
+        case .gettingReady, .listening:
+            model.listenPurpose == .addRule ? "The left button keeps working while Hyperpoint listens." : footer
+        case .ended(let why): Labels.listenEnded(why, device: device.name)
+        case nil: note.flatMap(Labels.learned) ?? blocked ?? footer
         }
     }
 
@@ -210,7 +228,7 @@ private struct ListenRow: View {
                 state: .recording(
                     chips: [],
                     hint: ready
-                        ? .prompt("\(ask) on \(device). The left button keeps working.")
+                        ? .prompt("\(ask) on \(device)")
                         : .gettingReady("Getting \(device) ready…"),
                     trailing: "\(Int(max(0, until.timeIntervalSince(context.date)).rounded(.up))) s"),
                 cancel: cancel)
