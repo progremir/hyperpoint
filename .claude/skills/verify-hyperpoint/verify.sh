@@ -170,6 +170,15 @@ case ${1:-help} in
     build_helpers
     "$BIN/menu" "${@:2}" | tee -a "$EVIDENCE/menu.txt"
     ;;
+  replay)
+    # Runs the real scroll animator on recorded wheel steps. Needs no installed app, no device and no permissions.
+    wheels=${2:-$(ls -t "$REPO"/.verify-evidence/*/record-wheel.txt 2>/dev/null | head -1)}
+    [[ -n $wheels ]] || { echo "no record-wheel.txt yet; run 'verify.sh record wheel' first" >&2; exit 1; }
+    (cd "$REPO" && HYPERPOINT_REPLAY_WHEEL=$wheels HYPERPOINT_REPLAY_CONFIG=${HYPERPOINT_REPLAY_CONFIG:-$HOME/.config/hyperpoint/config.json} \
+      HYPERPOINT_REPLAY_VARIANTS=${3:-} HYPERPOINT_REPLAY_OUT="$EVIDENCE/replay.json" swift test --filter ScrollReplay 2>&1) |
+      grep -E '^device|^/|^\.|^  |✘|error:' | tee "$EVIDENCE/replay.txt"
+    echo "frames: $EVIDENCE/replay.json"
+    ;;
   evidence)
     echo "$EVIDENCE"
     ;;
@@ -185,6 +194,8 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
   record <mode>      posted | wheel | senders | hold, needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
+  replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]
+                     the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
   settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
   menu "<item>"      press an item of the menu bar menu by title, such as "Hyper Key"
