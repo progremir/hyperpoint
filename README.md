@@ -27,7 +27,15 @@ all of it back whenever a device appears.
 
 ## Install
 
-Requires macOS 27 and Swift 6.2 or later.
+Requires macOS 27. Download `Hyperpoint-<version>.dmg` from
+[Releases](https://github.com/progremir/hyperpoint/releases), open it and drag Hyperpoint into Applications.
+
+The release is signed with an Apple Development certificate and is not notarized, so macOS refuses the first open.
+Allow it under System Settings › Privacy & Security › Open Anyway. The installer window says the same.
+
+### From source
+
+Requires Swift 6.2 or later.
 
 ```bash
 scripts/bundle.sh
@@ -56,6 +64,18 @@ scripts/check-layers.sh
 `check-layers.sh` enforces the module layering described in the architecture doc. To try a change on the real devices,
 use the [verify-hyperpoint](.claude/skills/verify-hyperpoint/SKILL.md) skill: it replaces the running app with the
 build under test and reads device state back as proof.
+
+### Releasing
+
+```bash
+scripts/release.sh 0.2.0 --publish
+```
+
+This builds `dist/Hyperpoint-0.2.0.dmg`, signed like `bundle.sh`, tags the pushed HEAD `v0.2.0` and publishes the DMG
+with its SHA-256 to a GitHub release. It refuses to publish with uncommitted changes or an unpushed HEAD. Drop
+`--publish` to only build the DMG. Pull requests that touch the pipeline run `.github/workflows/release.yml`, which
+builds an ad-hoc DMG on CI as an artifact. The installer window is drawn by `design/installer/build.py`;
+`design/installer/preview.png` shows it mounted.
 
 ## Design
 
