@@ -18,6 +18,12 @@ private let everyMatch = [mx, mouse24G, magicKeyboard, .builtIn, unknown]
         #expect(DevicePreset.offered(for: unknown, kind: .mouse) == [], "no preset for a mouse nobody measured")
     }
 
+    @Test func onlyThe24GPresetChoosesAKind() {
+        #expect(DevicePreset.mouse24G.profile(for: mouse24G, name: "2.4G Mouse").kind == .mouse, "its keys say keyboard")
+        #expect(DevicePreset.mxMaster3.profile(for: mx, name: "MX Master 3").kind == nil)
+        #expect(DevicePreset.keyboard.profile(for: magicKeyboard, name: "Magic Keyboard").kind == nil)
+    }
+
     @Test func aModelPresetGoesOnlyOnItsOwnModel() {
         #expect(everyMatch.filter { !DevicePreset.mxMaster3.isForAnotherModel(than: $0) } == [mx])
         #expect(everyMatch.filter { !DevicePreset.mouse24G.isForAnotherModel(than: $0) } == [mouse24G])

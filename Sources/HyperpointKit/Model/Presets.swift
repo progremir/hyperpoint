@@ -45,7 +45,7 @@ public enum DevicePreset: CaseIterable, Sendable {
             )
         case .mouse24G:
             DeviceProfile(
-                match: match, name: name,
+                match: match, name: name, kind: .mouse,
                 rules: [
                     Rule(control: .key(HIDUsage(name: "escape")!), trigger: .hold, action: .modifier(.rightOption)),
                     Rule(

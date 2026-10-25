@@ -60,6 +60,13 @@ private struct DeviceRow: View {
                 if let profile = device.profile {
                     NameField(name: profile.name) { model.apply(.rename(device.match, $0)) }
                         .frame(width: 220)
+                    Picker("Kind", selection: Binding(get: { device.kind }, set: { model.apply(.kind(device.match, $0)) })) {
+                        Text("Mouse").tag(DeviceKind.mouse)
+                        Text("Keyboard").tag(DeviceKind.keyboard)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("A mouse gets the Buttons and Scrolling tabs. A keyboard can have the hyper key.")
                     Spacer()
                     Button("Forget…") { confirmingForget = true }
                         .help("Remove this device's settings from the config file")

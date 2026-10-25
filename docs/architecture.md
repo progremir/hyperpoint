@@ -55,6 +55,7 @@ Three things make the shape non-obvious.
     {
       "match": { "vendor": "0x1EA7", "product": "0x0002" },
       "name": "2.4G Mouse",
+      "kind": "mouse",
       "rules": [
         { "control": { "key": "escape" }, "when": "hold", "do": { "modifier": "rightOption" } },
         { "control": { "key": "return" }, "when": "click", "do": { "shortcut": "opt+shift+s" } }
@@ -70,6 +71,7 @@ Three things make the shape non-obvious.
 The rules for the file:
 
 - A device entry is a **profile**. Its `match` names the device. Everything else is optional, and a missing section means "leave the device as macOS has it".
+- `kind` is `"mouse"` or `"keyboard"`. It puts the device in that list in the settings window, and only a keyboard can have the hyper key. Without it, the device's interfaces decide, which lists a mouse whose keys have an interface of their own, like the 2.4G mouse, as a keyboard. The 2.4G preset writes `"mouse"`, and the Devices tab changes it.
 - A rule is `control`, `when`, `do`. Which `when` values a control accepts depends on its kind, and the parser rejects a rule that cannot work, with its path (for example `devices[1].rules[0].when`).
 - A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
@@ -117,7 +119,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | Type | What it encodes |
 | --- | --- |
 | `Config` | The parsed file. `ConfigCodec.decode` is the only way in. The unknown-key check walks the user's JSON against the encoded types, so no key list exists to drift. |
-| `DeviceProfile` | One device entry. `match`, `name`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
+| `DeviceProfile` | One device entry. `match`, `name`, `kind`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
 | `DevicePreset` | The closed list of starting profiles: one per measured model (the MX Master 3 and the 2.4G mouse) and one for any keyboard. `offered(for:kind:)` ranks them for a new device, its own model first. Set Up copies one into the file once. |
 | `DeviceMatch` | Vendor and product, or `builtIn`. One value classifies a `PresentDevice` and renders hidutil `--matching`. IOHIDManager ignores `Built-In` (measured), so Swift's `matches` is the authority and the manager is only a prefilter. |
 | `Rule` | `Control`, `Trigger`, `Action`. |
@@ -318,7 +320,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 
 1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock to F18 mapping, which needs Karabiner quit.
 2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse's pointer interface owns event service 0x10005214e, which `DeviceHub` now records, but no pointer event has been logged with that sender id yet.
-3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? Today a device with a keyboard interface takes its kind from that interface (a keyboard unless the interface also has a pointer collection or the device is built in), and any other device is a mouse. Trackpads, the built-in one included, are not listed. So the 2.4G mouse, whose keys come from an interface of their own (measured), shows as a keyboard. Its pointer interface looks like a keyboard's mouse-keys interface, so the structure cannot tell them apart. A per-profile override is still open.
+3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? Today a device with a keyboard interface takes its kind from that interface (a keyboard unless the interface also has a pointer collection or the device is built in), and any other device is a mouse. Trackpads, the built-in one included, are not listed. So the 2.4G mouse, whose keys come from an interface of their own (measured), shows as a keyboard. Its pointer interface looks like a keyboard's mouse-keys interface, so the structure cannot tell them apart. A profile's `kind` overrides this, and the 2.4G preset sets it to mouse.
 4. **The 2.4G dongle's services.** Measured on 2026-10-25, see Appendix A. Its keys and its pointer are separate interfaces, each with one event service.
 5. **Thumb wheel invert while undiverted.** Solaar writes it, but firmware behavior on this mouse is inferred.
 6. **Unprompted 0x1D4B over BLE.** If the MX does not send it after each reconnect, the connect callback and manual re-apply are the only triggers. A periodic read-back is the fallback.
