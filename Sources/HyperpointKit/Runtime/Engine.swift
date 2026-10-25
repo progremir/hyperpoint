@@ -116,6 +116,7 @@ public final class Engine {
         case .removed: tap = .off
         case .installFailed: tap = .failed
         case .reenabled: journal.note("tap re-enabled after macOS disabled it")
+        case .heard: break
         }
         publish()
     }

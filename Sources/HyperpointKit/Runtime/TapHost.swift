@@ -13,6 +13,7 @@ enum TapSignal: Sendable {
     case installFailed
     case removed
     case reenabled
+    case heard(ListenID, ListenPress)
 }
 
 @TapActor
@@ -54,7 +55,7 @@ final class TapHost {
 
     func apply(_ order: TapOrder) {
         release(pipeline.reset(), endingEverything: !order.install)
-        pipeline.replaceRulesAndForgetHeldKeys(order.rules)
+        pipeline.replaceRules(order.rules)
         if order.install { install() } else { uninstall() }
     }
 
@@ -125,6 +126,9 @@ final class TapHost {
                 return nil
             case .holdScroll(let scroll):
                 holdScrolled(scroll, at: event.location)
+                return nil
+            case .heard(let id, let press):
+                signals.yield(.heard(id, press))
                 return nil
             }
         }
