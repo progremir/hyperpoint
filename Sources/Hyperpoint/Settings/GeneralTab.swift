@@ -42,14 +42,20 @@ struct GeneralTab: View {
     }
 
     @ViewBuilder private var permissions: some View {
-        let permissions = model.status?.permissions ?? Permissions.current()
-        VStack(alignment: .leading, spacing: 8) {
-            GroupHeading("How to grant permissions")
-            Text("1. Go to System Settings › Privacy & Security")
-            Button("Open System Settings") { model.openPrivacySettings() }
-                .padding(.leading, 18)
-            Text("2. Switch on Hyperpoint under Accessibility and under Input Monitoring")
-            Text("3. Check that both say Granted below, or click Allow… to be asked")
+        let permissions = model.permissions
+        if permissions.accessibility != .granted || permissions.inputMonitoring != .granted {
+            FormRow(label: "") {
+                VStack(alignment: .leading, spacing: 8) {
+                    GroupHeading("How to grant permissions")
+                    Step(number: 1) {
+                        Text("Go to System Settings › Privacy & Security")
+                        Button("Open System Settings") { model.openPrivacySettings() }
+                            .padding(.top, 3)
+                    }
+                    Step(number: 2) { Text("Switch on Hyperpoint under Accessibility and under Input Monitoring") }
+                    Step(number: 3) { Text("Check that both say Granted below, or click Allow… to be asked") }
+                }
+            }
         }
         FormRow(label: "Accessibility", detail: "Lets the hyper key and smooth scrolling change keys and scrolls as they happen.") {
             PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) }
@@ -74,6 +80,19 @@ struct GeneralTab: View {
         }
         guard let loadedAt = model.loadedAt else { return "Loading…" }
         return "Loaded at \(clockTime(loadedAt)). Saving the file reloads it."
+    }
+}
+
+/// A numbered how-to step. Whatever sits under the step's text lines up with the text, not the number.
+private struct Step<Content: View>: View {
+    let number: Int
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("\(number).").monospacedDigit()
+            VStack(alignment: .leading, spacing: 5) { content }
+        }
     }
 }
 

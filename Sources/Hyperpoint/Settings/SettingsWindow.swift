@@ -28,8 +28,8 @@ final class SettingsWindow {
     }
 
     /// Writes a PNG of every tab in light and then dark appearance, at the window's own size for that tab with the
-    /// toolbar, and Buttons and Scrolling once per mouse. The window draws itself, so this needs no Screen Recording
-    /// access. A page taller than the screen is drawn again scrolled to its end.
+    /// toolbar, Buttons and Scrolling once per mouse, and General again with a permission missing. The window draws
+    /// itself, so this needs no Screen Recording access.
     func snapshot(to directory: URL) async {
         show()
         for _ in 0..<50 where model.snapshot == nil || model.status == nil {
@@ -50,20 +50,30 @@ final class SettingsWindow {
                 model.mouse = page.mouse ?? shown.mouse
                 tabs.tab = page.tab
                 try? await Task.sleep(for: .milliseconds(800))
-                let name = String(format: "%02d-%@%@", index + 1, page.name, suffix)
-                render(to: directory.appending(path: name + ".png"))
-                guard let scroller = window.contentView.flatMap(Self.tallestScrollView), let document = scroller.documentView,
-                    document.frame.height > scroller.contentView.bounds.height + 1
-                else { continue }
-                document.scroll(NSPoint(x: 0, y: document.isFlipped ? document.frame.height : 0))
-                try? await Task.sleep(for: .milliseconds(400))
-                render(to: directory.appending(path: name + "-end.png"))
-                document.scroll(NSPoint(x: 0, y: document.isFlipped ? 0 : document.frame.height))
+                let name = String(format: "%02d-%@", index + 1, page.name)
+                await shoot(to: directory, name: name + suffix)
+                guard page.tab == .general else { continue }
+                model.snapshotPermissions = PermissionState(accessibility: .granted, inputMonitoring: .denied)
+                try? await Task.sleep(for: .milliseconds(800))
+                await shoot(to: directory, name: name + "-permission-missing" + suffix)
+                model.snapshotPermissions = nil
             }
         }
         window.appearance = nil
         model.mouse = shown.mouse
         tabs.tab = shown.tab
+    }
+
+    /// A page taller than the screen is drawn again scrolled to its end.
+    private func shoot(to directory: URL, name: String) async {
+        render(to: directory.appending(path: name + ".png"))
+        guard let scroller = window.contentView.flatMap(Self.tallestScrollView), let document = scroller.documentView,
+            document.frame.height > scroller.contentView.bounds.height + 1
+        else { return }
+        document.scroll(NSPoint(x: 0, y: document.isFlipped ? document.frame.height : 0))
+        try? await Task.sleep(for: .milliseconds(400))
+        render(to: directory.appending(path: name + "-end.png"))
+        document.scroll(NSPoint(x: 0, y: document.isFlipped ? 0 : document.frame.height))
     }
 
     private func render(to file: URL) {

@@ -77,7 +77,7 @@ struct FormRow<Content: View>: View {
     }
 }
 
-/// A heading for a group that spans both columns, in the style of a short how-to.
+/// A bold heading over a group of rows or a short how-to.
 struct GroupHeading: View {
     let title: String
 

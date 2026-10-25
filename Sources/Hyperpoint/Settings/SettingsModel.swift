@@ -93,6 +93,11 @@ final class SettingsModel {
 
     var paused: Bool { status?.run == .paused }
 
+    /// Set only by the window's snapshot, to draw General as it looks with a permission missing.
+    var snapshotPermissions: PermissionState?
+
+    var permissions: PermissionState { snapshotPermissions ?? status?.permissions ?? Permissions.current() }
+
     var devices: [SettingsDevice] { SettingsDevice.all(config: config, status: status) }
 
     var mice: [SettingsDevice] { devices.filter { $0.kind == .mouse } }
