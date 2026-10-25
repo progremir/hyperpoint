@@ -53,6 +53,8 @@ key_maps() {
 build_helpers() {
   [[ "$BIN/hidpp-state" -nt "$SKILL_DIR/helpers/hidpp-state.swift" ]] ||
     swiftc -swift-version 5 -O -o "$BIN/hidpp-state" "$SKILL_DIR/helpers/hidpp-state.swift"
+  [[ "$BIN/window-heights" -nt "$SKILL_DIR/helpers/window-heights.swift" ]] ||
+    swiftc -swift-version 5 -O -o "$BIN/window-heights" "$SKILL_DIR/helpers/window-heights.swift"
   if [[ ! "$PROBE_APP/Contents/MacOS/HyperpointProbe" -nt "$SKILL_DIR/helpers/probe.swift" ]]; then
     swiftc -swift-version 5 -O -framework IOKit -o "$BIN/HyperpointProbe" "$SKILL_DIR/helpers/probe.swift"
     mkdir -p "$PROBE_APP/Contents/MacOS"
@@ -128,11 +130,24 @@ case ${1:-help} in
     python3 "$SKILL_DIR/helpers/analyze.py" "$mode" "$EVIDENCE/record-$mode.txt" | tee "$EVIDENCE/record-$mode-summary.txt"
     ;;
   settings-shots)
+    build_helpers
     quit_app
+    rm -rf "$EVIDENCE/settings"
+    "$BIN/window-heights" 120 > "$EVIDENCE/settings-heights.txt" &
+    sampler=$!
     open "$APP" --args -snapshotSettings "$EVIDENCE/settings"
     wait_ready "${HYPERPOINT_READY_SECONDS:-30}" >/dev/null
-    sleep 5
+    # The app writes the dark set last, so the shots are done once a dark PNG exists and nothing new has come for 3 s.
+    stable=0; count=-1; deadline=$((SECONDS + 120))
+    while (( stable < 3 && SECONDS < deadline )); do
+      sleep 1
+      shots=("$EVIDENCE"/settings/*.png(N)); dark=("$EVIDENCE"/settings/*-dark.png(N))
+      if (( ${#dark} > 0 && ${#shots} == count )); then stable=$((stable + 1)); else stable=0; fi
+      count=${#shots}
+    done
+    kill "$sampler" 2>/dev/null || true
     ls "$EVIDENCE/settings"
+    echo "window heights: $(awk '{print $2}' "$EVIDENCE/settings-heights.txt" | paste -sd' ' -)"
     ;;
   evidence)
     echo "$EVIDENCE"
@@ -148,7 +163,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   log [10m]          Hyperpoint's unified log
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
   record <mode>      posted | wheel | senders | hold, needs the user to use the mouse
-  settings-shots     relaunch with -snapshotSettings, PNG per settings page
+  settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   evidence           print this run's evidence directory
 EOF
     ;;
