@@ -331,6 +331,9 @@ import Testing
         config.devices.append(DevicePreset.keyboard.profile(for: DeviceMatch(identifying: keys.properties), name: "MX Keys"))
         let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [keys]).setup(for: keys.id)
         #expect(setup.hidpp == nil && !setup.discoverHIDPP)
+        config.devices[config.devices.count - 1].kind = .mouse
+        let mouse = Intent.compile(config, paused: false, tapAvailable: true, present: [keys]).setup(for: keys.id)
+        #expect(mouse.discoverHIDPP, "the profile's kind decides")
     }
 
     @Test func aScrollRuleDivertsWithRawMovementAndKeepsTheClick() {
