@@ -16,7 +16,7 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 ## One instance only
 
-Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Only one session may verify at a time, because `verify.sh build` in any worktree replaces `~/Applications/Hyperpoint.app` for every session. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
+Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
 Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
 `hyper-check`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
