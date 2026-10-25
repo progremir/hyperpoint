@@ -178,8 +178,8 @@ case ${1:-help} in
     ;;
   record)
     build_helpers
-    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]}
-    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, senders: 90 s)"
+    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]|held[-seconds]}
+    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, held: 60 s, senders: 90 s)"
     probe "$mode" "$EVIDENCE/record-$mode.txt" || exit $?
     python3 "$SKILL_DIR/helpers/analyze.py" "$mode" "$EVIDENCE/record-$mode.txt" | tee "$EVIDENCE/record-$mode-summary.txt"
     ;;
@@ -242,7 +242,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
-  record <mode>      posted | wheel | senders | hold | keys[-seconds], needs the user to use the mouse
+  record <mode>      posted | wheel | senders | hold | keys[-seconds] | held[-seconds], needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]
                      the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
