@@ -2,7 +2,7 @@ import Foundation
 import HyperpointKit
 import Testing
 
-let documentedDefaultJSON: String = {
+let documentedExampleJSON: String = {
     let doc = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appending(path: "docs/architecture.md")
@@ -26,15 +26,15 @@ func rejection(_ json: String) -> ConfigError? {
 }
 
 @Suite struct ConfigCodecTests {
-    @Test func defaultConfigIsTheDocumentedFile() throws {
-        #expect(try decode(documentedDefaultJSON) == Config.default)
+    @Test func theDocumentedFileIsTheExample() throws {
+        #expect(try decode(documentedExampleJSON) == Config.example)
     }
 
     @Test func encodedConfigDecodesToTheSameValue() throws {
         let everyShape = Config(
             version: 1,
             hyper: HyperSettings(key: HIDUsage(name: "f12")!, onTap: .nothing),
-            devices: Config.default.devices + [
+            devices: Config.example.devices + [
                 DeviceProfile(
                     match: .device(vendor: VendorID(rawValue: 0x1234), product: ProductID(rawValue: 0xABCD)),
                     name: "Other Mouse",
@@ -57,7 +57,7 @@ func rejection(_ json: String) -> ConfigError? {
             ],
             ignored: [.device(vendor: VendorID(rawValue: 0x05AC), product: ProductID(rawValue: 0x024F))]
         )
-        for config in [Config.default, everyShape] {
+        for config in [Config.example, everyShape] {
             let bytes = ConfigCodec.encode(config)
             #expect(try ConfigCodec.decode(bytes) == config)
             #expect(ConfigCodec.encode(try ConfigCodec.decode(bytes)) == bytes, "encoding is canonical")
@@ -65,25 +65,25 @@ func rejection(_ json: String) -> ConfigError? {
     }
 
     @Test func aFileWithoutEaseInEasesIn() throws {
-        let older = documentedDefaultJSON.replacingOccurrences(of: "\"easeIn\": 60, ", with: "")
-        #expect(older != documentedDefaultJSON, "the documented file names easeIn")
+        let older = documentedExampleJSON.replacingOccurrences(of: "\"easeIn\": 60, ", with: "")
+        #expect(older != documentedExampleJSON, "the documented file names easeIn")
         #expect(try decode(older).devices[0].scrolling?.smooth?.easeIn == SmoothScroll.defaultEaseIn)
-        #expect(try decode(older) == Config.default)
+        #expect(try decode(older) == Config.example)
     }
 
     @Test func aFileWithoutACurveGetsTheDefaultOne() throws {
-        let curve = try #require(documentedDefaultJSON.range(of: #",\s*"curve": \[[^\]]*\]"#, options: .regularExpression))
-        var without = documentedDefaultJSON
+        let curve = try #require(documentedExampleJSON.range(of: #",\s*"curve": \[[^\]]*\]"#, options: .regularExpression))
+        var without = documentedExampleJSON
         without.removeSubrange(curve)
-        #expect(try decode(without) == Config.default)
+        #expect(try decode(without) == Config.example)
     }
 
     /// The smooth section as the settings window wrote it before the curve, with the user's own values.
     static let beforeTheCurve = #"{ "acceleration": false, "brake": 1, "duration": 4, "easeIn": 60, "speed": 60, "startBoost": 1 }"#
 
     static func withSmooth(_ section: String) throws -> String {
-        let range = try #require(documentedDefaultJSON.range(of: #""smooth": \{[^\]]*\]\s*\}"#, options: .regularExpression))
-        return documentedDefaultJSON.replacingCharacters(in: range, with: "\"smooth\": \(section)")
+        let range = try #require(documentedExampleJSON.range(of: #""smooth": \{[^\]]*\]\s*\}"#, options: .regularExpression))
+        return documentedExampleJSON.replacingCharacters(in: range, with: "\"smooth\": \(section)")
     }
 
     @Test func theOldSpeedKeysConvertToACurveThatScrollsTheSame() throws {
@@ -121,7 +121,7 @@ func rejection(_ json: String) -> ConfigError? {
 
     /// The scrolling section as files wrote it before hold to scroll, without the right-button rule it implied.
     static func beforeHoldToScroll(momentum: Bool, keepRule: Bool = false) throws -> String {
-        var json = documentedDefaultJSON.replacingOccurrences(
+        var json = documentedExampleJSON.replacingOccurrences(
             of: #""holdToScroll": { "speed": 1, "direction": "grab", "momentum": true }"#,
             with: #""rightButtonPan": { "momentum": \#(momentum) }"#)
         if !keepRule {
@@ -133,8 +133,8 @@ func rejection(_ json: String) -> ConfigError? {
     }
 
     @Test func rightButtonPanBecomesARightButtonScrollRule() throws {
-        #expect(try decode(Self.beforeHoldToScroll(momentum: true)) == Config.default)
-        #expect(try decode(Self.beforeHoldToScroll(momentum: true, keepRule: true)) == Config.default, "no second rule")
+        #expect(try decode(Self.beforeHoldToScroll(momentum: true)) == Config.example)
+        #expect(try decode(Self.beforeHoldToScroll(momentum: true, keepRule: true)) == Config.example, "no second rule")
         let still = try decode(Self.beforeHoldToScroll(momentum: false))
         #expect(still.devices[0].scrolling?.holdToScroll == HoldToScroll(speed: 1, direction: .grab, momentum: false))
         let written = try #require(String(data: ConfigCodec.encode(still), encoding: .utf8))
@@ -148,8 +148,8 @@ func rejection(_ json: String) -> ConfigError? {
     }
 
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
-        let json = documentedDefaultJSON.replacingOccurrences(of: "\"shift+cmd+4\"", with: "\"Command+Shift+4\"")
-        #expect(try decode(json) == Config.default)
+        let json = documentedExampleJSON.replacingOccurrences(of: "\"shift+cmd+4\"", with: "\"Command+Shift+4\"")
+        #expect(try decode(json) == Config.example)
     }
 
     struct Mutation: CustomTestStringConvertible, Sendable {
@@ -300,8 +300,8 @@ func rejection(_ json: String) -> ConfigError? {
 
     @Test(arguments: mutations)
     func invalidFileIsRejectedWithItsPath(_ mutation: Mutation) throws {
-        #expect(documentedDefaultJSON.contains(mutation.find), "the mutation applies to the documented file")
-        let json = documentedDefaultJSON.replacingOccurrences(of: mutation.find, with: mutation.replace)
+        #expect(documentedExampleJSON.contains(mutation.find), "the mutation applies to the documented file")
+        let json = documentedExampleJSON.replacingOccurrences(of: mutation.find, with: mutation.replace)
         let error = try #require(rejection(json), "the file is rejected")
         #expect(error.path == mutation.path)
     }
@@ -316,7 +316,7 @@ func rejection(_ json: String) -> ConfigError? {
     ]
 
     static func parses(_ rule: Rule) -> Bool {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [rule]
         return (try? ConfigCodec.decode(ConfigCodec.encode(config))) != nil
     }

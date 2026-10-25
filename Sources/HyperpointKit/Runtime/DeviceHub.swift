@@ -28,7 +28,7 @@ final class DeviceHub {
             manager,
             [
                 [kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop, kIOHIDPrimaryUsageKey: kHIDUsage_GD_Keyboard],
-                [kIOHIDVendorIDKey: Int(HIDProperties.logitech.rawValue), kIOHIDDeviceUsagePageKey: UsagePair.hidppPage],
+                [kIOHIDVendorIDKey: Int(VendorID.logitech.rawValue), kIOHIDDeviceUsagePageKey: UsagePair.hidppPage],
             ] as CFArray)
         for device in (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>) ?? [] {
             interfaceAppeared(device)

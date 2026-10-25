@@ -4,9 +4,6 @@ import Testing
 
 @testable import Hyperpoint
 
-let mx = DeviceMatch.device(vendor: VendorID(rawValue: 0x046D), product: ProductID(rawValue: 0xB023))
-let mouse24G = DeviceMatch.device(vendor: VendorID(rawValue: 0x1EA7), product: ProductID(rawValue: 0x0002))
-let magicKeyboard = DeviceMatch.device(vendor: VendorID(rawValue: 0x004C), product: ProductID(rawValue: 0x0321))
 let karabiner = DeviceMatch.device(vendor: VendorID(rawValue: 0x05AC), product: ProductID(rawValue: 0x024F))
 let gestureButton = Control.hidpp(CID(rawValue: 0xC3))
 let topButton = Control.hidpp(CID(rawValue: 0xC4))
@@ -16,7 +13,7 @@ func profile(_ config: Config, _ match: DeviceMatch) -> DeviceProfile? { config.
 func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.encode(config))) == config }
 
 @Suite struct SettingsEditTests {
-    let base = Config.default
+    let base = Config.example
 
     @Test func hyperOnTurnsAProfileOffAndCreatesOneForANewKeyboard() {
         let off = SettingsEdit.hyperOn(magicKeyboard, name: "Magic Keyboard", false).applied(to: base)

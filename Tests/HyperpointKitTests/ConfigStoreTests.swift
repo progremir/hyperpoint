@@ -2,6 +2,9 @@ import Foundation
 import HyperpointKit
 import Testing
 
+private let firstLaunch = ConfigStore(
+    url: FileManager.default.temporaryDirectory.appending(path: "hyperpoint-\(UUID().uuidString)/config.json"))
+
 @Suite struct ConfigStoreTests {
     let url: URL
 
@@ -9,10 +12,15 @@ import Testing
         let directory = FileManager.default.temporaryDirectory.appending(path: "hyperpoint-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         url = directory.appending(path: "config.json")
-        try ConfigCodec.encode(.default).write(to: url)
+        try ConfigCodec.encode(.example).write(to: url)
     }
 
     func onDisk() throws -> Config { try ConfigCodec.decode(try Data(contentsOf: url)) }
+
+    @Test func aFirstLaunchWritesAConfigWithNoDevices() async throws {
+        await firstLaunch.start()
+        #expect(try ConfigCodec.decode(try Data(contentsOf: firstLaunch.url)) == Config.empty)
+    }
 
     @Test func updateSavesTheChangeAndPublishesIt() async throws {
         let store = ConfigStore(url: url)

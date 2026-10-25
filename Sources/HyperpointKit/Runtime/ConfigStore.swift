@@ -22,7 +22,7 @@ public actor ConfigStore {
 
     public init(url: URL = ConfigStore.defaultURL) { self.url = url }
 
-    /// Writes `Config.default` when the file is missing, loads it, then watches its directory. Editors save by
+    /// Writes `Config.empty` when the file is missing, loads it, then watches its directory. Editors save by
     /// replacing the file, so a watch on the file itself would go stale after the first save.
     public func start() {
         guard stream == nil else { return }
@@ -30,7 +30,7 @@ public actor ConfigStore {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             if !FileManager.default.fileExists(atPath: url.path) {
-                try ConfigCodec.encode(.default).write(to: url, options: .atomic)
+                try ConfigCodec.encode(.empty).write(to: url, options: .atomic)
             }
         } catch {
             publish(ConfigSnapshot(config: nil, error: ConfigError(path: "", message: "cannot write \(url.path): \(error)")))

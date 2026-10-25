@@ -55,3 +55,18 @@ func discovered(_ device: PresentDevice, _ capabilities: HIDPPCapabilities = mea
     device.hidpp = capabilities
     return device
 }
+
+extension Config {
+    static let example = Config(
+        version: empty.version, hyper: empty.hyper,
+        devices: [
+            DevicePreset.mxMaster3.profile(
+                for: .device(vendor: .logitech, product: ProductID(rawValue: 0xB023)), name: "MX Master 3"),
+            DevicePreset.mouse24G.profile(
+                for: .device(vendor: VendorID(rawValue: 0x1EA7), product: ProductID(rawValue: 0x0002)), name: "2.4G Mouse"),
+            DevicePreset.keyboard.profile(for: .builtIn, name: "Built-in Keyboard"),
+            DevicePreset.keyboard.profile(
+                for: .device(vendor: VendorID(rawValue: 0x004C), product: ProductID(rawValue: 0x0321)), name: "Magic Keyboard"),
+        ],
+        ignored: [])
+}

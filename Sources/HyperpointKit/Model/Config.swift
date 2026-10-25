@@ -85,6 +85,8 @@ public struct VendorID: HexCoded {
     public let rawValue: UInt16
     public init(rawValue: UInt16) { self.rawValue = rawValue }
     public static let digits = 4
+
+    public static let logitech = VendorID(rawValue: 0x046D)
 }
 
 public struct ProductID: HexCoded {
@@ -311,50 +313,8 @@ public struct ClickThrough: Codable, Equatable, Sendable {
 }
 
 extension Config {
-    public static let `default` = Config(
-        version: currentVersion,
-        hyper: HyperSettings(key: HIDUsage(name: "capsLock")!, onTap: .nothing),
-        devices: [
-            DeviceProfile(
-                match: .device(vendor: VendorID(rawValue: 0x046D), product: ProductID(rawValue: 0xB023)),
-                name: "MX Master 3",
-                rules: [
-                    Rule(control: .hidpp(CID(rawValue: 0xC3)), trigger: .click, action: .system(.missionControl)),
-                    Rule(control: .hidpp(CID(rawValue: 0xC3)), trigger: .holdMove(.down), action: .system(.appExpose)),
-                    Rule(control: .hidpp(CID(rawValue: 0xC3)), trigger: .holdMove(.left), action: .system(.spaceLeft)),
-                    Rule(control: .hidpp(CID(rawValue: 0xC3)), trigger: .holdMove(.right), action: .system(.spaceRight)),
-                    Rule(
-                        control: .hidpp(CID(rawValue: 0xC4)), trigger: .click,
-                        action: .shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
-                    ),
-                    Rule(control: .thumbWheel, trigger: .scroll, action: .reverse),
-                    Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
-                ],
-                gestures: GestureSettings(fire: .pastDistance, distance: 120),
-                scrolling: ScrollSettings(
-                    smooth: .default,
-                    hiResWheel: true,
-                    holdToScroll: .default,
-                    clickThrough: ClickThrough(left: true, right: true)
-                )
-            ),
-            DeviceProfile(
-                match: .device(vendor: VendorID(rawValue: 0x1EA7), product: ProductID(rawValue: 0x0002)),
-                name: "2.4G Mouse",
-                rules: [
-                    Rule(control: .key(HIDUsage(name: "escape")!), trigger: .hold, action: .modifier(.rightOption)),
-                    Rule(
-                        control: .key(HIDUsage(name: "return")!), trigger: .click,
-                        action: .shortcut(Chord(key: KeyCode(name: "s")!, modifiers: [.option, .shift]))
-                    ),
-                ]
-            ),
-            DeviceProfile(match: .builtIn, name: "Built-in Keyboard", hyper: true),
-            DeviceProfile(
-                match: .device(vendor: VendorID(rawValue: 0x004C), product: ProductID(rawValue: 0x0321)),
-                name: "Magic Keyboard", hyper: true
-            ),
-        ],
-        ignored: []
-    )
+    /// What a missing file starts as.
+    public static let empty = Config(
+        version: currentVersion, hyper: HyperSettings(key: HIDUsage(name: "capsLock")!, onTap: .nothing),
+        devices: [], ignored: [])
 }

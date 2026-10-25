@@ -17,7 +17,7 @@ struct SettingsDevice: Identifiable, Equatable {
     /// Logitech devices are the ones that speak HID++.
     var speaksHIDPP: Bool {
         if status?.hidpp != nil { return true }
-        if case .device(let vendor, _) = match, vendor.rawValue == 0x046D { return true }
+        if case .device(.logitech, _) = match { return true }
         return profile?.rules?.contains { rule in
             switch rule.control {
             case .hidpp, .thumbWheel: true

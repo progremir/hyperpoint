@@ -65,19 +65,18 @@ struct Bench {
 
 private let mx = discovered(thisMac[2])
 
-private func plan(_ config: Config = .default) -> HIDPPSetup {
+private func plan(_ config: Config = .example) -> HIDPPSetup {
     Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp!
 }
 
-/// The default, with the top button also scrolling.
 private var scrollingTop: HIDPPSetup {
-    var config = Config.default
+    var config = Config.example
     config.devices[0].rules?.append(Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll))
     return plan(config)
 }
 
 private func plan(fire: GestureFire) -> HIDPPSetup {
-    var config = Config.default
+    var config = Config.example
     config.devices[0].gestures = GestureSettings(fire: fire, distance: 120)
     return plan(config)
 }
@@ -185,7 +184,7 @@ private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
     }
 
     @Test func aPlanChangeMidApplyQueuesOneRerun() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = config.devices[0].rules?.filter { $0.control != .hidpp(topButton) && $0.control != .thumbWheel }
         var bench = Bench()
         bench.request(.connected, plan())

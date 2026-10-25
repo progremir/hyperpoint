@@ -18,8 +18,8 @@ let mxCapabilities = HIDPPCapabilities(
     thumbWheel: true)
 
 @Suite struct RuleChoicesTests {
-    let mxRules = profile(.default, mx)!.rules!
-    let rules24G = profile(.default, mouse24G)!.rules!
+    let mxRules = profile(.example, mx)!.rules!
+    let rules24G = profile(.example, mouse24G)!.rules!
     var mxChoices: RuleChoices { RuleChoices(rules: mxRules, capabilities: mxCapabilities, speaksHIDPP: true) }
     var choices24G: RuleChoices { RuleChoices(rules: rules24G, capabilities: nil, speaksHIDPP: false) }
 
@@ -81,7 +81,7 @@ let mxCapabilities = HIDPPCapabilities(
     }
 
     @Test func addRuleSavesUntilEveryTriggerIsTaken() throws {
-        var config = Config.default
+        var config = Config.example
         for _ in 0..<40 {
             let rules = profile(config, mx)?.rules ?? []
             guard let rule = RuleChoices(rules: rules, capabilities: mxCapabilities, speaksHIDPP: true).newRule else { break }
@@ -110,7 +110,7 @@ let mxCapabilities = HIDPPCapabilities(
     /// Whatever the user picks in a row's three pickers, the file still parses.
     @Test(arguments: [mx, mouse24G])
     func everyPickerChoiceSaves(_ device: DeviceMatch) {
-        let base = Config.default
+        let base = Config.example
         let rules = profile(base, device)!.rules!
         let choices = RuleChoices(
             rules: rules, capabilities: device == mx ? mxCapabilities : nil, speaksHIDPP: device == mx)
