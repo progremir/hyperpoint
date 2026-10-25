@@ -14,7 +14,8 @@ device should be in from that file and writes all of it back whenever a device a
 
 ## Features
 
-- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard.
+- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard. One switch, on the Hyper Key tab or in the menu
+  bar, turns it off on every keyboard and back on again.
 - **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission
   Control, App Exposé, Space switching or any shortcut. The thumb wheel can be reversed.
 - **Smooth scrolling.** Each wheel step glides as an eased pulse sized by a speed curve you edit as a graph.
