@@ -13,8 +13,41 @@ IDENTITY="Apple Development: Emir Amanbekov (KGBFPV5MVR)"
 BUILT_IN='{"Built-In":1,"PrimaryUsagePage":1,"PrimaryUsage":6}'
 MAGIC='{"VendorID":0x4C,"ProductID":0x321}'
 LOG=/usr/bin/log
+# Every worktree's sessions drive the one install and the same devices, so commands that touch them hold this lock.
+# A run spans many invocations: the lock belongs to the worktree, each locked command refreshes it, and one idle for
+# HYPERPOINT_LOCK_STALE seconds can be taken over.
+LOCK="$HOME/Library/Caches/dev.emir.hyperpoint.verify-lock"
+LOCK_STALE=${HYPERPOINT_LOCK_STALE:-1200}
 
 mkdir -p "$EVIDENCE" "$BIN"
+
+lock_owner() { cat "$LOCK/owner" 2>/dev/null || true; }
+lock_idle() { echo $(( $(date +%s) - $(stat -f %m "$LOCK/owner" "$LOCK" 2>/dev/null | head -1 || date +%s) )); }
+
+try_lock() {
+  if mkdir "$LOCK" 2>/dev/null; then echo "$REPO" > "$LOCK/owner"; return 0; fi
+  local owner; owner=$(lock_owner)
+  if [[ $owner == "$REPO" ]]; then touch "$LOCK/owner"; return 0; fi
+  if (( $(lock_idle) > LOCK_STALE )); then
+    echo "taking the verify lock from ${owner:-an unknown run}, idle $(lock_idle)s" >&2
+    echo "$REPO" > "$LOCK/owner"; return 0
+  fi
+  return 1
+}
+
+acquire() {
+  local deadline=$((SECONDS + $1))
+  try_lock && return 0
+  echo "waiting for the verify lock, held by $(lock_owner) (idle $(lock_idle)s)" >&2
+  until try_lock; do
+    if (( SECONDS >= deadline )); then
+      echo "the installed Hyperpoint is in use by $(lock_owner). Queue with 'verify.sh lock' (in the background)." >&2
+      exit 3
+    fi
+    sleep 5
+  done
+  echo "got the verify lock" >&2
+}
 
 running_pid() { pgrep -f "$APP/Contents/MacOS/Hyperpoint" | head -1 || true; }
 
@@ -82,6 +115,18 @@ probe() {
 }
 
 case ${1:-help} in
+  build|launch|quit|hyper-check|record|settings-shots|settings-switches) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
+esac
+
+case ${1:-help} in
+  lock)
+    acquire "${2:-1800}"
+    echo "verify lock held by $REPO"
+    ;;
+  unlock)
+    if [[ $(lock_owner) == "$REPO" ]]; then rm -rf "$LOCK"; echo "verify lock released"
+    else echo "verify lock not held by this worktree (owner: $(lock_owner))"; fi
+    ;;
   build)
     quit_app
     (cd "$REPO" && scripts/bundle.sh) 2>&1 | tee "$EVIDENCE/bundle.log"
@@ -99,6 +144,7 @@ case ${1:-help} in
       echo "repo HEAD: $(git -C "$REPO" rev-parse --short HEAD) $(git -C "$REPO" branch --show-current)"
       echo "app binary: $(stat -f '%Sm' "$APP/Contents/MacOS/Hyperpoint") (newest commit: $(git -C "$REPO" log -1 --format=%cd))"
       echo "pid: $(running_pid || true)"
+      echo "verify lock: $(lock_owner || true)${$(lock_owner):+ (idle $(lock_idle)s)}"
       codesign -d -r- "$APP" 2>&1 | grep designated
       codesign -d -r- "$APP" 2>&1 | grep -q cdhash && echo "BAD: designated requirement pins a cdhash; grants reset every build"
       echo "menu: $(menu_state 10m)"
@@ -173,6 +219,8 @@ case ${1:-help} in
   help|*)
     cat <<EOF
 verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VERIFY_RUN)
+  lock [1800]        wait up to N s for the verify lock, which build/launch/quit/hyper-check/record/settings-* take
+  unlock             release it at the end of a run, with the build under test running
   doctor             build, signature, pid, last menu state, conflicting apps
   build              quit Hyperpoint, scripts/bundle.sh into ~/Applications/Hyperpoint.app
   launch [args]      open the app and wait for a settled menu state
