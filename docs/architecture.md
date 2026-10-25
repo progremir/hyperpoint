@@ -74,7 +74,7 @@ The rules for the file:
 - A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
-- `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the sidebar and is left untouched.
+- `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
 - Pause is runtime state, not config.
 
 ### Call site 1. The MX Master 3 connects
@@ -236,7 +236,7 @@ AppKit takes the precise delta of a posted scroll from its integer point field a
 
 `duration` is in tenths of a second so that BetterMouse's value of 4, whose unit is unknown, starts as a 0.4 s glide. A file without `easeIn` gets 60, and one without `curve` gets the default curve. A file written before the curve, with `speed`, `startBoost` and `acceleration`, still parses. Each step there went `speed × boost × gain`, so the parser samples that at 1, 5, 15, 40 and 150 steps per second and where the boost and gain bend, and the next save writes `curve` alone. A fixed distance per step converts exactly. The old default with acceleration on converts within 6.3%, at 8.6 steps per second.
 
-The settings window's Scrolling and clicks tab draws `curve` as a graph on the same log-log axes, so the drawn line is exactly what the wheel does. Shaded bands mark the MX wheel's measured rates: slow 4 to 12, medium 15 to 17, fast about 36 and a flick about 120 events per second. A point drags between its neighbours, double-clicking the line adds a point on it, and double-clicking a point removes it, from 2 to 10 points. The readout gives the speed and the distance per step under the pointer, and a drag saves once, on mouse-up.
+The settings window's Scrolling tab draws `curve` as a graph on the same log-log axes, so the drawn line is exactly what the wheel does. Shaded bands mark the MX wheel's measured rates: slow 4 to 12, medium 15 to 17, fast about 36 and a flick about 120 events per second. A point drags between its neighbours, double-clicking the line adds a point on it, and double-clicking a point removes it, from 2 to 10 points. The readout gives the speed and the distance per step under the pointer, and a drag saves once, on mouse-up.
 
 `TapHost` drives the frames from a display link, `NSScreen.displayLink(target:selector:)`, added to the tap thread's run loop, so each frame lands at the same point of the refresh and the animator gets the frame's `targetTimestamp`, on the same clock as the steps. The link follows the display under the pointer, because the external monitor here runs at 60 Hz and the built-in one at 120 Hz. It runs only while a glide does, and pauses when the animator is idle. A glide that sees no frame for 0.1 s rebuilds the link, in case its display went away. Each frame is a new `CGEvent` in pixel units, posted at the session level with the scroll phase began, changed or ended and the synthetic marker. AppKit reads these as precise deltas with matching phases (measured). A config save sends new `TapRules`, so changed settings apply from the next step.
 
@@ -315,7 +315,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 
 1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock to F18 mapping, which needs Karabiner quit.
 2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse was not plugged in, so its pointer service is unmeasured.
-3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the sidebar? The current proposal is pointer usage plus not built-in means mouse, with a per-profile override.
+3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? The current proposal is pointer usage plus not built-in means mouse, with a per-profile override.
 4. **The 2.4G dongle's services.** It is not plugged in, so its keyboard services and their ids are unmeasured.
 5. **Thumb wheel invert while undiverted.** Solaar writes it, but firmware behavior on this mouse is inferred.
 6. **Unprompted 0x1D4B over BLE.** If the MX does not send it after each reconnect, the connect callback and manual re-apply are the only triggers. A periodic read-back is the fallback.

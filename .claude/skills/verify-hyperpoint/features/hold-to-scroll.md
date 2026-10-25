@@ -17,7 +17,7 @@ Any button can take the action: a rule with When "Hold and move" and Do "Scroll"
 
 - Hold the right button and move the mouse over a scrollable window.
 - A quick press of the right button.
-- Buttons tab: a rule with When "Hold and move" and Do "Scroll". Scrolling and clicks tab: the Hold to scroll section (speed, direction, momentum).
+- Buttons tab: a rule with When "Hold and move" and Do "Scroll". Scrolling tab: the Hold to scroll section (speed, direction, momentum).
 
 ## Driving it with verify.sh
 
@@ -32,7 +32,7 @@ Preconditions:
   1. Quick press of the right button over a Finder window. The context menu opens at the pointer. `button events apps saw` has one replayed `down` and one replayed `up` for button 1, no native ones, and both at the pointer's position before the press.
   2. Hold the right button, drag slowly down, then up, then sideways, and let go while still. The summary shows a scroll with `hand frames>0`, `ended=True`, `pointer-drift=0pt`, `glide frames=0`, and no `drag` events for button 1.
   3. Hold the right button, flick down fast and let go while moving. Repeat five times. Every scroll has `pointer-drift=0pt`, `glide frames>0` and `glide-ended=True`.
-- **Direction and speed.** Switch "Like the scroll wheel" on the Scrolling and clicks tab and repeat step 2: the sign of `dy` flips for the same hand movement. Set the speed to 2×: `dy` for the same movement roughly doubles.
+- **Direction and speed.** Switch "Like the scroll wheel" on the Scrolling tab and repeat step 2: the sign of `dy` flips for the same hand movement. Set the speed to 2×: `dy` for the same movement roughly doubles.
 - **Reconnect.** Ask the user to switch the mouse off, wait 3 s, switch it on, then repeat steps 1 and 2. `verify.sh state` matches the first step.
 - **Feel.** Ask whether the page follows the hand at 1× and whether the glide's length feels right. Record their words. Feel is the user's verdict, and the numbers explain it.
 

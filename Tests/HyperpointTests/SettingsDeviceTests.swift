@@ -25,7 +25,7 @@ import Testing
         DeviceStatus(name: "Karabiner VirtualHIDKeyboard", match: karabiner, kind: .keyboard, connectedAt: at, hyper: nil)
     }
 
-    @Test func theSidebarListsProfilesThenNewDevices() {
+    @Test func theWindowListsProfilesThenNewDevices() {
         let devices = SettingsDevice.all(config: .default, status: status(devices: [connectedMX], newDevices: [virtualKeyboard]))
         #expect(devices.map(\.name) == ["MX Master 3", "2.4G Mouse", "Built-in Keyboard", "Magic Keyboard", "Karabiner VirtualHIDKeyboard"])
         #expect(devices.map(\.kind) == [.mouse, .mouse, .keyboard, .keyboard, .keyboard])

@@ -5,6 +5,11 @@ public import Foundation
 public struct ConfigSnapshot: Equatable, Sendable {
     public var config: Config?
     public var error: ConfigError?
+
+    public init(config: Config?, error: ConfigError?) {
+        self.config = config
+        self.error = error
+    }
 }
 
 public actor ConfigStore {

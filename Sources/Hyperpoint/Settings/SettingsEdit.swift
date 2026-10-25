@@ -31,6 +31,10 @@ enum SettingsEdit: Equatable, Sendable {
     case smoothKnob(DeviceMatch, SmoothKnob, Double)
     case curve(DeviceMatch, SpeedCurve)
     case holdToScroll(DeviceMatch, HoldToScroll)
+    /// Removes the profile. A connected device then shows as new.
+    case forget(DeviceMatch)
+    /// Only a device without a profile can be ignored, since the parser rejects a match in both.
+    case ignore(DeviceMatch, Bool)
 
     func applied(to config: Config) -> Config {
         var config = config
@@ -80,6 +84,13 @@ enum SettingsEdit: Equatable, Sendable {
                 scrolling.holdToScroll = settings
                 profile.scrolling = scrolling
             }
+        case .forget(let match):
+            config.devices.removeAll { $0.match == match }
+        case .ignore(let match, true):
+            guard !config.ignored.contains(match), !config.devices.contains(where: { $0.match == match }) else { break }
+            config.ignored.append(match)
+        case .ignore(let match, false):
+            config.ignored.removeAll { $0 == match }
         }
         return config
     }
@@ -104,6 +115,8 @@ enum SettingsEdit: Equatable, Sendable {
         case .curve(let match, let curve): "\(Self.profile(match)).scrolling.smooth.curve = \(Self.json(curve))"
         case .holdToScroll(let match, let settings):
             "\(Self.profile(match)).scrolling.holdToScroll = \(Self.json(settings))"
+        case .forget(let match): "devices -= \(Self.json(match))"
+        case .ignore(let match, let on): "ignored \(on ? "+=" : "-=") \(Self.json(match))"
         }
     }
 

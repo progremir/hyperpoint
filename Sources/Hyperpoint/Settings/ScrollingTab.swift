@@ -3,75 +3,77 @@ import SwiftUI
 
 struct ScrollingTab: View {
     let model: SettingsModel
+
+    var body: some View {
+        SettingsPage(model: model) {
+            if let device = model.selectedMouse {
+                FormRow(label: "Device") { MousePopup(model: model) }
+                Divider()
+                ScrollingSettings(model: model, device: device)
+            } else {
+                NoMouseRow()
+            }
+        }
+    }
+}
+
+private struct ScrollingSettings: View {
+    let model: SettingsModel
     let device: SettingsDevice
 
     var body: some View {
         let match = device.match
         let smooth = device.profile?.scrolling?.smooth
         let shown = smooth ?? model.smoothWhenOn(match)
-        Section {
+        FormRow(label: "Smooth scrolling") {
             Toggle(
+                "Smooth scrolling",
                 isOn: Binding(
                     get: { smooth != nil },
                     set: { model.apply(.smooth(match, $0 ? model.smoothWhenOn(match) : nil)) })
-            ) {
-                Text("Smooth scrolling")
-                Text("The wheel glides like a trackpad instead of jumping a few lines per step.")
-            }
+            )
+            .toggleStyle(.switch)
+            .labelsHidden()
             .disabled(device.profile == nil)
-        } header: {
-            Text("Wheel")
-        } footer: {
+            Explanation("The wheel glides like a trackpad instead of jumping a few lines per step.")
             if device.profile == nil {
-                Text("Add a rule on the Buttons tab first, which gives this mouse a profile.").foregroundStyle(.secondary)
+                Explanation("Add a rule on the Buttons tab first, which gives this mouse a profile.")
             }
         }
         .disabled(!model.editable)
 
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("How fast the page scrolls")
-                    Text("Spin the wheel faster and the page scrolls faster. The shaded bands are how fast this wheel spins.")
-                        .foregroundStyle(.secondary)
-                }
-                SpeedGraph(curve: shown.curve) { model.apply(.curve(match, $0)) }
+        Divider()
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                GroupHeading("How fast the page scrolls")
+                Explanation("Spin the wheel faster and the page scrolls faster. The shaded bands are how fast this wheel spins.")
             }
-            .padding(.vertical, 4)
-        } header: {
-            Text("Scroll speed")
-        }
-        .disabled(!model.editable || smooth == nil)
-
-        Section {
+            SpeedGraph(curve: shown.curve) { model.apply(.curve(match, $0)) }
+            Divider()
             ForEach(SmoothKnob.allCases, id: \.self) { knob in
                 KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
             }
-            HStack {
-                Text("Puts the scroll speed and every glide setting back to how Hyperpoint ships.").foregroundStyle(.secondary)
-                Spacer()
+            FormRow(label: "", detail: "Puts the scroll speed and every glide setting back to how Hyperpoint ships.") {
                 Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
                     .disabled(smooth == .default)
             }
-        } header: {
-            Text("Glide")
         }
         .disabled(!model.editable || smooth == nil)
 
-        HoldToScrollSection(model: model, device: device)
+        Divider()
+        HoldToScrollSettings(model: model, device: device)
 
-        Section("More") {
-            if device.speaksHIDPP {
-                UnavailableRow(title: "High-resolution wheel", detail: "Reads the wheel's finer steps for smoother input.")
-            }
-            UnavailableRow(
-                title: "Click-through",
-                detail: "A click on a background window would act right away instead of only bringing it forward.")
+        Divider()
+        if device.speaksHIDPP {
+            UnavailableRow(title: "High-resolution wheel", detail: "Reads the wheel's finer steps for smoother input.")
         }
+        UnavailableRow(
+            title: "Click-through",
+            detail: "A click on a background window would act right away instead of only bringing it forward.")
     }
 }
 
-private struct HoldToScrollSection: View {
+private struct HoldToScrollSettings: View {
     let model: SettingsModel
     let device: SettingsDevice
 
@@ -79,45 +81,47 @@ private struct HoldToScrollSection: View {
         let match = device.match
         let settings = device.profile?.scrolling?.holdToScroll ?? .default
         let buttons = (device.profile?.rules ?? []).filter { $0.action == .scroll }.map { Labels.control($0.control) }
-        Section {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                GroupHeading("Hold to scroll")
+                Explanation(
+                    buttons.isEmpty
+                        ? "No button scrolls yet. On the Buttons tab, pick Hold and move, then Scroll, for any button."
+                        : "Buttons that scroll: \(ListFormatter.localizedString(byJoining: buttons)). Change them on the Buttons tab.")
+            }
             KnobRow(
                 title: HoldScrollKnob.title, detail: HoldScrollKnob.detail, scale: HoldScrollKnob.scale,
                 unit: HoldScrollKnob.unit, value: settings.speed
             ) { speed in
                 model.apply(.holdToScroll(match, HoldToScroll(speed: speed, direction: settings.direction, momentum: settings.momentum)))
             }
-            Picker(
-                selection: Binding(
-                    get: { settings.direction },
-                    set: {
-                        model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: $0, momentum: settings.momentum)))
-                    })
+            FormRow(
+                label: "Direction",
+                detail: "Grabbing moves the page with your hand. The scroll wheel way scrolls down when you move down."
             ) {
-                Text("Like grabbing the page").tag(HoldScrollDirection.grab)
-                Text("Like the scroll wheel").tag(HoldScrollDirection.wheel)
-            } label: {
-                Text("Direction")
-                Text("Grabbing moves the page with your hand. The scroll wheel way scrolls down when you move down.")
+                Picker(
+                    "Direction",
+                    selection: Binding(
+                        get: { settings.direction },
+                        set: {
+                            model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: $0, momentum: settings.momentum)))
+                        })
+                ) {
+                    Text("Like grabbing the page").tag(HoldScrollDirection.grab)
+                    Text("Like the scroll wheel").tag(HoldScrollDirection.wheel)
+                }
+                .labelsHidden()
+                .fixedSize()
             }
-            Toggle(
-                isOn: Binding(
-                    get: { settings.momentum },
-                    set: {
-                        model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: settings.direction, momentum: $0)))
-                    })
-            ) {
-                Text("Keep gliding after you let go")
-                Text("Let go while moving and the page coasts to a stop, like on a trackpad.")
+            FormRow(label: "", detail: "Let go while moving and the page coasts to a stop, like on a trackpad.") {
+                Toggle(
+                    "Keep gliding after you let go",
+                    isOn: Binding(
+                        get: { settings.momentum },
+                        set: {
+                            model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: settings.direction, momentum: $0)))
+                        }))
             }
-        } header: {
-            Text("Hold to scroll")
-        } footer: {
-            Text(
-                buttons.isEmpty
-                    ? "No button scrolls yet. On the Buttons tab, pick Hold and move, then Scroll, for any button."
-                    : "Buttons that scroll: \(ListFormatter.localizedString(byJoining: buttons)). Change them on the Buttons tab."
-            )
-            .foregroundStyle(.secondary)
         }
         .disabled(!model.editable || device.profile == nil)
     }
@@ -155,7 +159,7 @@ struct KnobRow: View {
 
     var body: some View {
         let shown = draft.map(scale.value(at:)) ?? value
-        LabeledContent {
+        FormRow(label: title, detail: detail) {
             HStack(spacing: 12) {
                 Slider(
                     value: Binding(
@@ -175,11 +179,7 @@ struct KnobRow: View {
                 Text(unit.format(shown))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(minWidth: 82, alignment: .trailing)
             }
-        } label: {
-            Text(title)
-            Text(detail)
         }
         .onChange(of: value) { draft = nil }
     }
@@ -199,11 +199,8 @@ private struct UnavailableRow: View {
     let detail: String
 
     var body: some View {
-        LabeledContent {
-            Text("Not available yet").foregroundStyle(.secondary)
-        } label: {
-            Text(title)
-            Text(detail)
+        FormRow(label: title, detail: detail) {
+            Text("Not available yet")
         }
         .foregroundStyle(.secondary)
     }

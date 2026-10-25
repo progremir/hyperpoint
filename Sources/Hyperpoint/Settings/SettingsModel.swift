@@ -10,6 +10,31 @@ enum LoginItemState: Equatable {
     case needsApproval
 }
 
+/// The window's tabs, in toolbar order.
+enum SettingsTab: String, CaseIterable {
+    case general, hyperKey, buttons, scrolling, devices
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .hyperKey: "Hyper Key"
+        case .buttons: "Buttons"
+        case .scrolling: "Scrolling"
+        case .devices: "Devices"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .hyperKey: "command"
+        case .buttons: "computermouse"
+        case .scrolling: "arrow.up.and.down"
+        case .devices: "list.bullet"
+        }
+    }
+}
+
 /// What the settings window renders: the latest config snapshot and engine status, as published. It never holds
 /// config of its own. Edits go to `ConfigStore.update` one at a time, and the window redraws from the snapshot the
 /// save publishes.
@@ -22,22 +47,30 @@ final class SettingsModel {
     private(set) var saveError: String?
     private(set) var loginItem = LoginItemState.off
     private(set) var loginItemError: String?
-    var pane: SettingsPane? = .general
-    var tab = DeviceTab.buttons
+    /// Remembered across launches, so the window opens where the user left it.
+    var tab: SettingsTab { didSet { defaults.set(tab.rawValue, forKey: Self.tabKey) } }
+    /// The mouse the Buttons and Scrolling tabs both show. Nil, or a mouse no longer listed, means the first one.
+    var mouse: DeviceMatch?
 
     let configURL: URL
     private let engine: Engine
     private let edits: AsyncStream<SettingsEdit>.Continuation
     private let log = Logger(subsystem: "dev.emir.hyperpoint", category: "settings")
+    private let defaults: UserDefaults
+    private static let tabKey = "settingsTab"
     /// Switching smooth scrolling off removes its section from the file, so the values tuned before are kept here
     /// and come back when it is switched on again.
     @ObservationIgnored private var lastSmooth: [DeviceMatch: SmoothScroll] = [:]
     /// Discovery runs again on every connection, so the rule pickers keep a mouse's controls while it is away.
     @ObservationIgnored private var seenCapabilities: [DeviceMatch: HIDPPCapabilities] = [:]
+    /// The engine leaves ignored devices out of its status, so their names come from when they showed as new.
+    @ObservationIgnored private var seenNames: [DeviceMatch: String] = [:]
 
-    init(store: ConfigStore, engine: Engine) {
+    init(store: ConfigStore, engine: Engine, defaults: UserDefaults = .standard) {
         configURL = store.url
         self.engine = engine
+        self.defaults = defaults
+        tab = defaults.string(forKey: Self.tabKey).flatMap(SettingsTab.init(rawValue:)) ?? .general
         let (stream, continuation) = AsyncStream.makeStream(of: SettingsEdit.self)
         edits = continuation
         Task { [weak self] in
@@ -60,7 +93,20 @@ final class SettingsModel {
 
     var paused: Bool { status?.run == .paused }
 
+    /// Set only by the window's snapshot, to draw General as it looks with a permission missing.
+    var snapshotPermissions: PermissionState?
+
+    var permissions: PermissionState { snapshotPermissions ?? status?.permissions ?? Permissions.current() }
+
     var devices: [SettingsDevice] { SettingsDevice.all(config: config, status: status) }
+
+    var mice: [SettingsDevice] { devices.filter { $0.kind == .mouse } }
+
+    var selectedMouse: SettingsDevice? { mice.first { $0.match == mouse } ?? mice.first }
+
+    var ignoredDevices: [IgnoredDevice] {
+        (config?.ignored ?? []).map { IgnoredDevice(match: $0, name: seenNames[$0] ?? Labels.match($0)) }
+    }
 
     func show(_ snapshot: ConfigSnapshot) {
         self.snapshot = snapshot
@@ -77,6 +123,7 @@ final class SettingsModel {
         for device in status.devices {
             if let capabilities = device.hidpp?.capabilities { seenCapabilities[device.match] = capabilities }
         }
+        for device in status.newDevices { seenNames[device.match] = device.name }
     }
 
     func choices(for device: SettingsDevice) -> RuleChoices {
