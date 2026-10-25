@@ -108,6 +108,8 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         .curve(mx, CurveGraph.dragging(.default, point: 1, to: SpeedCurve.Point(stepsPerSecond: 6, pointsPerSecond: 400))),
         .holdToScroll(mx, HoldToScroll(speed: 2, direction: .wheel, momentum: false)),
         .holdToScroll(mouse24G, .default),
+        .forget(mx),
+        .ignore(karabiner, true),
     ] + SmoothKnob.allCases.map { .smoothKnob(mx, $0, $0.scale.value(at: 0.7)) }
 
     @Test(arguments: everyEdit)
@@ -123,6 +125,22 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         let mxEdited = SettingsEdit.holdToScroll(mx, HoldToScroll(speed: 2, direction: .wheel, momentum: true)).applied(to: base)
         #expect(profile(mxEdited, mx)?.scrolling?.smooth == profile(base, mx)?.scrolling?.smooth, "the rest of the section stays")
         #expect(profile(mxEdited, mx)?.scrolling?.holdToScroll?.direction == .wheel)
+    }
+
+    @Test func forgetRemovesOnlyThatProfile() {
+        let forgotten = SettingsEdit.forget(mx).applied(to: base)
+        #expect(forgotten.devices == base.devices.filter { $0.match != mx })
+        #expect(forgotten.hyper == base.hyper)
+        #expect(forgotten.ignored == base.ignored)
+        #expect(SettingsEdit.forget(karabiner).applied(to: base) == base, "a device without a profile has nothing to forget")
+    }
+
+    @Test func ignoreAddsANewDeviceOnceAndCanBeUndone() throws {
+        let ignored = SettingsEdit.ignore(karabiner, true).applied(to: base)
+        #expect(ignored.ignored == base.ignored + [karabiner])
+        #expect(SettingsEdit.ignore(karabiner, true).applied(to: ignored) == ignored)
+        #expect(SettingsEdit.ignore(karabiner, false).applied(to: ignored) == base)
+        #expect(SettingsEdit.ignore(mx, true).applied(to: base) == base, "a device with a profile cannot also be ignored")
     }
 
     @Test func theLogLineUsesTheFileKeys() {
