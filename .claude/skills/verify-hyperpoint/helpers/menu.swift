@@ -37,6 +37,10 @@ guard let item = descendants(status).first(where: { title($0) == wanted }) else 
     AXUIElementPerformAction(status, kAXCancelAction as CFString)
     fail("no menu item \"\(wanted)\"")
 }
+guard attribute(item, kAXEnabledAttribute) as? Bool ?? false else {
+    AXUIElementPerformAction(status, kAXCancelAction as CFString)
+    fail("menu item \"\(wanted)\" is disabled")
+}
 let checked = (attribute(item, "AXMenuItemMarkChar") as? String).map { !$0.isEmpty } ?? false
 AXUIElementPerformAction(item, kAXPressAction as CFString)
 print("pressed \"\(wanted)\", which was \(checked ? "checked" : "not checked")")

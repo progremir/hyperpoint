@@ -230,7 +230,7 @@ public final class Engine {
             journal.changed(device)
             // A slot reads its device once, so a keyboard interface enumerating after a pointer one needs a new slot
             // to write its key map.
-            if slots[device.id]?.device.properties != device.properties {
+            if let slot = slots[device.id], slot.device.properties != device.properties {
                 slots.removeValue(forKey: device.id)?.close()
                 addSlot(for: device, atLaunch: false)
                 recompile()

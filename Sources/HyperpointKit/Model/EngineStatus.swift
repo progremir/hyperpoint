@@ -145,10 +145,11 @@ public enum Heard: Equatable, Sendable {
     case unnamed
 }
 
+/// Hyperpoint guesses it from the device's interfaces, and a profile's `kind` replaces the guess.
 public enum DeviceKind: String, Codable, Equatable, Sendable {
-    /// A keyboard that can host the hyper key.
+    /// Can host the hyper key. The guess is a keyboard that is not also an external mouse.
     case keyboard
-    /// Any other device, such as a mouse that also sends keys.
+    /// Any other device, such as a mouse that also sends keys. A mouse that speaks HID++ is read for its controls.
     case mouse
 }
 

@@ -33,10 +33,27 @@ struct HIDPPSetup: Equatable, Sendable {
         guard listening else { return behavior(of: control.cid).reporting(for: control) }
         return listens(to: control.cid) ? ControlReporting(divert: true, rawXY: false) : .native
     }
+}
 
-    /// Nil writes nothing. Once this connection has written, nil desired turns the device back to native.
-    static func pendingWrite(desired: HIDPPSetup?, written: Bool) -> HIDPPSetup? {
-        desired ?? (written ? .native : nil)
+/// What one connection owes its device over HID++. A session opened only to read the controls has nothing to undo,
+/// so nil desired turns the device back to native only once this connection has sent a setup.
+struct HIDPPWrites: Sendable {
+    private var owesNative: Bool
+
+    /// `crashMayHaveDiverted` is for a mouse a crashed run may have left diverted, which then writes native even with
+    /// nothing else to write.
+    init(crashMayHaveDiverted: Bool) { owesNative = crashMayHaveDiverted }
+
+    /// Nil writes nothing, so a session opened anyway only reads the controls.
+    func pending(desired: HIDPPSetup?) -> HIDPPSetup? {
+        desired ?? (owesNative ? .native : nil)
+    }
+
+    /// The setup to send now. Sending one makes a later nil desired mean native.
+    mutating func send(desired: HIDPPSetup?) -> HIDPPSetup? {
+        let plan = pending(desired: desired)
+        if plan != nil { owesNative = true }
+        return plan
     }
 }
 

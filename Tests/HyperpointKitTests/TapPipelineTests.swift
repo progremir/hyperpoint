@@ -5,9 +5,12 @@ import Testing
 private let f18: CGKeyCode = 79
 private let r: CGKeyCode = 15
 private let hyperFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+/// A nil source copies the live session's modifiers, so a held Fn on this Mac would leak into every test event. Tests
+/// only build events from it and never post them, so sharing it across tests is safe.
+nonisolated(unsafe) private let source = CGEventSource(stateID: .privateState)
 
 private func key(_ code: CGKeyCode, down: Bool, marked: Bool = false) -> CGEvent {
-    let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
+    let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)!
     if marked { event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker) }
     return event
 }
@@ -58,6 +61,14 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
         #expect(pipeline.process(.keyUp, up) == .pass)
         #expect(up.type == .flagsChanged && up.flags.isDisjoint(with: hyperFlags))
         #expect(!up.flags.contains(.maskSecondaryFn), "the release does not leave Fn held")
+    }
+
+    @Test func aFreshKeyEventCarriesNoModifiers() {
+        let event = key(r, down: true)
+        #expect(event.flags.isDisjoint(with: hyperFlags.union([.maskAlphaShift, .maskSecondaryFn])))
+        #expect(
+            event.getIntegerValueField(.eventSourceStateID) != Int64(CGEventSourceStateID.combinedSessionState.rawValue),
+            "the event keeps its own state, not the live session's")
     }
 
     @Test mutating func keysUnderHyperKeepTheirOwnFn() {
@@ -161,7 +172,7 @@ private let trackpadSender = SenderID(rawValue: 0x1_0000_0D10)
 private let smooth = Config.example.devices[0].scrolling!.smooth!
 
 private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) -> CGEvent {
-    let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2, wheel1: lines, wheel2: horizontal, wheel3: 0)!
+    let event = CGEvent(scrollWheelEvent2Source: source, units: .line, wheelCount: 2, wheel1: lines, wheel2: horizontal, wheel3: 0)!
     if marked { event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker) }
     return event
 }
@@ -193,7 +204,7 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
 
     @Test func continuousScrollsPass() {
         var pipeline = pipeline(mxSender)
-        let continuous = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 12, wheel2: 0, wheel3: 0)!
+        let continuous = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 1, wheel1: 12, wheel2: 0, wheel3: 0)!
         #expect(pipeline.process(.scrollWheel, continuous) == .pass)
     }
 
@@ -244,7 +255,7 @@ private func mouse(
     marked: Bool = false
 ) -> CGEvent {
     let event = CGEvent(
-        mouseEventSource: nil, mouseType: type, mouseCursorPosition: location,
+        mouseEventSource: source, mouseType: type, mouseCursorPosition: location,
         mouseButton: CGMouseButton(rawValue: UInt32(button))!)!
     event.setIntegerValueField(.mouseEventButtonNumber, value: Int64(button))
     event.setDoubleValueField(.mouseEventDeltaX, value: dx)
