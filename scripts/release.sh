@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Builds dist/Hyperpoint-<version>.dmg, the drag-to-Applications installer, and with --publish uploads it to a
-# GitHub release, tagging the pushed HEAD v<version>. Signs with $SIGN_IDENTITY like build-app.sh.
+# GitHub release, tagging the pushed HEAD v<version>. The app is signed by build-app.sh with $SIGN_IDENTITY.
 set -euo pipefail
 cd "${0:A:h}/.."
 
@@ -30,7 +30,8 @@ $VENV/bin/dmgbuild -s scripts/dmg-settings.py \
   -D background="$PWD/design/installer/background.tiff" \
   -D volume_icon="$PWD/design/logo/macos/AppIcon.icns" \
   Hyperpoint "$DMG"
-codesign --force --sign "${SIGN_IDENTITY:-Apple Development: Emir Amanbekov (KGBFPV5MVR)}" "$DMG"
+# The image stays unsigned. Gatekeeper refuses to open a downloaded DMG signed with an Apple Development certificate,
+# but mounts an unsigned one and shows the installer window. The app inside carries the signature.
 hdiutil verify -quiet "$DMG"
 (cd "$DIST" && shasum -a 256 "${DMG:t}" > "${DMG:t}.sha256")
 print "built $DMG"
