@@ -59,8 +59,8 @@ The button applies the best choice for that device, and its menu holds the other
 A preset only starts the profile. After Set Up the config file holds every setting, and a later change to a preset does
 not touch a saved profile. To start a device again from a preset, click **Forget…** and set it up again.
 
-Hyperpoint sees keyboards, Logitech HID++ devices, and mice that also send keys. A plain mouse with only a pointer
-interface does not show up yet.
+Hyperpoint lists keyboards and mice, Logitech HID++ mice included. Trackpads, the built-in one too, stay as macOS has
+them and are not listed.
 
 ## Configuration
 
