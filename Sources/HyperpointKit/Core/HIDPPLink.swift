@@ -150,7 +150,7 @@ struct HIDPPLink: Sendable {
 
     private static func applySteps(_ plan: HIDPPSetup?, _ capabilities: HIDPPCapabilities) -> [HIDPPStep] {
         guard let plan else { return [] }
-        let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.behavior(of: $0.cid).reporting(for: $0)) }
+        let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.reporting(for: $0)) }
         let wheel = capabilities.thumbWheel ? [plan.thumbWheelInverted] : []
         return targets.map { HIDPPStep.setReporting($0, $1) } + wheel.map { HIDPPStep.setThumbWheel(inverted: $0) }
             + targets.map { HIDPPStep.checkReporting($0, $1) } + wheel.map { HIDPPStep.checkThumbWheel(inverted: $0) }
@@ -231,6 +231,10 @@ struct HIDPPLink: Sendable {
     }
 
     private mutating func pressed(_ cid: CID, into out: inout HIDPPOutput) {
+        if let plan, plan.listening {
+            if plan.listens(to: cid) { out.events.append(.heard(cid)) }
+            return
+        }
         switch plan?.behavior(of: cid) ?? .native {
         case .native:
             break
@@ -314,6 +318,8 @@ enum HIDPPEvent: Equatable, Sendable {
     case applyFinished(ApplyScheduler.Job, HIDPPOutcome)
     case perform(Action)
     case holdScroll(HoldScrollEvent)
+    /// A control pressed while the plan listens. Nothing else happens for it.
+    case heard(CID)
 }
 
 enum HIDPPOutcome: Equatable, Sendable {

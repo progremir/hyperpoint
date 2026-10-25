@@ -123,6 +123,8 @@ final class Slot {
             perform(action)
         case .holdScroll(let event):
             holdScroll(event)
+        case .heard:
+            break
         }
     }
 

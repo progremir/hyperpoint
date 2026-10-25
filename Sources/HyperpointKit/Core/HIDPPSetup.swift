@@ -1,10 +1,30 @@
 struct HIDPPSetup: Equatable, Sendable {
     var controls: [CID: ControlBehavior]
     var thumbWheelInverted: Bool
+    /// Every divertable control but the left button diverts without raw movement and only reports its press.
+    /// `controls` and the wheel keep their values, so the next write without it is the real setup again.
+    var listening = false
 
     static let native = HIDPPSetup(controls: [:], thumbWheelInverted: false)
 
+    /// The user clicks Cancel with it, so a listen leaves it native even on a mouse that lets it divert.
+    static let leftButton = CID(rawValue: 0x50)
+
+    /// `plan` listening, or a native setup listening when the profile has no HID++ rules.
+    static func listening(over plan: HIDPPSetup?) -> HIDPPSetup {
+        var setup = plan ?? .native
+        setup.listening = true
+        return setup
+    }
+
     func behavior(of cid: CID) -> ControlBehavior { controls[cid] ?? .native }
+
+    func listens(to cid: CID) -> Bool { listening && cid != Self.leftButton }
+
+    func reporting(for control: HIDPPCapabilities.Control) -> ControlReporting {
+        guard listening else { return behavior(of: control.cid).reporting(for: control) }
+        return listens(to: control.cid) ? ControlReporting(divert: true, rawXY: false) : .native
+    }
 
     /// Nil writes nothing. Once this connection has written, nil desired turns the device back to native.
     static func pendingWrite(desired: HIDPPSetup?, written: Bool) -> HIDPPSetup? {
