@@ -7,13 +7,13 @@
 
 <p align="center">Your mouse buttons, scroll wheel and Caps Lock, working the way you want and staying that way.</p>
 
-Hyperpoint is a macOS menu-bar app that does the job of BetterMouse and Karabiner-Elements in one place. Give any mouse
-button or gesture a new action, make the scroll wheel glide like a trackpad, and turn Caps Lock into a hyper key for app
-shortcuts.
+Hyperpoint is a macOS menu-bar app that does the job of BetterMouse and Karabiner-Elements in one place. Give your
+mouse's buttons and gestures new actions, make the scroll wheel glide like a trackpad, and turn Caps Lock into a hyper
+key for app shortcuts.
 
-Setting it up takes a click and a press. A mouse or keyboard you plug in shows up in Settings, ready to start from a
-preset made for it. Then click Add Rule and press the button you want to change. Your setup survives sleep and
-reconnects, even on mice that forget their settings, like the MX Master 3.
+Setting it up takes a click and a press. A mouse or keyboard you plug in shows up in Settings, where you set it up from
+a preset for its model, from another device's settings, or empty. Then click Add Rule and press the button you want to
+change. Your setup survives sleep and reconnects, even on mice that forget their settings, like the MX Master 3.
 
 ## Features
 

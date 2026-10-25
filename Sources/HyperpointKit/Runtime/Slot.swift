@@ -101,7 +101,8 @@ final class Slot {
                 return
             }
         }
-        session?.request(reason, plan: hidppWrites.send(desired: wanted.hidpp))
+        let plan = hidppWrites.send(desired: wanted.hidpp)
+        session?.request(reason, plan: plan)
     }
 
     private func hidppEvent(_ event: HIDPPEvent) {
