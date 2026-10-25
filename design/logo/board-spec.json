@@ -1,0 +1,55 @@
+{
+  "brand": "Hyperpoint",
+  "tagline": "Your mouse, your keys, every time it reconnects",
+  "brief": "A menu-bar app for macOS that replaces BetterMouse and Karabiner for one person's setup: MX Master buttons over HID++, a hyper key on Caps Lock, smooth scrolling with a tuned curve, and every setting re-applied the moment a device reconnects. It should feel precise, quiet and native.",
+  "adjectives": [
+    "precise",
+    "quiet",
+    "native",
+    "tactile"
+  ],
+  "criteria": "Success: reads as the Caps Lock key and a pointer at once, survives as an 18 pt menu-bar template icon, works in one colour.",
+  "industry": "software",
+  "mockups": [
+    "app-icon",
+    "readme",
+    "terminal",
+    "website",
+    "favicon-tab",
+    "sticker"
+  ],
+  "nav": [
+    "Features",
+    "Devices",
+    "Download"
+  ],
+  "brand_color": "#18181D",
+  "tile_color": "#18181D",
+  "greyscale": false,
+  "designer": "Claude for Emir",
+  "round": 5,
+  "concepts": [
+    {
+      "name": "Caps pointer",
+      "symbol": "svg/hyperpoint-symbol-color.svg",
+      "lockup": "svg/hyperpoint-horizontal-color.svg",
+      "symbol_on_tile": "svg/hyperpoint-symbol-color-on-dark.svg",
+      "symbol_on_dark": "svg/hyperpoint-symbol-color-on-dark.svg",
+      "lockup_on_dark": "svg/hyperpoint-horizontal-color-on-dark.svg",
+      "stacked_on_dark": "svg/hyperpoint-stacked-color-on-dark.svg",
+      "idea": "The Caps Lock glyph tipped over 22 degrees until it becomes a pointer.",
+      "rationale": [
+        "Caps Lock is the key Hyperpoint turns into hyper; the pointer is what it drives",
+        "Outlined like the real ⇪ legend, so it reads as a key glyph",
+        "The bar is the accent: the key's lit LED",
+        "Tilt makes it lively but costs clarity below 24 px"
+      ]
+    }
+  ],
+  "recommendation": "Caps pointer as the symbol, app icon and menu-bar icon, with the Inter Display wordmark.",
+  "next_steps": [
+    "Drop AppIcon.icns and the menu-bar template into the app",
+    "Check the menu-bar icon on a real display at 18 pt",
+    "Optional: custom-draw one letter of the wordmark for ownership"
+  ]
+}
