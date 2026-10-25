@@ -19,10 +19,12 @@ final class SettingsWindow {
 
     init(model: SettingsModel) { self.model = model }
 
-    /// Hyperpoint has no Dock icon, so the window has to bring the app forward itself.
+    /// Hyperpoint has no Dock icon, so the window has to bring the app forward itself. The page is measured in the
+    /// window, so the window exists before it takes the page's height.
     func show() {
         model.refreshLoginItem()
         NSApp.activate()
+        let window = self.window
         tabs.fitWindow(animated: false)
         window.makeKeyAndOrderFront(nil)
     }
@@ -99,22 +101,27 @@ final class SettingsWindow {
     }
 }
 
-/// One toolbar item and SwiftUI page per `SettingsTab`, and the window sized to the selected page. The pages report
-/// their own size, so the window animates to it both on a tab switch and when a page grows or shrinks.
+/// One toolbar item and SwiftUI page per `SettingsTab`, and the window sized to the selected page. A tab switch works
+/// like a native preferences window: the new page stays hidden while the window animates to its height, then shows.
+/// A page that grows or shrinks in place animates the window with it.
 private final class SettingsTabs: NSTabViewController {
     private let model: SettingsModel
-    /// A page reports its size once it has been laid out, which is the first time its tab is shown.
-    private var sizes: [SettingsTab: CGSize] = [:]
+    private var fits: [SettingsTab: PageFit] = [:]
+    /// The frame the window is animating to, so a second fit to the same frame does not restart the animation.
+    private var heading: NSRect?
+    private var nextFrame: CADisplayLink?
 
     init(model: SettingsModel) {
         self.model = model
         super.init(nibName: nil, bundle: nil)
         tabStyle = .toolbar
+        transitionOptions = []
         // Adding the first item selects it, which would overwrite the remembered tab.
         let remembered = model.tab
         for tab in SettingsTab.allCases {
-            let fit = FitPage { [weak self] size in self?.measured(tab, size) }
-            let page = NSHostingController(rootView: SettingsTabPage(tab: tab, model: model).environment(\.fitPage, fit))
+            let fit = PageFit { [weak self] in self?.resized(tab) }
+            fits[tab] = fit
+            let page = NSHostingController(rootView: SettingsTabPage(tab: tab, model: model).environment(\.pageFit, fit))
             page.sizingOptions = []
             page.title = tab.title
             let item = NSTabViewItem(viewController: page)
@@ -132,36 +139,74 @@ private final class SettingsTabs: NSTabViewController {
         set { selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: newValue) ?? 0 }
     }
 
+    /// Shown at the window's old height, the new page would be clipped and flash a scroll bar, so it is hidden until
+    /// the window has its height.
+    override func tabView(_ tabView: NSTabView, willSelect item: NSTabViewItem?) {
+        super.tabView(tabView, willSelect: item)
+        item?.view?.isHidden = view.window?.isVisible == true
+    }
+
+    /// Laying the hidden page out makes it report its size before the window starts moving.
     override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
         super.tabView(tabView, didSelect: item)
         model.tab = tab
+        item?.view?.layoutSubtreeIfNeeded()
         fitSoon()
     }
 
-    private func measured(_ tab: SettingsTab, _ size: CGSize) {
-        sizes[tab] = size
+    private func resized(_ tab: SettingsTab) {
         if tab == self.tab { fitSoon() }
     }
 
-    /// A tab switch and a SwiftUI update both apply a frame change at once instead of animating it, so the window
-    /// follows on the next turn of the run loop.
+    /// Started in the same turn of the run loop as a tab switch or a SwiftUI update, the window's animation often ends
+    /// on its first frame, so the window jumps. It starts on the next frame instead.
     private func fitSoon() {
-        Task { @MainActor [weak self] in self?.fitWindow(animated: self?.view.window?.isVisible == true) }
+        guard nextFrame == nil, let window = view.window, window.isVisible else { return }
+        nextFrame = window.displayLink(target: self, selector: #selector(fitOnFrame))
+        nextFrame?.add(to: .main, forMode: .common)
     }
 
-    /// Keeps the top edge in place, and stops at the bottom of the screen, where the page scrolls instead.
+    @objc private func fitOnFrame() { fitWindow(animated: true) }
+
+    /// Keeps the top edge in place, and stops at the bottom of the screen, where the page scrolls instead. Shows the
+    /// page once the window has its height. A page laid out outside the window reports its size at another scale, half
+    /// a point off, so it is laid out in the window first.
     func fitWindow(animated: Bool) {
-        guard let window = view.window, let size = sizes[tab] else { return }
+        nextFrame?.invalidate()
+        nextFrame = nil
+        guard let window = view.window, let fit = fits[tab] else { return }
+        tabView.selectedTabViewItem?.view?.layoutSubtreeIfNeeded()
+        guard let size = fit.size else { return }
         let screen = window.screen?.visibleFrame ?? .infinite
-        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        let content = NSSize(width: size.width, height: size.height.rounded(.up))
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: content))
+        let scrolls = frame.height > screen.height
+        if fit.scrolls != scrolls { fit.scrolls = scrolls }
         frame.size.height = min(frame.height, screen.height)
         frame.origin = NSPoint(x: window.frame.minX, y: max(window.frame.maxY - frame.height, screen.minY))
-        guard frame != window.frame else { return }
-        if animated {
-            NSAnimationContext.runAnimationGroup { _ in window.animator().setFrame(frame, display: true) }
-        } else {
+        guard animated, frame != window.frame else {
+            heading = nil
             window.setFrame(frame, display: true)
+            tabView.selectedTabViewItem?.view?.isHidden = false
+            return
         }
+        guard frame != heading else { return }
+        heading = frame
+        NSAnimationContext.runAnimationGroup { context in
+            // Short enough that a switch to the slowest page to attach, Buttons, still ends within 0.35 s.
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(frame, display: true)
+        } completionHandler: { [weak self, frame] in
+            MainActor.assumeIsolated { self?.arrived(at: frame) }
+        }
+    }
+
+    /// A later fit to another frame owns the page from here, so an overtaken animation leaves it alone.
+    private func arrived(at frame: NSRect) {
+        guard heading == frame else { return }
+        heading = nil
+        tabView.selectedTabViewItem?.view?.isHidden = false
     }
 }
 

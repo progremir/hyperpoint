@@ -5,7 +5,7 @@ Settings… (⌘,) opens a preferences window with a toolbar of five tabs: Gener
 ## Sub-features
 
 - `settings-open` opens and activates the window from the menu, on the tab the user had open last.
-- `settings-tabs` renders each tab and animates the window's height between them.
+- `settings-tabs` renders each tab and switches like a native preferences window: the new page stays hidden while the window animates to its height over 0.18 s, then shows. It is never clipped or scrolling unless it is taller than the screen.
 - `settings-device` shares one Device popup between Buttons and Scrolling. New mice say "(New)"; ignored devices are not listed.
 - `settings-rules` edits, adds and removes profile rules with pickers limited to valid choices.
 - `settings-graph` edits the speed curve by dragging points, saving on mouse-up.

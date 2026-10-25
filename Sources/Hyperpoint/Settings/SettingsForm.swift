@@ -1,15 +1,25 @@
 import HyperpointKit
 import SwiftUI
 
-/// Called with the page's full size whenever it changes, so the window can take its height.
-struct FitPage {
-    var fit: (CGSize) -> Void
+/// A page's link to the window. The page reports its full size whenever it changes, so the window can take its
+/// height, and the window says whether it stopped at the bottom of the screen, the only time the page scrolls.
+@MainActor
+@Observable
+final class PageFit {
+    @ObservationIgnored private(set) var size: CGSize?
+    var scrolls = false
+    @ObservationIgnored private let resized: () -> Void
 
-    func callAsFunction(_ size: CGSize) { fit(size) }
+    init(resized: @escaping () -> Void) { self.resized = resized }
+
+    func report(_ size: CGSize) {
+        self.size = size
+        resized()
+    }
 }
 
 extension EnvironmentValues {
-    @Entry var fitPage = FitPage { _ in }
+    @Entry var pageFit: PageFit?
 }
 
 /// One tab's page at the window's fixed width. The window takes the page's height, and the page scrolls only when
@@ -18,7 +28,7 @@ extension EnvironmentValues {
 struct SettingsPage<Content: View>: View {
     let model: SettingsModel
     @ViewBuilder var content: Content
-    @Environment(\.fitPage) private var fitPage
+    @Environment(\.pageFit) private var pageFit
 
     var body: some View {
         ScrollView {
@@ -46,9 +56,12 @@ struct SettingsPage<Content: View>: View {
             .frame(width: 584)
             .padding(.horizontal, 28)
             .padding(.vertical, 20)
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { fitPage($0) }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { pageFit?.report($0) }
         }
         .scrollBounceBehavior(.basedOnSize)
+        // While the window grows to a page that grew, the page is briefly taller than the window but has nothing to
+        // scroll to.
+        .scrollIndicators(pageFit?.scrolls == true ? .automatic : .never)
         .frame(width: 640)
     }
 }
