@@ -1,8 +1,8 @@
-name: Release
+name: Release DMG
 
+# Releases are published from a Mac with the signing certificate (scripts/release.sh <version> --publish).
+# This only checks that the pipeline still builds a DMG, signed ad-hoc, and keeps it as an artifact.
 on:
-  push:
-    tags: ["v*"]
   pull_request:
     paths:
       - scripts/build-app.sh
@@ -12,60 +12,24 @@ on:
       - .github/workflows/release.yml
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   dmg:
     runs-on: xcode-27
+    env:
+      SIGN_IDENTITY: "-"
+      ALLOW_ADHOC: "1"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Import signing certificate
-        env:
-          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
-          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-          IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+      - name: Build DMG
         run: |
-          if [[ -z "$CERT_P12" ]]; then
-            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-              echo "::error::A release needs MACOS_CERT_P12, MACOS_CERT_PASSWORD and SIGN_IDENTITY"
-              exit 1
-            fi
-            echo "::warning::No signing certificate: building an ad-hoc DMG to check the pipeline"
-            echo "SIGN_IDENTITY=-" >> "$GITHUB_ENV"
-            echo "ALLOW_ADHOC=1" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          rm "$RUNNER_TEMP/cert.p12"
-          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-
-      - name: Build DMG, and publish it for a tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-            scripts/release.sh "${GITHUB_REF_NAME#v}" --publish
-          else
-            VERSION="$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)-ci.$GITHUB_RUN_NUMBER"
-            echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-            scripts/release.sh "$VERSION"
-          fi
+          VERSION="$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)-ci.$GITHUB_RUN_NUMBER"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          scripts/release.sh "$VERSION"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Hyperpoint-${{ env.VERSION }}
           path: dist/
-

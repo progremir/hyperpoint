@@ -68,14 +68,14 @@ build under test and reads device state back as proof.
 ### Releasing
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+scripts/release.sh 0.2.0 --publish
 ```
 
-The tag runs `.github/workflows/release.yml`, which builds `Hyperpoint-0.2.0.dmg` with `scripts/release.sh` and
-publishes it with its SHA-256 to a GitHub release. The workflow signs with the certificate in the `MACOS_CERT_P12`
-(base64 `.p12`), `MACOS_CERT_PASSWORD` and `SIGN_IDENTITY` secrets and fails a tag without them. Pull requests that touch
-the pipeline build an ad-hoc DMG as an artifact. `scripts/release.sh 0.2.0 --publish` does the same from this Mac.
-The installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+This builds `dist/Hyperpoint-0.2.0.dmg`, signed like `bundle.sh`, tags the pushed HEAD `v0.2.0` and publishes the DMG
+with its SHA-256 to a GitHub release. It refuses to publish with uncommitted changes or an unpushed HEAD. Drop
+`--publish` to only build the DMG. Pull requests that touch the pipeline run `.github/workflows/release.yml`, which
+builds an ad-hoc DMG on CI as an artifact. The installer window is drawn by `design/installer/build.py`;
+`design/installer/preview.png` shows it mounted.
 
 ## Design
 

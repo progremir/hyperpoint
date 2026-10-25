@@ -1,12 +1,17 @@
 #!/bin/zsh
 # Builds dist/Hyperpoint-<version>.dmg, the drag-to-Applications installer, and with --publish uploads it to a
-# GitHub release tagged v<version>. Signs with $SIGN_IDENTITY like build-app.sh.
+# GitHub release, tagging the pushed HEAD v<version>. Signs with $SIGN_IDENTITY like build-app.sh.
 set -euo pipefail
 cd "${0:A:h}/.."
 
 VERSION="${1:?usage: release.sh <version> [--publish]}"
 PUBLISH="${2:-}"
 [[ "$VERSION" =~ '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' ]] || { print -u2 "not a version: $VERSION"; exit 1 }
+
+if [[ "$PUBLISH" == --publish ]]; then
+  git diff --quiet HEAD || { print -u2 "commit or stash local changes before publishing"; exit 1 }
+  [[ -n "$(git branch -r --contains HEAD)" ]] || { print -u2 "push HEAD before publishing"; exit 1 }
+fi
 
 DIST="$PWD/dist"
 DMG="$DIST/Hyperpoint-$VERSION.dmg"
@@ -34,5 +39,5 @@ if [[ "$PUBLISH" == --publish ]]; then
   PRERELEASE=()
   [[ "$VERSION" == *-* ]] && PRERELEASE=(--prerelease)
   gh release create "v$VERSION" "$DMG" "$DMG.sha256" --title "Hyperpoint $VERSION" --generate-notes \
-    --verify-tag "${PRERELEASE[@]}"
+    --target "$(git rev-parse HEAD)" "${PRERELEASE[@]}"
 fi
