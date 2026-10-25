@@ -14,7 +14,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         self.model = model
         presentation = MenuPresentation(nil, time: Self.time)
         super.init()
-        let image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "Hyperpoint")
+        // The bundle carries the logo's menu-bar cut; a bare `swift run` has no Resources, so fall back to a symbol.
+        let image = Bundle.main.image(forResource: "MenuBarTemplate")
+            ?? NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "Hyperpoint")
         image?.isTemplate = true
         item.button?.image = image
         menu.autoenablesItems = false
