@@ -73,6 +73,7 @@ The rules for the file:
 - A rule is `control`, `when`, `do`. Which `when` values a control accepts depends on its kind, and the parser rejects a rule that cannot work, with its path (for example `devices[1].rules[0].when`).
 - A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
+- A key a mouse sends can be held as a modifier (`"when": "hold"`, `"do": { "modifier": … }`) or click a shortcut, not both. The modifier is mapped at the HID layer, so the key has no click left to give.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
 - A profile comes only from Set Up, which starts it from a preset, from a copy of another profile, or empty. The file never records which, so changing a preset later leaves every saved profile as it is.
@@ -104,7 +105,7 @@ A 0x1D4B notification with the reconfigure flag, a config save, a permission gra
 
 The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-results)).
 
-The 2.4G mouse uses the same mechanism. Its Escape maps straight to Right Option at the HID layer, so holding it is a real held modifier and it works in password fields. Its Return maps to a carrier key, which the tap rewrites to ⌥⇧S.
+The 2.4G mouse uses the same mechanism. Its keyboard interface gets `UserKeyMapping` the same way. Escape maps straight to Right Option (0xE6) at the HID layer, a `.native` route, so holding it is a real held modifier and it works in password fields. Return maps to F13, a carrier whose meaning is `.press(⌥⇧S)`. The tap drops F13's key-down and has `ActionPerformer` post ⌥⇧S, and it drops the key's repeats and its key-up too. Without the Accessibility grant there is no tap, so Return is left as Return while Escape still becomes Right Option.
 
 ## Shape
 
@@ -134,7 +135,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
 | `KeyRoute` | One remap, from a source usage to `.native(usage)` or `.carrier(Carrier, CarrierMeaning)`. The hidutil JSON and the tap's carrier rules both derive from the same `[KeyRoute]`. |
-| `Carrier` | A reserved F13 to F24 key. Hyper is F18. Key rules get carriers from the rest of the pool, assigned in a stable order by `Intent.compile`. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
+| `Carrier` | A reserved F13 to F24 key. Hyper is F18. Each shortcut that a key rule clicks gets one carrier from the rest of the pool, in file order, so a device that connects or leaves never moves another device's carrier. A rule past the seventh shortcut is skipped. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
 | `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. |
 | `EngineStatus` | One immutable value the UI renders. Run state, permissions, per-device link, last apply and capabilities, new devices, learned control, last hyper chord. |
 
@@ -302,7 +303,7 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 - We accept private API in three places (CGS symbolic hotkeys, `IOHIDEventGetSenderID`, and `CGEventSetHIDEvent` if v2 ever wants follow-the-finger swipes), in exchange for honouring the user's own Mission Control shortcuts and per-device pointer settings.
 - We accept spawning `/usr/bin/hidutil` on device appearance and config change, in exchange for a documented interface instead of private SPI.
 - We accept a read-only settings window while the file is invalid, in exchange for never overwriting a hand edit in progress.
-- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything.
+- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch.
 - We accept that an older app cannot read a newer file, in exchange for unknown keys being errors.
 
 ## Alternatives considered

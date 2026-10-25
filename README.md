@@ -21,7 +21,7 @@ device should be in from that file and writes all of it back whenever a device a
 - **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset gives it to the
   right button, and any button can be given the rule.
 - **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
-  modifiers or shortcuts.
+  modifiers or shortcuts. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
   to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
 

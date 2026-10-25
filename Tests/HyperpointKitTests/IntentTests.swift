@@ -92,6 +92,12 @@ import Testing
         #expect(KeyMapSetup.pendingWrite(desired: hyper, written: written) == hyper)
     }
 
+    @Test func aMouseMapWithACarrierIsClearedWhole() {
+        let returnToF13 = KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0068)
+        let written = KeyMapSetup.hyperpointLeftover(in: [escapeToRightOption, returnToF13])
+        #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == .neutral, "the write replaces both pairs")
+    }
+
     @Test func aForeignMapIsLeftAloneWhenNothingIsWanted() {
         let written = KeyMapSetup.hyperpointLeftover(in: [escapeToRightOption])
         #expect(KeyMapSetup.pendingWrite(desired: .neutral, written: written) == nil)
@@ -425,6 +431,123 @@ import Testing
         let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac + [mouse])
         #expect(Config.example.profile(for: mouse.properties) == nil)
         #expect(intent.tap.smoothScroll.isEmpty && intent.tap.buttons.isEmpty)
+    }
+}
+
+@Suite struct KeyRuleIntentTests {
+    static let escape = HIDUsage(name: "escape")!
+    static let enter = HIDUsage(name: "return")!
+    static let optShiftS = Action.shortcut(Chord(key: KeyCode(name: "s")!, modifiers: [.option, .shift]))
+
+    let keysService: UInt64 = 0x1_0005_2151
+    let pointerService: UInt64 = 0x1_0005_214E
+    var mouse: PresentDevice { present(6, Bags.mouse24GKeys, services: [pointerService, keysService]) }
+    var presetMap: KeyMapSetup {
+        KeyMapSetup(routes: [
+            KeyRoute(source: Self.escape, target: .native(HeldModifier.rightOption.usage)),
+            KeyRoute(source: Self.enter, target: .carrier(.f13, .press(Self.optShiftS))),
+        ])
+    }
+
+    func compile(_ present: [PresentDevice], config: Config = .example, tapAvailable: Bool = true) -> Intent {
+        Intent.compile(config, paused: false, tapAvailable: tapAvailable, present: present)
+    }
+
+    @Test func the24GPresetHoldsRightOptionAtTheHIDLayerAndClicksThroughACarrier() {
+        let intent = compile(thisMac + [mouse])
+        #expect(intent.setup(for: mouse.id) == DeviceSetup(keyMap: presetMap, hidpp: nil))
+        #expect(intent.skipped.isEmpty)
+        #expect(
+            intent.setup(for: mouse.id).keyMap.pairs == [
+                KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_00E6),
+                KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0068),
+            ])
+        #expect(
+            intent.tap.carriers == [
+                Carrier.hyper.keyCode: CarrierMeaning.holdModifiers(.hyper), Carrier.f13.keyCode: .press(Self.optShiftS),
+            ],
+            "Right Option needs no tap rule")
+    }
+
+    @Test func theModifiersAreTheKeyboardPagesLastEight() {
+        #expect(HeldModifier.allCases.map(\.usage.rawValue) == Array(0xE0...0xE7))
+        #expect(HeldModifier.rightOption.usage.rawValue == 0xE6)
+    }
+
+    @Test func the24GMapIsTheSameWhicheverInterfaceComesFirst() {
+        let keys = (UInt64(0x2150), HIDProperties(bag: Bags.mouse24GKeys), SenderID(rawValue: keysService))
+        let pointer = (UInt64(0x214D), HIDProperties(bag: Bags.mouse24GPointer), SenderID(rawValue: pointerService))
+        for interfaces in [[pointer, keys], [keys, pointer]] {
+            var roster = DeviceRoster()
+            for (interface, properties, service) in interfaces {
+                _ = roster.interfaceAppeared(interface, properties: properties, services: [service])
+            }
+            let intent = compile(roster.devices)
+            #expect(roster.devices.map { intent.setup(for: $0.id).keyMap } == [presetMap])
+        }
+    }
+
+    @Test func withoutTheTapEscapeStillHoldsRightOptionAndReturnStaysReturn() {
+        let intent = compile([mouse], tapAvailable: false)
+        #expect(intent.setup(for: mouse.id).keyMap == KeyMapSetup(routes: [presetMap.routes[0]]))
+        #expect(intent.tap.isEmpty)
+        #expect(intent.skipped.isEmpty, "the rule comes back with the tap, so it is not skipped")
+    }
+
+    @Test func pausedClearsTheMouseMap() {
+        let intent = Intent.compile(.example, paused: true, tapAvailable: true, present: [mouse])
+        #expect(intent.setup(for: mouse.id) == .neutral)
+    }
+
+    @Test func aClickCarrierDependsOnTheFileNotOnWhatIsConnected() {
+        let alone = compile([mouse])
+        #expect(alone.setup(for: mouse.id) == compile(thisMac + [mouse]).setup(for: mouse.id))
+        #expect(alone.setup(for: mouse.id) == compile([mouse] + thisMac.reversed()).setup(for: mouse.id))
+        #expect(alone.tap.carriers == [Carrier.f13.keyCode: .press(Self.optShiftS)])
+    }
+
+    @Test func keyRulesShareACarrierPerActionAndNeverTakeHypers() {
+        var config = Config.example
+        let other = DeviceMatch(identifying: HIDProperties(bag: Bags.magicKeyboard))
+        let clicks = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"].map {
+            Rule(
+                control: .key(HIDUsage(name: $0)!), trigger: .click,
+                action: .shortcut(Chord(key: KeyCode(name: $0)!, modifiers: [.command])))
+        }
+        config.devices[3] = DeviceProfile(
+            match: other, name: "Magic Keyboard",
+            rules: [Rule(control: .key(Self.escape), trigger: .click, action: Self.optShiftS)] + clicks, hyper: true)
+        let magic = thisMac[1]
+        let intent = compile([mouse, magic], config: config)
+        let routes = intent.setup(for: magic.id).keyMap.routes
+        #expect(routes.first == .hyper(from: capsLock))
+        let carriers = routes.dropFirst().map(\.destination)
+        #expect(carriers.first == Carrier.f13.usage, "the same action as the mouse's Return")
+        #expect(!carriers.contains(Carrier.hyper.usage), "F18 is hyper's alone")
+        #expect(Set(carriers).count == carriers.count)
+        #expect(intent.skipped[magic.id] == [clicks[6], clicks[7]], "seven carriers, the first for opt+shift+s")
+    }
+
+    @Test func aKeyRuleOnTheHyperKeyIsSkipped() {
+        var config = Config.example
+        let rule = Rule(control: .key(capsLock), trigger: .hold, action: .modifier(.leftControl))
+        config.devices[3].rules = [rule]
+        let intent = compile([thisMac[1]], config: config)
+        #expect(intent.setup(for: thisMac[1].id).keyMap == KeyMapSetup(routes: [.hyper(from: capsLock)]))
+        #expect(intent.skipped[thisMac[1].id] == [rule])
+    }
+
+    @Test func keyRulesOnAMouseWithoutKeysAreSkipped() {
+        var config = Config.example
+        let rules = DevicePreset.mouse24G.profile(for: .builtIn, name: "").rules!
+        config.devices.append(
+            DeviceProfile(
+                match: DeviceMatch(identifying: HIDProperties(bag: Bags.plainMouse)), name: "USB Optical Mouse",
+                rules: rules))
+        let plain = present(5, Bags.plainMouse, services: [0x1_0004_1000])
+        let intent = compile([plain], config: config)
+        #expect(intent.setup(for: plain.id) == .neutral)
+        #expect(intent.skipped[plain.id] == rules)
     }
 }
 
