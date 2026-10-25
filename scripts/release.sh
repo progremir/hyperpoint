@@ -39,11 +39,17 @@ VENV=.build/dmgbuild-venv
 
 mkdir -p "$DIST"
 rm -f "$DMG"
-$VENV/bin/dmgbuild -s scripts/dmg-settings.py \
-  -D app="$STAGE/Hyperpoint.app" \
-  -D background="$PWD/design/installer/background.tiff" \
-  -D volume_icon="$PWD/design/logo/macos/AppIcon.icns" \
-  Hyperpoint "$DMG"
+# hdiutil create now and then fails with "Bad file descriptor" on CI runners, so it is retried.
+for attempt in 1 2 3; do
+  $VENV/bin/dmgbuild -s scripts/dmg-settings.py \
+    -D app="$STAGE/Hyperpoint.app" \
+    -D background="$PWD/design/installer/background.tiff" \
+    -D volume_icon="$PWD/design/logo/macos/AppIcon.icns" \
+    Hyperpoint "$DMG" && break
+  (( attempt < 3 )) || exit 1
+  print -u2 "dmgbuild failed, retrying"
+  sleep 5
+done
 
 # Without notarization the image stays unsigned: Gatekeeper refuses to open a downloaded DMG signed with an Apple
 # Development certificate, but mounts an unsigned one.
