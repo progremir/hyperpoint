@@ -30,7 +30,7 @@ struct SettingsDevice: Identifiable, Equatable {
         let profiles = (config?.devices ?? []).map { profile in
             let status = status?.devices.first { $0.match == profile.match }
             return SettingsDevice(
-                match: profile.match, name: profile.name, kind: status?.kind ?? kind(of: profile), profile: profile,
+                match: profile.match, name: profile.name, kind: kind(of: profile, status: status), profile: profile,
                 status: status)
         }
         let new = (status?.newDevices ?? []).filter { device in
@@ -42,9 +42,10 @@ struct SettingsDevice: Identifiable, Equatable {
             }
     }
 
-    /// A profile for a device that is not connected says what it is by what it sets.
-    static func kind(of profile: DeviceProfile) -> DeviceKind {
-        profile.match == .builtIn || profile.hyper != nil ? .keyboard : .mouse
+    /// The kind the user chose. Otherwise a connected device says what it is, and a profile for a device that is not
+    /// connected says it by what it sets.
+    static func kind(of profile: DeviceProfile, status: DeviceStatus? = nil) -> DeviceKind {
+        profile.kind ?? status?.kind ?? (profile.match == .builtIn || profile.hyper != nil ? .keyboard : .mouse)
     }
 
     func card(paused: Bool, time: (Date) -> String) -> StatusCard {

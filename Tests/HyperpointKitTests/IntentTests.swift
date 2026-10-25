@@ -551,7 +551,46 @@ import Testing
     }
 }
 
+@Suite struct ChosenKindIntentTests {
+    let hyperMap = KeyMapSetup(routes: [.hyper(from: capsLock)])
+
+    @Test func aDeviceChosenAsAKeyboardHostsHyperOnItsKeys() {
+        var config = Config.example
+        config.devices[0].kind = .keyboard
+        config.devices[0].hyper = true
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
+        #expect(intent.setup(for: thisMac[2].id).keyMap == hyperMap, "the MX's keyboard collection takes the map")
+    }
+
+    @Test func aKeyboardChosenAsAMouseHasNoHyper() {
+        var config = Config.example
+        config.devices[3].kind = .mouse
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
+        #expect(intent.setup(for: thisMac[1].id).keyMap == .neutral)
+        #expect(intent.setup(for: thisMac[0].id).keyMap == hyperMap, "the other keyboard keeps it")
+    }
+
+    @Test func aMouseWithoutKeysHasNoHyperEvenAsAKeyboard() {
+        var config = Config.example
+        let mouse = present(5, Bags.plainMouse)
+        config.devices.append(
+            DeviceProfile(
+                match: DeviceMatch(identifying: mouse.properties), name: "USB Optical Mouse", kind: .keyboard, hyper: true))
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mouse])
+        #expect(intent.setup(for: mouse.id).keyMap == .neutral, "no keyboard collection to map")
+    }
+}
+
 @Suite struct DeviceKindTests {
+    @Test func aChosenKindOverridesTheInterfaces() {
+        let keys = HIDProperties(bag: Bags.mouse24GKeys)
+        let match = DeviceMatch(identifying: keys)
+        #expect(DeviceProfile(match: match, name: "2.4G Mouse").kind(of: keys) == .keyboard, "its keys decide")
+        #expect(DeviceProfile(match: match, name: "2.4G Mouse", kind: .mouse).kind(of: keys) == .mouse)
+        let builtIn = HIDProperties(bag: Bags.builtInKeyboard)
+        #expect(DeviceProfile(match: .builtIn, name: "Built-in", kind: .mouse).kind(of: builtIn) == .mouse)
+    }
+
     @Test func aPlainMouseIsAMouseThatSpeaksNoHIDPP() {
         let mouse = HIDProperties(bag: Bags.plainMouse)
         #expect(mouse.kind == .mouse && !mouse.hostsHyper && !mouse.speaksHIDPP && !mouse.isTrackpad)

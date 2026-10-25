@@ -197,7 +197,7 @@ public final class Engine {
             let device = present.first { config?.profile(for: $0.properties) == profile }
             let slot = device.flatMap { slots[$0.id] }
             return DeviceStatus(
-                name: profile.name, match: profile.match, kind: device?.properties.kind,
+                name: profile.name, match: profile.match, kind: device.map { profile.kind(of: $0.properties) },
                 transport: device?.properties.transport, connectedAt: slot?.connectedAt,
                 hyper: profile.hyper == true ? slot.map(Self.hyperStatus) ?? .off : nil,
                 hidpp: slot.flatMap(hidppStatus))

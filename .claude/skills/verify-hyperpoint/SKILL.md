@@ -18,6 +18,13 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Only one session may verify at a time, because `verify.sh build` in any worktree replaces `~/Applications/Hyperpoint.app` for every session. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
+Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
+`hyper-check`, `record` and `settings-*` take it for this worktree and refresh it. When another worktree holds it they
+wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
+`verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
+with `verify.sh unlock` at the end of the run. A lock idle for 20 minutes (`HYPERPOINT_LOCK_STALE`) is taken over by
+the next run. `doctor`, `state`, `log` and `replay` never need it.
+
 Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hidutil` mappings have no effect while it runs), and BetterMouse diverts the same MX controls. `doctor` lists them. Do not quit them yourself; ask the user.
 
 ## Launch
@@ -55,6 +62,7 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 | `verify.sh settings-shots` | relaunches with `-snapshotSettings <dir>`; the app renders every settings tab to PNG itself, in light then dark, while `helpers/window-heights.swift` records the window's on-screen height to `settings-heights.txt` | none (the shell has no Screen Recording grant, so `screencapture` fails here) |
 | `verify.sh settings-switches` | presses every settings tab from every other tab, switches the Device popup on Buttons and Scrolling, and opens Scrolling on the shortest screen, while `helpers/tab-switches.swift` samples the on-screen window height and the incoming page (clipped, scroll bar) at 120 Hz; one verdict line per change in `settings-switches.txt` | Settings open or openable from the menu; this shell's Accessibility grant |
 | `verify.sh set-up "<button>" ["<item>"]` | presses a new device's Set Up button on the Devices tab through Accessibility, or opens its menu and chooses the item; each line goes to `set-up.txt` | Settings open or openable from the menu; this shell's Accessibility grant; a device shown as new |
+| `verify.sh replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]` | the real scroll animator on recorded wheel steps, with the config's smooth scrolling and each listed change: stops, swing, lag, and every posted frame in `replay.json`. Set `HYPERPOINT_REPLAY_CONFIG` to use another config file | a `record wheel` file; no installed app, device or grant, so it never disturbs another session's run |
 | `verify.sh log [10m]` | Hyperpoint's unified log (`subsystem dev.emir.hyperpoint`, categories `devices` and `menu`) | none |
 
 The probe (`helpers/probe.swift`) installs as `~/Applications/HyperpointProbe.app`, signed with identifier `dev.emir.hyperpoint.probe`, so its Accessibility grant survives rebuilds. If it reports `accessibilityTrusted=false`, stop and ask the user to grant it.
@@ -79,5 +87,6 @@ The app's own log says what it attempted. The read-backs say what the device hol
 
 - Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
 - End every run with the build under test **running**: `verify.sh launch` after any quit. The user depends on it.
+  Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.
 - Leave `.verify-evidence/` in place. It is the proof.

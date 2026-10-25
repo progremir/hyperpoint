@@ -20,6 +20,7 @@ enum SettingsEdit: Equatable, Sendable {
     case addDevice(DeviceMatch, name: String, ProfileSource)
     case hyperOn(DeviceMatch, Bool)
     case rename(DeviceMatch, String)
+    case kind(DeviceMatch, DeviceKind)
     case addRule(DeviceMatch, Rule)
     case replaceRule(DeviceMatch, RuleKey, Rule)
     case removeRule(DeviceMatch, RuleKey)
@@ -63,6 +64,8 @@ enum SettingsEdit: Equatable, Sendable {
             let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { break }
             config.editProfile(match) { $0.name = name }
+        case .kind(let match, let kind):
+            config.editProfile(match) { $0.kind = kind }
         case .addRule(let match, let rule):
             config.editProfile(match) { $0.rules = ($0.rules ?? []) + [rule] }
         case .replaceRule(let match, let key, let rule):
@@ -116,6 +119,7 @@ enum SettingsEdit: Equatable, Sendable {
         case .addDevice(let match, _, .blank): "devices += \(Self.json(match)) blank"
         case .hyperOn(let match, let on): "\(Self.profile(match)).hyper = \(on)"
         case .rename(let match, let name): "\(Self.profile(match)).name = \(Self.json(name))"
+        case .kind(let match, let kind): "\(Self.profile(match)).kind = \(kind.rawValue)"
         case .addRule(let match, let rule): "\(Self.profile(match)).rules += \(Self.json(rule))"
         case .replaceRule(let match, let key, let rule):
             "\(Self.profile(match)).rules[\(Self.json(key.control)) \(key.trigger.name)] = \(Self.json(rule))"

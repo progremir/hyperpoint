@@ -124,6 +124,36 @@ enum SmoothKnob: String, CaseIterable, Sendable {
     }
 }
 
+/// A glide that ends before the next wheel step of a slow roll, so the page lurches on every step and stops before the
+/// next one. Replaying recorded rolls showed it at duration 1 and 2 with a 10 ms ease-in, and not at 3.
+struct SlowRollStutter: Equatable {
+    /// Steps per second at the slow end of the slow band the speed graph shades.
+    static let slowRoll = CurveGraph.bands[0].rates.lowerBound
+
+    /// How long one step glides, in seconds.
+    let glide: Double
+    /// The shortest duration, in tenths of a second, that carries a step to the next one.
+    let smoothDuration: Double
+
+    init?(_ smooth: SmoothScroll) {
+        glide = smooth.easeIn / 1000 + smooth.duration / 10
+        let gap = 1 / Self.slowRoll
+        guard glide < gap - 1e-9 else { return nil }
+        smoothDuration = min(SmoothScroll.durationRange.upperBound, ((gap - smooth.easeIn / 1000) * 10 - 1e-9).rounded(.up))
+    }
+
+    var headline: String { "Slow scrolling will stutter" }
+
+    func detail(locale: Locale = .current) -> String {
+        let glide = KnobUnit.tenthsOfASecond.format(glide * 10, locale: locale)
+        let below = (1 / self.glide).formatted(.number.locale(locale).precision(.fractionLength(0)))
+        let fix = KnobUnit.tenthsOfASecond.format(smoothDuration, locale: locale)
+        return "Each wheel step glides for \(glide), so when you roll slower than about \(below) steps a second the page "
+            + "lurches on each step and stops before the next. Set Glide after you stop to \(fix) or more. A longer ease "
+            + "into each step does not help."
+    }
+}
+
 enum HoldScrollKnob {
     static let title = "Scroll speed"
     static let detail = "How far the page moves for how far you move the mouse. At 1× it follows your hand."

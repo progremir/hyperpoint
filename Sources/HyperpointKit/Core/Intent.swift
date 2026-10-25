@@ -30,7 +30,9 @@ struct Intent: Equatable, Sendable {
                 for sender in device.eventServices { buttons[ButtonKey(sender: sender, button: button)] = behavior }
             }
             var routes: [KeyRoute] = []
-            if profile.hyper == true, tapAvailable, device.properties.hostsHyper {
+            if profile.hyper == true, tapAvailable, profile.kind(of: device.properties) == .keyboard,
+                device.properties.usagePairs.contains(.keyboard)
+            {
                 routes.append(.hyper(from: config.hyper.key))
             }
             let keys = Self.keyRoutes(profile, on: device, carriers: carriers, tapAvailable: tapAvailable, taken: routes)
