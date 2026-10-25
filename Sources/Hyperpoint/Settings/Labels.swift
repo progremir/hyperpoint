@@ -108,6 +108,25 @@ enum Labels {
         }
     }
 
+    /// Under a hold rule, what stays down while the button or key is held.
+    static func heldKeys(_ action: Action) -> String? {
+        switch action {
+        case .modifier(let held):
+            "\(modifier(held)) stays down while you hold it, so a click meanwhile is a \(modifierSymbol(held))-click."
+        case .shortcut(let chord): "\(Self.chord(chord)) stays down while you hold it, and goes up when you let go."
+        case .system, .reverse, .scroll: nil
+        }
+    }
+
+    private static func modifierSymbol(_ held: HeldModifier) -> String {
+        switch held {
+        case .leftControl, .rightControl: "⌃"
+        case .leftOption, .rightOption: "⌥"
+        case .leftShift, .rightShift: "⇧"
+        case .leftCommand, .rightCommand: "⌘"
+        }
+    }
+
     /// Under a hold-and-move scroll rule, what the button still does on a quick press.
     static func holdToScroll(control: Control, hasClickRule: Bool) -> String {
         let press =

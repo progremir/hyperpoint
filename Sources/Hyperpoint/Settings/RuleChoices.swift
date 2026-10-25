@@ -25,8 +25,9 @@ struct RuleChoices {
     /// A new shortcut rule needs some chord before the user records one.
     static let placeholderChord = Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command])
 
+    /// A hold lists its modifiers before a shortcut, so a click rule turned into a hold starts by holding one key.
     static let actions: [Action] =
-        SystemAction.allCases.map(Action.system) + [.shortcut(placeholderChord)] + HeldModifier.allCases.map(Action.modifier)
+        SystemAction.allCases.map(Action.system) + HeldModifier.allCases.map(Action.modifier) + [.shortcut(placeholderChord)]
         + [.reverse, .scroll]
 
     /// The standard HID++ control of each plain button, so a Logitech mouse that reports a button it cannot divert

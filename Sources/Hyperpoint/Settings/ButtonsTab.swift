@@ -123,6 +123,8 @@ private struct Rules: View {
                                 control: rule.control,
                                 hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click }))
                         .padding(.leading, RuleRow.controlWidth + 10)
+                    } else if rule.trigger == .hold, let held = Labels.heldKeys(rule.action) {
+                        Explanation(held).padding(.leading, RuleRow.controlWidth + 10)
                     }
                 }
             }

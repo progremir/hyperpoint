@@ -24,9 +24,10 @@ let mxCapabilities = HIDPPCapabilities(
 
     @Test func eachControlKindOffersItsOwnTriggersAndActions() {
         let fresh = RuleChoices(rules: [], capabilities: mxCapabilities, speaksHIDPP: true)
-        #expect(fresh.triggers(for: gestureButton) == [.click] + Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
+        #expect(
+            fresh.triggers(for: gestureButton) == [.click, .hold] + Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
         #expect(fresh.actions(for: gestureButton, on: .holdMove(nil)) == [.scroll])
-        #expect(fresh.triggers(for: .button(1)) == [.click, .holdMove(nil)])
+        #expect(fresh.triggers(for: .button(1)) == [.click, .hold, .holdMove(nil)])
         #expect(fresh.actions(for: .button(1), on: .holdMove(nil)) == [.scroll])
         #expect(fresh.actions(for: gestureButton, on: .click).contains(.system(.missionControl)))
         #expect(!fresh.actions(for: gestureButton, on: .click).contains(.modifier(.rightOption)))
@@ -62,10 +63,34 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(scrolling.triggers(for: topButton, besides: scroll) == Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
     }
 
+    @Test func aHeldButtonOffersEachModifierThenAShortcut() {
+        let fresh = RuleChoices(rules: [], capabilities: mxCapabilities, speaksHIDPP: true)
+        let held = HeldModifier.allCases.map(Action.modifier) + [.shortcut(RuleChoices.placeholderChord)]
+        #expect(fresh.actions(for: gestureButton, on: .hold) == held)
+        #expect(fresh.actions(for: .button(1), on: .hold) == held)
+    }
+
+    @Test func aHoldRulesOutAClickAndMoves() {
+        let back = Control.hidpp(CID(rawValue: 0x53))
+        let hold = Rule(control: back, trigger: .hold, action: .modifier(.leftCommand))
+        let holding = RuleChoices(rules: [hold], capabilities: mxCapabilities, speaksHIDPP: true)
+        #expect(holding.triggers(for: back).isEmpty, "the keys are down from the press, so nothing else can happen")
+        #expect(holding.triggers(for: back, besides: hold) == [.click, .hold] + Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
+        let clicking = RuleChoices(rules: [Rule(control: back, trigger: .click, action: .system(.appExpose))], capabilities: mxCapabilities, speaksHIDPP: true)
+        #expect(!clicking.triggers(for: back).contains(.hold))
+    }
+
+    @Test func aClickTurnedIntoAHoldHoldsItsShortcutOrAModifier() {
+        let top = mxRules.first { $0.control == topButton }!
+        #expect(mxChoices.rule(top, withTrigger: .hold) == Rule(control: topButton, trigger: .hold, action: top.action))
+        let back = Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft))
+        #expect(choices24G.rule(back, withTrigger: .hold) == Rule(control: .button(3), trigger: .hold, action: .modifier(.leftControl)))
+    }
+
     @Test func aControlWithoutRawMovementOffersNoSwipes() {
         let noRawXY = HIDPPCapabilities(controls: [.init(cid: CID(rawValue: 0x53), divertable: true, rawXY: false)], thumbWheel: false)
         let choices = RuleChoices(rules: [], capabilities: noRawXY, speaksHIDPP: true)
-        #expect(choices.triggers(for: .hidpp(CID(rawValue: 0x53))) == [.click])
+        #expect(choices.triggers(for: .hidpp(CID(rawValue: 0x53))) == [.click, .hold])
     }
 
     @Test func aPressedButtonGetsItsFirstFreeTrigger() {
