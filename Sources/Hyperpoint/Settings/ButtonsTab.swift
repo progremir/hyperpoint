@@ -75,6 +75,8 @@ private struct StatusLine: View {
 private struct Rules: View {
     let model: SettingsModel
     let device: SettingsDevice
+    /// One row at a time records a shortcut, since its key monitor takes every key the window gets.
+    @State private var recordingShortcut: RuleKey?
 
     var body: some View {
         let choices = model.choices(for: device)
@@ -105,6 +107,9 @@ private struct Rules: View {
                     RuleRow(
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
                         highlighted: note?.highlights(rule) == true,
+                        recordingShortcut: Binding(
+                            get: { recordingShortcut == RuleKey(rule) },
+                            set: { recordingShortcut = $0 ? RuleKey(rule) : nil }),
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
                     if rule.action == .scroll {
@@ -190,16 +195,15 @@ private struct ListenRow: View {
     let cancel: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
-            Text(ready ? "Press a button on \(device). The left button keeps working." : "Getting \(device) ready…")
-            Spacer()
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text("\(Int(max(0, until.timeIntervalSince(context.date)).rounded(.up))) s")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-            Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            RecorderField(
+                state: .recording(
+                    chips: [],
+                    hint: ready
+                        ? .prompt("Press a button on \(device). The left button keeps working.")
+                        : .gettingReady("Getting \(device) ready…"),
+                    trailing: "\(Int(max(0, until.timeIntervalSince(context.date)).rounded(.up))) s"),
+                cancel: cancel)
         }
     }
 }
@@ -217,9 +221,9 @@ private struct RuleRow: View {
     let choices: RuleChoices
     let skipped: Bool
     let highlighted: Bool
+    @Binding var recordingShortcut: Bool
     let replace: (Rule) -> Void
     let remove: () -> Void
-    @State private var recording = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -228,23 +232,26 @@ private struct RuleRow: View {
             }
             .buttonSizing(.flexible)
             .frame(width: Self.controlWidth)
-            Picker("When", selection: Binding(get: { rule.trigger }, set: { replace(choices.rule(rule, withTrigger: $0)) })) {
-                ForEach(choices.triggers(for: rule.control, besides: rule), id: \.self) { Text(Labels.trigger($0)).tag($0) }
-            }
-            .buttonSizing(.flexible)
-            .frame(width: Self.triggerWidth)
-            Picker("Do", selection: Binding(get: { ActionChoice.action(rule.action) }, set: choose)) {
-                ForEach(actionChoices, id: \.choice) { Text($0.label).tag($0.choice) }
-            }
-            .buttonSizing(.flexible)
-            .frame(maxWidth: .infinity)
-            .popover(isPresented: $recording, arrowEdge: .bottom) {
-                ShortcutRecorder { chord in
-                    recording = false
+            // A shortcut's hint and live chips need more room than the Do cell has, so recording takes When's too.
+            if recordingShortcut {
+                ShortcutField { chord in
+                    recordingShortcut = false
                     replace(Rule(control: rule.control, trigger: rule.trigger, action: .shortcut(chord)))
                 } cancel: {
-                    recording = false
+                    recordingShortcut = false
                 }
+                .frame(maxWidth: .infinity)
+            } else {
+                Picker("When", selection: Binding(get: { rule.trigger }, set: { replace(choices.rule(rule, withTrigger: $0)) })) {
+                    ForEach(choices.triggers(for: rule.control, besides: rule), id: \.self) { Text(Labels.trigger($0)).tag($0) }
+                }
+                .buttonSizing(.flexible)
+                .frame(width: Self.triggerWidth)
+                Picker("Do", selection: Binding(get: { ActionChoice.action(rule.action) }, set: choose)) {
+                    ForEach(actionChoices, id: \.choice) { Text($0.label).tag($0.choice) }
+                }
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
             }
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
@@ -277,44 +284,46 @@ private struct RuleRow: View {
     private func choose(_ choice: ActionChoice) {
         switch choice {
         case .action(let action): replace(Rule(control: rule.control, trigger: rule.trigger, action: action))
-        case .recordShortcut: recording = true
+        case .recordShortcut: recordingShortcut = true
         }
     }
 }
 
-private struct ShortcutRecorder: View {
+/// Records a shortcut in place of the When and Do pickers. It saves on the first key down that makes a chord the file
+/// can name, and Escape alone cancels.
+private struct ShortcutField: View {
     let record: (Chord) -> Void
     let cancel: () -> Void
     @State private var monitor: Any?
-    @State private var problem: String?
+    @State private var held = Modifiers()
+    @State private var unnameable = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            Text("Type the shortcut").font(.headline)
-            Text(problem ?? "Press the keys together, for example ⇧⌘4. Escape cancels.")
-                .foregroundStyle(problem == nil ? Color.secondary : Color.orange)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("Cancel", action: cancel)
-        }
-        .padding(16)
-        .frame(width: 260)
-        .onAppear {
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
-                if event.keyCode == 53, modifiers.isEmpty {
-                    cancel()
-                } else if let chord = Labels.recordedChord(keyCode: event.keyCode, flags: event.modifierFlags) {
-                    record(chord)
-                } else {
-                    problem = "Hyperpoint cannot name that key in a shortcut. Try another."
+        RecorderField(state: .recording(chips: Labels.modifierSymbols(held), hint: hint, trailing: nil), cancel: cancel)
+            .onAppear {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+                    if event.type == .flagsChanged {
+                        held = Labels.modifiers(event.modifierFlags)
+                        return event
+                    }
+                    if event.keyCode == 53, Labels.modifiers(event.modifierFlags).isEmpty {
+                        cancel()
+                    } else if let chord = Labels.recordedChord(keyCode: event.keyCode, flags: event.modifierFlags) {
+                        record(chord)
+                    } else {
+                        unnameable = true
+                    }
+                    return nil
                 }
-                return nil
             }
-        }
-        .onDisappear {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-        }
+            .onDisappear {
+                if let monitor { NSEvent.removeMonitor(monitor) }
+                monitor = nil
+            }
+    }
+
+    private var hint: RecorderField.Hint {
+        if unnameable { return .problem("Hyperpoint cannot name that key in a shortcut. Try another.") }
+        return .prompt(held.isEmpty ? "Type the shortcut" : "Now press a key")
     }
 }
