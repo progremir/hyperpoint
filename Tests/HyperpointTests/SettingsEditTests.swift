@@ -88,6 +88,12 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(SettingsEdit.rename(mx, "  ").applied(to: base) == base)
     }
 
+    @Test func kindSetsWhatTheProfileIs() {
+        #expect(profile(SettingsEdit.kind(magicKeyboard, .mouse).applied(to: base), magicKeyboard)?.kind == .mouse)
+        #expect(profile(SettingsEdit.kind(mouse24G, .keyboard).applied(to: base), mouse24G)?.kind == .keyboard)
+        #expect(SettingsEdit.kind(karabiner, .mouse).applied(to: base) == base, "a device without a profile has no kind to set")
+    }
+
     @Test func addRuleAppendsToTheProfile() {
         let rule = Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.missionControl))
         let added = SettingsEdit.addRule(mx, rule).applied(to: base)
@@ -152,6 +158,8 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
                 control: .hidpp(CID(rawValue: 0x53)), trigger: .holdMove(.left),
                 action: .shortcut(Chord(key: KeyCode(name: "left")!, modifiers: [.control])))),
         .removeRule(mx, RuleKey(Rule(control: .thumbWheel, trigger: .scroll, action: .reverse))),
+        .kind(mx, .keyboard),
+        .kind(mouse24G, .keyboard),
         .gestureFire(mx, .onRelease),
         .gestureDistance(mx, 2000),
         .smooth(mx, nil),
@@ -215,6 +223,8 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(
             SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).logDescription
                 == #"devices += {"product":"0x0001","vendor":"0x1234"} from copy of {"product":"0xB023","vendor":"0x046D"}"#)
+        #expect(
+            SettingsEdit.kind(mouse24G, .mouse).logDescription == #"devices[{"product":"0x0002","vendor":"0x1EA7"}].kind = mouse"#)
         #expect(
             SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .blank).logDescription
                 == #"devices += {"product":"0x0001","vendor":"0x1234"} blank"#)

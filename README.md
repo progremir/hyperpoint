@@ -59,10 +59,14 @@ The button applies the best choice for that device, and its menu holds the other
 | Choice | Offered for | What it sets |
 |---|---|---|
 | MX Master 3 preset | The MX Master 3 (`0x046D:0xB023`) | The gesture button opens Mission Control, App Exposé and the Spaces left and right. The top button sends ⇧⌘4. The thumb wheel is reversed, the wheel scrolls smoothly, and holding the right button scrolls. |
-| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Escape becomes Right Option while held, and Return sends ⌥⇧S. |
+| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Lists it with the mice. Escape becomes Right Option while held, and Return sends ⌥⇧S. |
 | Hyper key | Any keyboard | The hyper key. |
 | Nothing yet | Any mouse | No rules. Add them on the **Buttons** tab. |
 | Same as *a profile* | A device of the same kind as that profile | A copy of that profile's rules, gestures, scrolling and hyper key. |
+
+Next to each profile's name, a menu says whether the device is a **Mouse** or a **Keyboard**. A mouse gets the
+**Buttons** and **Scrolling** tabs, and a keyboard can have the hyper key. Hyperpoint guesses from the device until you
+choose. A mouse that sends keys from an interface of its own, like the 2.4G mouse, looks like a keyboard to it.
 
 A preset only starts the profile. After Set Up the config file holds every setting, and a later change to a preset does
 not touch a saved profile. To start a device again from a preset, click **Forget…** and set it up again.

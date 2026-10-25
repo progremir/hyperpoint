@@ -191,6 +191,11 @@ extension DeviceMatch {
     }
 }
 
+extension DeviceProfile {
+    /// The kind the user chose, or else the one the device's interfaces suggest.
+    func kind(of properties: HIDProperties) -> DeviceKind { kind ?? properties.kind }
+}
+
 extension Config {
     func profile(for properties: HIDProperties) -> DeviceProfile? {
         guard !ignored.contains(where: { $0.matches(properties) }) else { return nil }
