@@ -143,6 +143,24 @@ import Testing
         #expect(intent.setup(for: thisMac[1].id).keyMap.pairs == [.init(source: 0x7_0000_0035, destination: 0x7_0000_006D)])
     }
 
+    @Test func theBuiltInKeyboardKeepsItsHyperKeyWhicheverInterfaceComesFirst() {
+        let keyboardService = SenderID(rawValue: 0x1_0000_0CD0)
+        let trackpadService = SenderID(rawValue: 0x1_0000_0D10)
+        let keyboard = (UInt64(0xCC7), HIDProperties(bag: Bags.builtInKeyboard), keyboardService)
+        let trackpad = (UInt64(0xD09), HIDProperties(bag: Bags.builtInTrackpad), trackpadService)
+        var config = Config.example
+        config.devices[2].scrolling = ScrollSettings(smooth: .default)
+        for interfaces in [[trackpad, keyboard], [keyboard, trackpad]] {
+            var roster = DeviceRoster()
+            for (interface, properties, service) in interfaces {
+                _ = roster.interfaceAppeared(interface, properties: properties, services: [service])
+            }
+            let intent = Intent.compile(config, paused: false, tapAvailable: true, present: roster.devices)
+            #expect(roster.devices.map { intent.setup(for: $0.id).keyMap } == [hyperMap])
+            #expect(intent.tap.smoothScroll.map(\.key) == [keyboardService], "never the trackpad")
+        }
+    }
+
     @Test func carrierAssignmentDoesNotDependOnDeviceOrder() {
         let forward = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac)
         let reversed = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac.reversed())
@@ -375,7 +393,54 @@ import Testing
     }
 }
 
+@Suite struct PlainMouseIntentTests {
+    let service = SenderID(rawValue: 0x1_0004_1000)
+    var mouse: PresentDevice { present(5, Bags.plainMouse, services: [service.rawValue]) }
+    var config: Config {
+        var config = Config.example
+        config.devices.append(
+            DeviceProfile(
+                match: DeviceMatch(identifying: HIDProperties(bag: Bags.plainMouse)), name: "USB Optical Mouse",
+                rules: [
+                    Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
+                    Rule(control: .button(3), trigger: .click, action: .system(.missionControl)),
+                ],
+                scrolling: ScrollSettings(smooth: .default, holdToScroll: .default)))
+        return config
+    }
+
+    @Test func aSetUpPlainMouseScrollsSmoothlyAndHoldsToScrollByItsSender() {
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac + [mouse])
+        #expect(intent.tap.smoothScroll == [service: .default])
+        let rightButton = intent.tap.buttons[ButtonKey(sender: service, button: 1)]
+        guard case .gesture(let plan) = rightButton, case .scroll = plan.moves else {
+            Issue.record("holding the right button scrolls")
+            return
+        }
+        #expect(intent.tap.buttons[ButtonKey(sender: service, button: 3)] == .press(.system(.missionControl)))
+        #expect(intent.setup(for: mouse.id) == .neutral, "no key map and no HID++ to write")
+    }
+
+    @Test func aNewPlainMouseIsLeftAlone() {
+        let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac + [mouse])
+        #expect(Config.example.profile(for: mouse.properties) == nil)
+        #expect(intent.tap.smoothScroll.isEmpty && intent.tap.buttons.isEmpty)
+    }
+}
+
 @Suite struct DeviceKindTests {
+    @Test func aPlainMouseIsAMouseThatSpeaksNoHIDPP() {
+        let mouse = HIDProperties(bag: Bags.plainMouse)
+        #expect(mouse.kind == .mouse && !mouse.hostsHyper && !mouse.speaksHIDPP && !mouse.isTrackpad)
+    }
+
+    @Test func onlyTheTrackpadIsATrackpad() {
+        #expect(HIDProperties(bag: Bags.builtInTrackpad).isTrackpad)
+        for bag in [Bags.builtInKeyboard, Bags.magicKeyboard, Bags.mxMaster3, Bags.plainMouse] {
+            #expect(!HIDProperties(bag: bag).isTrackpad)
+        }
+    }
+
     @Test func theMXSpeaksHIDPPAndIsNotAKeyboard() {
         let mx = HIDProperties(bag: Bags.mxMaster3)
         #expect(mx.speaksHIDPP)

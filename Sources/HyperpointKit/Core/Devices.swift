@@ -4,6 +4,7 @@ struct UsagePair: Hashable, Sendable {
 
     static let keyboard = UsagePair(page: 0x01, usage: 0x06)
     static let mouse = UsagePair(page: 0x01, usage: 0x02)
+    static let touchpad = UsagePair(page: 0x0D, usage: 0x05)
     static let hidppPage = 0xFF43
 }
 
@@ -49,6 +50,14 @@ struct HIDProperties: Equatable, Sendable {
     var hostsHyper: Bool { usagePairs.contains(.keyboard) && (builtIn || !usagePairs.contains(.mouse)) }
 
     var kind: DeviceKind { hostsHyper ? .keyboard : .mouse }
+
+    /// The built-in trackpad is a mouse interface of the built-in keyboard's device (measured), and no trackpad has a
+    /// wheel or buttons a profile could change, so trackpads are never tracked.
+    var isTrackpad: Bool { usagePairs.contains(.touchpad) }
+
+    /// Before pointers were matched, a device was described by its keyboard interface, so that interface still
+    /// describes it whichever interface enumerates first.
+    var isKeyboardInterface: Bool { UsagePair(page: primaryUsagePage, usage: primaryUsage) == .keyboard }
 }
 
 struct DeviceKey: Hashable, Sendable {
@@ -91,7 +100,8 @@ struct PresentDevice: Equatable, Sendable {
 struct DeviceRoster {
     enum Change: Equatable {
         case appeared(PresentDevice)
-        case servicesChanged(PresentDevice)
+        /// New event services, or a keyboard interface that now describes the device.
+        case changed(PresentDevice)
         case disappeared(PresentDevice)
     }
 
@@ -109,12 +119,15 @@ struct DeviceRoster {
     func tracks(interface: UInt64) -> Bool { keyOfInterface[interface] != nil }
 
     mutating func interfaceAppeared(_ interface: UInt64, properties: HIDProperties, services: [SenderID]) -> Change? {
-        guard keyOfInterface[interface] == nil else { return nil }
+        guard keyOfInterface[interface] == nil, !properties.isTrackpad else { return nil }
         let key = DeviceKey(properties)
         keyOfInterface[interface] = key
-        if entries[key] != nil {
-            entries[key]?.interfaces.insert(interface)
-            return adopt(services, into: key)
+        if var entry = entries[key] {
+            entry.interfaces.insert(interface)
+            let describes = properties.isKeyboardInterface && !entry.device.properties.isKeyboardInterface
+            if describes { entry.device.properties = properties }
+            entries[key] = entry
+            return adopt(services, into: key) ?? (describes ? .changed(entry.device) : nil)
         }
         let device = PresentDevice(
             id: DeviceInstanceID(rawValue: nextID), key: key, properties: properties, eventServices: services)
@@ -149,7 +162,7 @@ struct DeviceRoster {
         guard !new.isEmpty else { return nil }
         entry.device.eventServices += new
         entries[key] = entry
-        return .servicesChanged(entry.device)
+        return .changed(entry.device)
     }
 }
 
