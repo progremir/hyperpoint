@@ -82,6 +82,7 @@ private struct Rules: View {
         let choices = model.choices(for: device)
         let rules = device.profile?.rules ?? []
         let skipped = device.status?.hidpp?.skippedRules ?? []
+        let cannotListen = device.cannotListen(paused: model.paused, permissions: model.permissions)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 GroupHeading("Rules")
@@ -107,9 +108,13 @@ private struct Rules: View {
                     RuleRow(
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
                         highlighted: note?.highlights(rule) == true,
+                        listen: model.listenPurpose == .replaceRule(rule.key) ? device.status?.listen : nil,
+                        cannotListen: cannotListen, device: device.name,
                         recordingShortcut: Binding(
-                            get: { recordingShortcut == RuleKey(rule) },
-                            set: { recordingShortcut = $0 ? RuleKey(rule) : nil }),
+                            get: { recordingShortcut == rule.key },
+                            set: { recordingShortcut = $0 ? rule.key : nil }),
+                        startListening: { model.listen(for: device, to: .replaceRule(rule.key)) },
+                        stopListening: { model.stopListening() },
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
                     if rule.action == .scroll {
@@ -145,17 +150,18 @@ private struct AddRule: View {
     let controls: [Control]
     let note: LearnNote?
 
+    /// A listen for a rule's Button cell shows in that row, not here.
     var body: some View {
+        let blocked = device.cannotListen(paused: model.paused, permissions: model.permissions)
         switch device.status?.listen {
-        case .gettingReady(let until):
+        case .gettingReady(let until) where model.listenPurpose == .addRule:
             ListenRow(device: device.name, ready: false, until: until) { model.stopListening() }
-        case .listening(let until):
+        case .listening(let until) where model.listenPurpose == .addRule:
             ListenRow(device: device.name, ready: true, until: until) { model.stopListening() }
         case .ended(let why):
-            menu(blocked: device.cannotListen(paused: model.paused, permissions: model.permissions))
+            menu(blocked: blocked)
             Explanation(Labels.listenEnded(why, device: device.name))
-        case nil:
-            let blocked = device.cannotListen(paused: model.paused, permissions: model.permissions)
+        case nil, .gettingReady, .listening:
             menu(blocked: blocked)
             if let text = note.flatMap(Labels.learned) ?? blocked { Explanation(text) }
         }
@@ -209,7 +215,7 @@ private struct ListenRow: View {
 }
 
 private struct RuleRow: View {
-    static let controlWidth = 160.0
+    static let controlWidth = 184.0
     static let triggerWidth = 150.0
 
     enum ActionChoice: Hashable {
@@ -221,28 +227,53 @@ private struct RuleRow: View {
     let choices: RuleChoices
     let skipped: Bool
     let highlighted: Bool
+    /// This row's listen, when the window listens to give this rule a new button.
+    let listen: ListenStatus?
+    let cannotListen: String?
+    let device: String
     @Binding var recordingShortcut: Bool
+    let startListening: () -> Void
+    let stopListening: () -> Void
     let replace: (Rule) -> Void
     let remove: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Picker("Button", selection: Binding(get: { rule.control }, set: { replace(choices.rule(rule, withControl: $0)) })) {
-                ForEach(choices.controls(for: rule), id: \.self) { Text(Labels.control($0)).tag($0) }
+            HStack(spacing: 4) {
+                RecorderField(state: buttonField, start: startListening, cancel: stopListening)
+                    .disabled(!recordingPress && cannotListen != nil)
+                    .help(recordingPress ? "" : cannotListen ?? "Click, then press a button on \(device) to use it for this rule")
+                // The menu reaches the thumb wheel, and every button while the mouse is away. A recording capsule
+                // needs the whole cell.
+                if !recordingPress {
+                    Menu {
+                        Picker("Button", selection: Binding(get: { rule.control }, set: { edit(choices.rule(rule, withControl: $0)) })) {
+                            ForEach(choices.controls(for: rule), id: \.self) { Text(Labels.control($0)).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.borderless)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Choose a button")
+                    .accessibilityLabel("Choose a button")
+                }
             }
-            .buttonSizing(.flexible)
             .frame(width: Self.controlWidth)
             // A shortcut's hint and live chips need more room than the Do cell has, so recording takes When's too.
             if recordingShortcut {
                 ShortcutField { chord in
                     recordingShortcut = false
-                    replace(Rule(control: rule.control, trigger: rule.trigger, action: .shortcut(chord)))
+                    edit(Rule(control: rule.control, trigger: rule.trigger, action: .shortcut(chord)))
                 } cancel: {
                     recordingShortcut = false
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                Picker("When", selection: Binding(get: { rule.trigger }, set: { replace(choices.rule(rule, withTrigger: $0)) })) {
+                Picker("When", selection: Binding(get: { rule.trigger }, set: { edit(choices.rule(rule, withTrigger: $0)) })) {
                     ForEach(choices.triggers(for: rule.control, besides: rule), id: \.self) { Text(Labels.trigger($0)).tag($0) }
                 }
                 .buttonSizing(.flexible)
@@ -259,7 +290,10 @@ private struct RuleRow: View {
                 .accessibilityLabel("Skipped")
                 .opacity(skipped ? 1 : 0)
                 .accessibilityHidden(!skipped)
-            Button(action: remove) {
+            Button {
+                if recordingPress { stopListening() }
+                remove()
+            } label: {
                 Image(systemName: "minus.circle")
             }
             .buttonStyle(.borderless)
@@ -281,9 +315,27 @@ private struct RuleRow: View {
         }
     }
 
+    private var buttonField: RecorderField.State {
+        switch listen {
+        case .gettingReady: .recording(chips: [], hint: .gettingReady("Getting ready…"), trailing: nil)
+        case .listening: .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)
+        case .ended, nil: .idle(chips: [Labels.control(rule.control)], label: nil)
+        }
+    }
+
+    private var recordingPress: Bool {
+        if case .recording = buttonField { true } else { false }
+    }
+
+    /// An edit made by hand ends this row's listen, whose press would otherwise find the rule gone.
+    private func edit(_ edited: Rule) {
+        if recordingPress { stopListening() }
+        replace(edited)
+    }
+
     private func choose(_ choice: ActionChoice) {
         switch choice {
-        case .action(let action): replace(Rule(control: rule.control, trigger: rule.trigger, action: action))
+        case .action(let action): edit(Rule(control: rule.control, trigger: rule.trigger, action: action))
         case .recordShortcut: recordingShortcut = true
         }
     }

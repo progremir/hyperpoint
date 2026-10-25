@@ -35,9 +35,17 @@ enum SettingsTab: String, CaseIterable {
     }
 }
 
+/// Why the window is listening: to add a rule, or to give the rule with this key the button pressed next. Only the
+/// window knows, so the engine listens the same way for both.
+enum ListenPurpose: Equatable {
+    case addRule
+    case replaceRule(RuleKey)
+}
+
 /// What the last heard press or menu pick did, for the note under Add Rule and the rows it highlights. Window feedback,
 /// not engine state.
 enum LearnNote: Equatable {
+    /// A rule was added or given a new button.
     case added(DeviceMatch, RuleKey)
     case full(DeviceMatch, Control)
     case unnamed(DeviceMatch)
@@ -70,6 +78,7 @@ final class SettingsModel {
     private(set) var loginItem = LoginItemState.off
     private(set) var loginItemError: String?
     private(set) var learnNote: LearnNote?
+    private(set) var listenPurpose = ListenPurpose.addRule
     /// Remembered across launches, so the window opens where the user left it. A listen belongs to the Buttons tab.
     var tab: SettingsTab {
         didSet {
@@ -180,8 +189,9 @@ final class SettingsModel {
 
     func reapplyAll() { Task { await engine.reapplyAll() } }
 
-    func listen(for device: SettingsDevice) {
+    func listen(for device: SettingsDevice, to purpose: ListenPurpose = .addRule) {
         learnNote = nil
+        listenPurpose = purpose
         Task { await engine.listen(for: device.match) }
     }
 
@@ -194,16 +204,32 @@ final class SettingsModel {
     /// Add Rule's menu, for a control no press makes, such as the thumb wheel, or a mouse that is not connected.
     func pick(_ control: Control, on device: SettingsDevice) {
         stopListening()
-        learned(LearnedPress(match: device.match, heard: .control(control)))
+        learned(.control(control), on: device.match, for: .addRule)
     }
 
+    func learned(_ press: LearnedPress) { learned(press.heard, on: press.match, for: listenPurpose) }
+
     /// The only place a heard press or a picked control becomes config.
-    func learned(_ press: LearnedPress) {
-        guard editable, let device = devices.first(where: { $0.match == press.match }), device.profile != nil else { return }
-        switch choices(for: device).learned(press.heard) {
+    private func learned(_ heard: Heard, on match: DeviceMatch, for purpose: ListenPurpose) {
+        guard editable, let device = devices.first(where: { $0.match == match }), device.profile != nil else { return }
+        let choices = choices(for: device)
+        let learned: LearnedRule
+        switch purpose {
+        case .addRule:
+            learned = choices.learned(heard)
+        case .replaceRule(let key):
+            guard let rule = choices.rules.first(where: { $0.key == key }) else { return }
+            learned = choices.learned(heard, replacing: rule)
+        }
+        switch learned {
         case .add(let rule):
             apply(.addRule(device.match, rule))
-            note(.added(device.match, RuleKey(rule)))
+            note(.added(device.match, rule.key))
+        case .replace(let key, let rule):
+            apply(.replaceRule(device.match, key, rule))
+            note(.added(device.match, rule.key))
+        case .unchanged:
+            break
         case .everyTriggerTaken(let control):
             note(.full(device.match, control))
         case .unnamed:

@@ -104,6 +104,31 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(mxChoices.learned(.unnamed) == .unnamed)
     }
 
+    @Test func pressingAButtonForARuleMovesItThere() {
+        let top = mxRules.first { $0.control == topButton }!
+        let back = Control.hidpp(CID(rawValue: 0x53))
+        #expect(
+            mxChoices.learned(.control(.button(3)), replacing: top)
+                == .replace(top.key, Rule(control: back, trigger: .click, action: top.action)),
+            "a Back press that beat the divert is the HID++ control, and the rule keeps its trigger and action")
+        #expect(
+            mxChoices.learned(.control(gestureButton), replacing: top)
+                == .replace(top.key, Rule(control: gestureButton, trigger: .holdMove(.up), action: top.action)),
+            "the gesture button's click is taken, so the rule moves to its first free trigger")
+        #expect(mxChoices.learned(.control(.thumbWheel), replacing: top) == .everyTriggerTaken(.thumbWheel))
+        #expect(mxChoices.learned(.unnamed, replacing: top) == .unnamed)
+    }
+
+    @Test func pressingARulesOwnButtonChangesNothing() {
+        let top = mxRules.first { $0.control == topButton }!
+        #expect(mxChoices.learned(.control(topButton), replacing: top) == .unchanged)
+        let back = Rule(control: .hidpp(CID(rawValue: 0x53)), trigger: .click, action: .system(.appExpose))
+        let withBack = RuleChoices(rules: mxRules + [back], capabilities: mxCapabilities, speaksHIDPP: true)
+        #expect(
+            withBack.learned(.control(.button(3)), replacing: back) == .unchanged,
+            "a Back press that beat the divert is still the rule's own button")
+    }
+
     @Test func addRuleSavesUntilEveryTriggerIsTaken() throws {
         var config = Config.example
         for control in RuleChoices(rules: [], capabilities: mxCapabilities, speaksHIDPP: true).controls {

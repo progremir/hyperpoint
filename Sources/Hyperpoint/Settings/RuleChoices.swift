@@ -2,7 +2,11 @@ import HyperpointKit
 
 enum LearnedRule: Equatable {
     case add(Rule)
-    /// Every trigger the control accepts already has a rule, so nothing is added.
+    /// The rule with this key becomes the new one.
+    case replace(RuleKey, Rule)
+    /// The press named the rule's own control.
+    case unchanged
+    /// Every trigger the control accepts already has a rule, so nothing is saved.
     case everyTriggerTaken(Control)
     /// A key or button the config cannot name.
     case unnamed
@@ -73,6 +77,16 @@ struct RuleChoices {
             return .everyTriggerTaken(control)
         }
         return .add(Rule(control: control, trigger: trigger, action: action))
+    }
+
+    /// What a press in a rule's Button cell does to `rule`: it moves to the pressed control, keeping its trigger and
+    /// action where they still work.
+    func learned(_ heard: Heard, replacing rule: Rule) -> LearnedRule {
+        guard case .control(let pressed) = heard else { return .unnamed }
+        let control = canonical(pressed)
+        if control == rule.control { return .unchanged }
+        guard !triggers(for: control, besides: rule).isEmpty else { return .everyTriggerTaken(control) }
+        return .replace(RuleKey(rule), self.rule(rule, withControl: control))
     }
 
     /// A plain button whose standard HID++ control the device can divert is that control, so a press that beat the

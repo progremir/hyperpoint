@@ -14,9 +14,10 @@ import Testing
     }
 
     static let shots: [(name: String, width: CGFloat, state: RecorderField.State)] = [
-        ("idle-control", 180, .idle(chips: ["Gesture button"], label: nil)),
+        ("idle-control", 164, .idle(chips: ["Gesture button"], label: nil)),
         ("idle-chord", 260, .idle(chips: ["⌥", "⇧", "S"], label: "Change shortcut")),
-        ("recording-press", 180, .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)),
+        ("recording-press", 184, .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)),
+        ("row-getting-ready", 184, .recording(chips: [], hint: .gettingReady("Getting ready…"), trailing: nil)),
         (
             "getting-ready", 584,
             .recording(chips: [], hint: .gettingReady("Getting MX Master 3 ready…"), trailing: "10 s")
@@ -27,9 +28,9 @@ import Testing
                 chips: [], hint: .prompt("Press a button on MX Master 3. The left button keeps working."),
                 trailing: "9 s")
         ),
-        ("recording-shortcut", 322, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),
+        ("recording-shortcut", 337, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),
         (
-            "shortcut-problem", 322,
+            "shortcut-problem", 337,
             .recording(
                 chips: ["⌘"], hint: .problem("Hyperpoint cannot name that key in a shortcut. Try another."),
                 trailing: nil)

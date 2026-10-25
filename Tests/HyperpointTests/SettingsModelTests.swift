@@ -81,6 +81,34 @@ import Testing
             "the first save is the one rule, so the presses before it saved nothing")
     }
 
+    @Test(.timeLimit(.minutes(1))) func aHeardPressReplacesOrAddsAsTheListenWasFor() async throws {
+        try FileManager.default.createDirectory(at: store.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try ConfigCodec.encode(.example).write(to: store.url)
+        var saved = await store.snapshots().makeAsyncIterator()
+        let model = model(devices: [connectedMX])
+        let rules = profile(.example, mx)!.rules!
+        let top = rules.first { $0.control == topButton }!
+        model.listen(for: model.selectedMouse!, to: .replaceRule(top.key))
+        model.learned(LearnedPress(match: mx, heard: .control(topButton)))
+        #expect(model.learnNote == nil, "the rule's own button changes nothing")
+        model.learned(LearnedPress(match: mx, heard: .control(.thumbWheel)))
+        #expect(model.learnNote == .full(mx, .thumbWheel))
+        model.learned(LearnedPress(match: mx, heard: .control(.button(3))))
+        let back = Rule(control: .hidpp(CID(rawValue: 0x53)), trigger: .click, action: top.action)
+        #expect(model.learnNote == .added(mx, back.key), "the edited rule is highlighted")
+        let replaced = rules.map { $0 == top ? back : $0 }
+        let first = await saved.next()
+        #expect(
+            first?.config.flatMap { profile($0, mx) }?.rules == replaced,
+            "the first save replaces the one rule, so the presses before it saved nothing")
+
+        model.listen(for: model.selectedMouse!)
+        model.learned(LearnedPress(match: mx, heard: .control(.hidpp(CID(rawValue: 0x56)))))
+        let forward = Rule(control: .hidpp(CID(rawValue: 0x56)), trigger: .click, action: .system(.missionControl))
+        let second = await saved.next()
+        #expect(second?.config.flatMap { profile($0, mx) }?.rules == replaced + [forward], "Add Rule still adds")
+    }
+
     @Test func switchingTheMouseClearsTheNote() {
         let model = model(devices: [connectedMX])
         model.learned(LearnedPress(match: mx, heard: .unnamed))

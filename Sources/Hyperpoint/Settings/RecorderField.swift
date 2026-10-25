@@ -36,7 +36,7 @@ struct RecorderField: View {
         case .idle(let chips, let label):
             Button(action: start) {
                 capsule(recording: false) {
-                    chipRow(chips)
+                    if !chips.isEmpty { chipRow(chips) }
                     if let label {
                         Text(label).lineLimit(1)
                     } else {
@@ -51,7 +51,7 @@ struct RecorderField: View {
             capsule(recording: true) {
                 HStack(spacing: 6) {
                     RecordingDot(dimmed: hint.dimsDot)
-                    chipRow(chips)
+                    if !chips.isEmpty { chipRow(chips) }
                     Text(hint.text)
                         .foregroundStyle(hint.color)
                         .fixedSize(horizontal: false, vertical: true)
