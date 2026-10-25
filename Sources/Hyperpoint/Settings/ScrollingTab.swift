@@ -52,7 +52,13 @@ private struct ScrollingSettings: View {
             SpeedGraph(curve: shown.curve) { model.apply(.curve(match, $0)) }
             Divider()
             ForEach(SmoothKnob.allCases, id: \.self) { knob in
-                KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) }
+                KnobRow(knob: knob, smooth: shown) { model.apply(.smoothKnob(match, knob, $0)) } accessory: {
+                    if knob == .duration {
+                        StutterWarning(stutter: smooth == nil ? nil : SlowRollStutter(shown)) {
+                            model.apply(.smoothKnob(match, .duration, $0))
+                        }
+                    }
+                }
             }
             FormRow(label: "", detail: "Puts the scroll speed and every glide setting back to how Hyperpoint ships.") {
                 Button("Reset to Defaults") { model.apply(.smooth(match, .default)) }
@@ -129,20 +135,22 @@ private struct HoldToScrollSettings: View {
 }
 
 /// A slider that saves when the drag ends, so one drag writes the file once.
-struct KnobRow: View {
+struct KnobRow<Accessory: View>: View {
     let title: String
     let detail: String
     let scale: SliderScale
     let unit: KnobUnit
     let value: Double
     let commit: (Double) -> Void
+    /// Sits after the value and keeps its size whatever it shows, so nothing below moves.
+    let accessory: Accessory
     /// The slider position while a drag is in progress or a save has not come back yet.
     @State private var draft: Double?
     @State private var dragging = false
 
     init(
         title: String, detail: String, scale: SliderScale, unit: KnobUnit, value: Double,
-        commit: @escaping (Double) -> Void
+        commit: @escaping (Double) -> Void, @ViewBuilder accessory: () -> Accessory
     ) {
         self.title = title
         self.detail = detail
@@ -150,12 +158,16 @@ struct KnobRow: View {
         self.unit = unit
         self.value = value
         self.commit = commit
+        self.accessory = accessory()
     }
 
-    init(knob: SmoothKnob, smooth: SmoothScroll, commit: @escaping (Double) -> Void) {
+    init(
+        knob: SmoothKnob, smooth: SmoothScroll, commit: @escaping (Double) -> Void,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
         self.init(
             title: knob.title, detail: knob.detail, scale: knob.scale, unit: knob.unit,
-            value: knob.value(in: smooth), commit: commit)
+            value: knob.value(in: smooth), commit: commit, accessory: accessory)
     }
 
     var body: some View {
@@ -180,6 +192,7 @@ struct KnobRow: View {
                 Text(unit.format(shown))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
+                accessory
             }
         }
         .onChange(of: value) { draft = nil }
@@ -191,6 +204,49 @@ struct KnobRow: View {
             draft = nil
         } else {
             commit(next)
+        }
+    }
+}
+
+extension KnobRow where Accessory == EmptyView {
+    init(
+        title: String, detail: String, scale: SliderScale, unit: KnobUnit, value: Double,
+        commit: @escaping (Double) -> Void
+    ) {
+        self.init(title: title, detail: detail, scale: scale, unit: unit, value: value, commit: commit) { EmptyView() }
+    }
+}
+
+/// A warning triangle that is always laid out and only shows when the glide stutters, so the page never changes
+/// height. Clicking it explains why and offers the fix.
+private struct StutterWarning: View {
+    let stutter: SlowRollStutter?
+    let fix: (Double) -> Void
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+        }
+        .buttonStyle(.borderless)
+        .help(stutter?.headline ?? "")
+        .accessibilityLabel(stutter?.headline ?? "")
+        .opacity(stutter == nil ? 0 : 1)
+        .disabled(stutter == nil)
+        .accessibilityHidden(stutter == nil)
+        .popover(isPresented: Binding(get: { open && stutter != nil }, set: { open = $0 }), arrowEdge: .bottom) {
+            if let stutter {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(stutter.headline).font(.headline)
+                    Text(stutter.detail()).fixedSize(horizontal: false, vertical: true)
+                    Button("Set Glide to \(SmoothKnob.duration.unit.format(stutter.smoothDuration))") {
+                        open = false
+                        fix(stutter.smoothDuration)
+                    }
+                }
+                .padding(16)
+                .frame(width: 320)
+            }
         }
     }
 }
