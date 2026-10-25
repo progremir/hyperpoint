@@ -57,6 +57,8 @@ build_helpers() {
     swiftc -swift-version 5 -O -o "$BIN/window-heights" "$SKILL_DIR/helpers/window-heights.swift"
   [[ "$BIN/tab-switches" -nt "$SKILL_DIR/helpers/tab-switches.swift" ]] ||
     swiftc -swift-version 5 -O -o "$BIN/tab-switches" "$SKILL_DIR/helpers/tab-switches.swift"
+  [[ "$BIN/set-up" -nt "$SKILL_DIR/helpers/set-up.swift" ]] ||
+    swiftc -swift-version 5 -O -o "$BIN/set-up" "$SKILL_DIR/helpers/set-up.swift"
   if [[ ! "$PROBE_APP/Contents/MacOS/HyperpointProbe" -nt "$SKILL_DIR/helpers/probe.swift" ]]; then
     swiftc -swift-version 5 -O -framework IOKit -o "$BIN/HyperpointProbe" "$SKILL_DIR/helpers/probe.swift"
     mkdir -p "$PROBE_APP/Contents/MacOS"
@@ -158,6 +160,10 @@ case ${1:-help} in
     grep -E '^(PASS|FAIL|SKIP)|^window moved| pass' "$EVIDENCE/settings-switches.txt" || tail -3 "$EVIDENCE/settings-switches.txt"
     exit $switches
     ;;
+  set-up)
+    build_helpers
+    "$BIN/set-up" "${@:2}" | tee -a "$EVIDENCE/set-up.txt"
+    ;;
   evidence)
     echo "$EVIDENCE"
     ;;
@@ -174,6 +180,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   record <mode>      posted | wheel | senders | hold, needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
+  set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
   evidence           print this run's evidence directory
 EOF
     ;;

@@ -2,7 +2,7 @@
 
 Holding the MX Master 3's right button and moving the mouse scrolls instead of moving the pointer. The pointer stays where the button went down, the page follows the hand on both axes, and on release it glides on with trackpad momentum. A quick press is still the ordinary right click, and its menu opens at the pointer. The right button is plain button 1, which the MX cannot divert, so the event tap does all of it.
 
-Any button can take the action: a rule with When "Hold and move" and Do "Scroll". An HID++ control such as the top button (0xC4) does it over raw movement. The default gives it to the right button only, because the user found holding the top button to scroll weird.
+Any button can take the action: a rule with When "Hold and move" and Do "Scroll". An HID++ control such as the top button (0xC4) does it over raw movement. The MX Master 3 preset gives it to the right button only, because the user found holding the top button to scroll weird.
 
 ## Sub-features
 
@@ -24,7 +24,7 @@ Any button can take the action: a rule with When "Hold and move" and Do "Scroll"
 Preconditions:
 
 - MX connected, Hyperpoint running and settled, HyperpointProbe has Accessibility.
-- The profile has the right-button rule `{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }`. A new file gets it from `Config.default`, and a file written before hold to scroll gets it from its `rightButtonPan` key.
+- The profile has the right-button rule `{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }`. The MX Master 3 preset gives it, and a file written before hold to scroll gets it from its `rightButtonPan` key.
 - A window that scrolls both ways (a long web page or a large image) and one with a context menu, such as a Finder window.
 
 - **Setup on device.** Run `verify.sh state`. The right button is `cid=0x51 diverted=no`, since it is handled in the tap. The top button has no scroll rule by default, so it is `cid=0xC4 diverted=yes rawXY=no`.

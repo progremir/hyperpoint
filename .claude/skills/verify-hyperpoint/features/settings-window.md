@@ -9,13 +9,14 @@ Settings… (⌘,) opens a preferences window with a toolbar of five tabs: Gener
 - `settings-device` shares one Device popup between Buttons and Scrolling. New mice say "(New)"; ignored devices are not listed.
 - `settings-rules` edits, adds and removes profile rules with pickers limited to valid choices.
 - `settings-graph` edits the speed curve by dragging points, saving on mouse-up.
+- `settings-setup` sets a new device up from the Devices, Buttons, Scrolling or Hyper Key tab: the button applies the best preset, and its menu offers the other presets, an empty profile for a mouse and a copy of another profile.
 - `settings-devices` renames a profile, forgets it after a confirmation, ignores a new device and stops ignoring one.
 - `settings-save` writes the file and the engine re-applies; the window is read-only while the file is invalid.
 
 ## How to get to it (user POV)
 
 - Menu bar icon › Settings… or ⌘, while the menu is open.
-- Toolbar: General (login item, how to grant permissions, config file, log), Hyper Key (key, keyboards, how it works), Buttons (Device popup, status and Re-apply, rules, gestures), Scrolling (Device popup, smooth scrolling, speed graph, glide, hold to scroll, not yet available), Devices (every device, Forget, Ignore, Stop Ignoring).
+- Toolbar: General (login item, how to grant permissions, config file, log), Hyper Key (key, keyboards, how it works), Buttons (Device popup, status and Re-apply, rules, gestures), Scrolling (Device popup, smooth scrolling, speed graph, glide, hold to scroll, not yet available), Devices (every device, Set Up, Forget, Ignore, Stop Ignoring).
 
 ## Driving it with verify.sh
 
@@ -29,6 +30,7 @@ Preconditions:
 - **Height animates.** `settings-shots` also prints the window's on-screen heights, sampled every 15 ms (`settings-heights.txt`). Every tab switch and every Device change shows a run of intermediate heights, not a single jump.
 - **Last tab.** `defaults write dev.emir.hyperpoint settingsTab devices`, then `settings-shots`: the heights start by settling at the Devices page's height before General's, and `defaults read dev.emir.hyperpoint settingsTab` is `devices` again afterwards.
 - **Edit saves.** Ask the user (or drive by accessibility if available) to move "Glide after you stop" and release. `verify.sh log 1m` shows a settings save and `reasons=configChanged … applied` for every device. `diff` the saved copy against the live file: only that key changed (the first save also rewrites formatting and the old speed keys as `curve`).
+- **Set up from a fresh install.** With the user's consent, save their config to the evidence directory, run `verify.sh quit`, move the file away and run `verify.sh launch`. The new file has `"devices": []`, and `verify.sh state` shows empty key maps and every MX control native. On Devices each connected device is new with a Set Up button: "Set Up as MX Master 3" for the MX and "Set Up with Hyper Key" for each keyboard. Run `verify.sh set-up "Set Up as MX Master 3"` and `verify.sh set-up "Set Up with Hyper Key"` once per keyboard. The log has `saved devices += … from preset …` for each press, and `verify.sh state` then matches the read-back taken with the user's file. To check the menu, remove a profile from the test file and run `verify.sh set-up "Set Up as MX Master 3" "Nothing yet"`: the file gains a profile with only its match and name. Put the saved file back byte for byte (`cmp`) and check `state` again.
 - **Ignore and Forget.** With the user's consent and a device without a profile connected (Karabiner's virtual keyboard is one), Ignore it on Devices: it leaves the Hyper Key list and the Device popup, and `ignored` in the file gains its match. Stop Ignoring removes it again. Forget asks first, then removes the profile.
 - **Invalid file.** With the user's consent, write an out-of-range value by hand. The menu shows `Config file has an error`, every tab shows the error and disables editing, and `verify.sh state` is unchanged. Restore the saved copy.
 

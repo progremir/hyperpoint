@@ -26,7 +26,7 @@ Preconditions:
 - MX Master 3 connected over Bluetooth; BetterMouse not running (`doctor` shows conflicts).
 - Hyperpoint running and settled.
 
-- **Setup on device.** Run `verify.sh state`. With the default profile: `cid=0xC3 diverted=yes rawXY=yes`, `cid=0xC4 diverted=yes rawXY=no` (it only clicks), every other control `diverted=no`, `thumbwheel diverted=no inverted=yes`.
+- **Setup on device.** Run `verify.sh state`. With the user's profile or the MX Master 3 preset: `cid=0xC3 diverted=yes rawXY=yes`, `cid=0xC4 diverted=yes rawXY=no` (it only clicks), every other control `diverted=no`, `thumbwheel diverted=no inverted=yes`.
 - **Applied log.** Run `verify.sh log 5m`. A `discovered #N MX Master 3 controls=[…]` line and `hidpp #N MX Master 3 reasons=… applied` follow each connect.
 - **Gestures.** Ask the user to click the gesture button, hold and move down, left and right, press the top button, and roll the thumb wheel. Record which action each produced. The top button's ⇧⌘4 fires on press.
 - **Reconnect.** Ask the user to switch the mouse off, wait 3 s, switch it on, then click the gesture button. `verify.sh log 2m` shows `disconnect`, `connect`, `discovered` and `hidpp … reasons=connected … applied`. `verify.sh state` matches the first step again.

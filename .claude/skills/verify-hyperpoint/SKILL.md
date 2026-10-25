@@ -1,6 +1,6 @@
 ---
 name: verify-hyperpoint
-description: Drive the real Hyperpoint menu-bar app on this Mac and prove a change works. It covers the hyper key, MX Master 3 buttons over HID++, smooth scrolling, hold to scroll and the settings window. Use after changing Hyperpoint, before claiming a fix or feature works, or when its behavior on the real devices is in doubt.
+description: Drive the real Hyperpoint menu-bar app on this Mac and prove a change works. It covers the hyper key, MX Master 3 buttons over HID++, smooth scrolling, hold to scroll, setting up new devices from presets and the settings window. Use after changing Hyperpoint, before claiming a fix or feature works, or when its behavior on the real devices is in doubt.
 ---
 
 # Verify Hyperpoint
@@ -16,7 +16,7 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 ## One instance only
 
-Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
+Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Only one session may verify at a time, because `verify.sh build` in any worktree replaces `~/Applications/Hyperpoint.app` for every session. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
 Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hidutil` mappings have no effect while it runs), and BetterMouse diverts the same MX controls. `doctor` lists them. Do not quit them yourself; ask the user.
 
@@ -27,7 +27,7 @@ Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hiduti
 
 First launch on a fresh Mac needs the user to grant Accessibility and Input Monitoring to `~/Applications/Hyperpoint.app` in System Settings › Privacy & Security. Grants survive rebuilds because the designated requirement has no cdhash. Without them the menu shows `Needs attention` with a permission notice, and nothing is applied. That is a valid, observable state, not a launch failure.
 
-The config lives at `~/.config/hyperpoint/config.json`, and a missing file is created from `Config.default`. Never edit the user's file to stage a test without telling them. Their profile is real. If a journey needs a different config, save theirs to the evidence directory first and restore it byte for byte afterwards.
+The config lives at `~/.config/hyperpoint/config.json`, and a missing file is created with no devices, so every device starts as new and nothing is applied. The feature recipes assume the user's file, which has profiles for their MX Master 3, 2.4G mouse, built-in keyboard and Magic Keyboard. Never edit the user's file to stage a test without telling them. Their profile is real. If a journey needs a different config, save theirs to the evidence directory first and restore it byte for byte afterwards.
 
 ## Doctor
 
@@ -53,6 +53,7 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 | `verify.sh record hold` | 45 s of what apps receive during hold to scroll: posted scrolls on both axes with scroll and momentum phases, the pointer position at each, and right and other button events, replayed or native | the user holding a button and moving the mouse |
 | `verify.sh settings-shots` | relaunches with `-snapshotSettings <dir>`; the app renders every settings tab to PNG itself, in light then dark, while `helpers/window-heights.swift` records the window's on-screen height to `settings-heights.txt` | none (the shell has no Screen Recording grant, so `screencapture` fails here) |
 | `verify.sh settings-switches` | presses every settings tab from every other tab, switches the Device popup on Buttons and Scrolling, and opens Scrolling on the shortest screen, while `helpers/tab-switches.swift` samples the on-screen window height and the incoming page (clipped, scroll bar) at 120 Hz; one verdict line per change in `settings-switches.txt` | Settings open or openable from the menu; this shell's Accessibility grant |
+| `verify.sh set-up "<button>" ["<item>"]` | presses a new device's Set Up button on the Devices tab through Accessibility, or opens its menu and chooses the item; each line goes to `set-up.txt` | Settings open or openable from the menu; this shell's Accessibility grant; a device shown as new |
 | `verify.sh log [10m]` | Hyperpoint's unified log (`subsystem dev.emir.hyperpoint`, categories `devices` and `menu`) | none |
 
 The probe (`helpers/probe.swift`) installs as `~/Applications/HyperpointProbe.app`, signed with identifier `dev.emir.hyperpoint.probe`, so its Accessibility grant survives rebuilds. If it reports `accessibilityTrusted=false`, stop and ask the user to grant it.
