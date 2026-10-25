@@ -62,4 +62,18 @@ import Testing
             #expect(saves(edited))
         }
     }
+
+    @Test func aGlideShorterThanASlowRollsStepWarns() throws {
+        func smooth(duration: Double, easeIn: Double) -> SmoothScroll {
+            SmoothScroll(duration: duration, brake: 0.5, easeIn: easeIn, curve: .default)
+        }
+        let short = try #require(SlowRollStutter(smooth(duration: 1, easeIn: 10)))
+        #expect(short.smoothDuration == 3)
+        #expect(short.detail(locale: english) == "Each wheel step glides for 0.1 s, so when you roll slower than about 9 steps a second the page lurches on each step and stops before the next. Set Glide after you stop to 0.3 s or more. A longer ease into each step does not help.")
+        #expect(SlowRollStutter(smooth(duration: 2, easeIn: 10))?.smoothDuration == 3)
+        #expect(SlowRollStutter(smooth(duration: 1, easeIn: 60)) != nil, "a longer ease-in alone does not reach the next step")
+        #expect(SlowRollStutter(smooth(duration: 3, easeIn: 10)) == nil)
+        #expect(SlowRollStutter(smooth(duration: 2, easeIn: 50)) == nil, "exactly one step's gap reaches it")
+        #expect(SlowRollStutter(.default) == nil)
+    }
 }
