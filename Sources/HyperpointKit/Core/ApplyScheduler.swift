@@ -9,6 +9,7 @@ enum ApplyReason: String, Hashable, Sendable {
     case wake
     case quit
     case retry
+    case listen
 }
 
 struct ApplyScheduler: Sendable {

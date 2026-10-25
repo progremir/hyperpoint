@@ -4,6 +4,7 @@ struct TapRules: Equatable, Sendable {
     var carriers: [KeyCode: CarrierMeaning]
     var smoothScroll: [SenderID: SmoothScroll]
     var buttons: [ButtonKey: ControlBehavior]
+    var listen: TapListen?
 
     static let empty = TapRules(carriers: [:], smoothScroll: [:])
 
@@ -24,7 +25,14 @@ struct TapRules: Equatable, Sendable {
         self.init(carriers: carriers, smoothScroll: smoothScroll, buttons: buttons)
     }
 
-    var isEmpty: Bool { carriers.isEmpty && smoothScroll.isEmpty && buttons.isEmpty }
+    /// A listen alone installs the tap.
+    var isEmpty: Bool { carriers.isEmpty && smoothScroll.isEmpty && buttons.isEmpty && listen == nil }
+}
+
+struct TapListen: Equatable, Sendable {
+    var id: ListenID
+    /// Every HID event service of the device listened to, pointer and keyboard alike.
+    var senders: Set<SenderID>
 }
 
 /// A plain button on one device, by its HID event service and its CGEvent button number.
@@ -44,6 +52,8 @@ enum TapVerdict: Equatable {
     case perform(Action)
     /// Drop the event and feed the hold-to-scroll animator.
     case holdScroll(HoldScrollEvent)
+    /// Drop the event and tell the engine.
+    case heard(ListenID, ListenPress)
 }
 
 /// What the HID event behind a tap event says about it.
@@ -58,29 +68,38 @@ struct TapPipeline {
     static let syntheticMarker: Int64 = 0x4859_5052
 
     private let origin: @Sendable (CGEvent) -> HIDOrigin?
+    private var learn: LearnStage
     private var carriers: CarrierStage
     private var scroll: ScrollStage
     private var buttons: ButtonStage
 
     init(rules: TapRules, origin: @escaping @Sendable (CGEvent) -> HIDOrigin?) {
         self.origin = origin
+        learn = LearnStage(listen: rules.listen, origin: origin)
         carriers = CarrierStage(rules: rules)
         scroll = ScrollStage(settings: rules.smoothScroll, origin: origin)
         buttons = ButtonStage(rules: rules.buttons, origin: origin)
     }
 
     static var mask: CGEventMask {
-        (CarrierStage.interests + ScrollStage.interests + ButtonStage.interests).reduce(0) {
+        (LearnStage.interests + CarrierStage.interests + ScrollStage.interests + ButtonStage.interests).reduce(0) {
             $0 | (1 << CGEventMask($1.rawValue))
         }
     }
 
-    /// Call `reset` first, so that a button held back from apps is not lost.
-    mutating func replaceRulesAndForgetHeldKeys(_ rules: TapRules) { self = TapPipeline(rules: rules, origin: origin) }
+    /// Call `reset` first, so that a button held back from apps is not lost. A press the learn stage took stays taken,
+    /// so its release is still kept from apps once the listen is over.
+    mutating func replaceRules(_ rules: TapRules) {
+        let learned = learn
+        self = TapPipeline(rules: rules, origin: origin)
+        learn.carry(learned)
+    }
 
+    /// A listened press reaches no rule and no carrier.
     mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else { return .pass }
-        var verdict = carriers.process(type, event)
+        var verdict = learn.process(type, event)
+        if verdict == .pass { verdict = carriers.process(type, event) }
         if verdict == .pass { verdict = scroll.process(type, event) }
         return verdict == .pass ? buttons.process(type, event) : verdict
     }
@@ -92,6 +111,97 @@ struct TapPipeline {
     mutating func reset() -> ButtonStage.Release {
         carriers.reset()
         return buttons.reset()
+    }
+}
+
+/// Takes one press from the device listened to and keeps it, its drags, repeats and release from apps and from every
+/// later stage. It reads the sender on presses only, and only while it listens. The left button is not in
+/// `interests`, so it can never be taken.
+struct LearnStage {
+    static let interests: [CGEventType] = [
+        .rightMouseDown, .rightMouseUp, .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged,
+        .keyDown, .keyUp,
+    ]
+
+    private enum Press: Equatable {
+        case button(Int)
+        case key(KeyCode)
+
+        var reported: ListenPress {
+            switch self {
+            case .button(let number): .button(number)
+            case .key(let code): .key(code)
+            }
+        }
+    }
+
+    let listen: TapListen?
+    let origin: @Sendable (CGEvent) -> HIDOrigin?
+    /// The listen already heard, so later presses pass.
+    private var heard: ListenID?
+    /// The press taken, until its release.
+    private var taken: Press?
+
+    init(listen: TapListen?, origin: @escaping @Sendable (CGEvent) -> HIDOrigin?) {
+        self.listen = listen
+        self.origin = origin
+    }
+
+    /// Keeps what the stage it replaces heard and took.
+    mutating func carry(_ previous: LearnStage) {
+        heard = previous.heard
+        taken = previous.taken
+    }
+
+    mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
+        if let taken, let verdict = follow(taken, type, event) { return verdict }
+        guard let listen, listen.id != heard, let press = Self.press(type, event),
+            let sender = origin(event)?.sender, listen.senders.contains(sender)
+        else { return .pass }
+        heard = listen.id
+        taken = press
+        return .heard(listen.id, press.reported)
+    }
+
+    /// The taken press's drags, repeats and release drop. A new press of it means its release was lost, so it is
+    /// no longer taken.
+    private mutating func follow(_ taken: Press, _ type: CGEventType, _ event: CGEvent) -> TapVerdict? {
+        switch (taken, type) {
+        case (.button(let number), .rightMouseDragged), (.button(let number), .otherMouseDragged):
+            return Self.button(event) == number ? .drop : nil
+        case (.button(let number), .rightMouseUp), (.button(let number), .otherMouseUp):
+            guard Self.button(event) == number else { return nil }
+            self.taken = nil
+            return .drop
+        case (.button(let number), .rightMouseDown), (.button(let number), .otherMouseDown):
+            if Self.button(event) == number { self.taken = nil }
+            return nil
+        case (.key(let code), .keyDown):
+            guard Self.key(event) == code else { return nil }
+            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return .drop }
+            self.taken = nil
+            return nil
+        case (.key(let code), .keyUp):
+            guard Self.key(event) == code else { return nil }
+            self.taken = nil
+            return .drop
+        default:
+            return nil
+        }
+    }
+
+    private static func press(_ type: CGEventType, _ event: CGEvent) -> Press? {
+        switch type {
+        case .rightMouseDown, .otherMouseDown: .button(button(event))
+        case .keyDown where event.getIntegerValueField(.keyboardEventAutorepeat) == 0: .key(key(event))
+        default: nil
+        }
+    }
+
+    private static func button(_ event: CGEvent) -> Int { Int(event.getIntegerValueField(.mouseEventButtonNumber)) }
+
+    private static func key(_ event: CGEvent) -> KeyCode {
+        KeyCode(rawValue: UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode)))
     }
 }
 

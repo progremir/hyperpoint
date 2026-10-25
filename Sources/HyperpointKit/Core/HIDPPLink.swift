@@ -150,10 +150,10 @@ struct HIDPPLink: Sendable {
 
     private static func applySteps(_ plan: HIDPPSetup?, _ capabilities: HIDPPCapabilities) -> [HIDPPStep] {
         guard let plan else { return [] }
-        let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.behavior(of: $0.cid).reporting(for: $0)) }
-        let wheel = capabilities.thumbWheel ? [plan.thumbWheelInverted] : []
-        return targets.map { HIDPPStep.setReporting($0, $1) } + wheel.map { HIDPPStep.setThumbWheel(inverted: $0) }
-            + targets.map { HIDPPStep.checkReporting($0, $1) } + wheel.map { HIDPPStep.checkThumbWheel(inverted: $0) }
+        let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.reporting(for: $0)) }
+        let wheel = capabilities.thumbWheel ? [plan.thumbWheel] : []
+        return targets.map { HIDPPStep.setReporting($0, $1) } + wheel.map(HIDPPStep.setThumbWheel)
+            + targets.map { HIDPPStep.checkReporting($0, $1) } + wheel.map(HIDPPStep.checkThumbWheel)
     }
 
     private mutating func sendNext(now: Instant, into out: inout HIDPPOutput) {
@@ -193,15 +193,15 @@ struct HIDPPLink: Sendable {
         case .countControls:
             run?.steps += (0..<params[0]).map(HIDPPStep.describeControl)
         case .describeControl:
-            run?.discovery?.controls.append(HIDPPCapabilities.Control(cidInfo: params))
+            if let control = HIDPPCapabilities.Control(cidInfo: params) { run?.discovery?.controls.append(control) }
         case .setReporting, .setThumbWheel:
             break
         case .checkReporting(_, let expected):
             guard ControlReporting(readFlags: params[2]) == expected else {
                 return endRun(.failed(.mismatch(step)), now: now, into: &out)
             }
-        case .checkThumbWheel(let inverted):
-            guard params[0] & 1 == 0, (params[1] & 1 == 1) == inverted else {
+        case .checkThumbWheel(let expected):
+            guard ThumbWheelReporting(read: params) == expected else {
                 return endRun(.failed(.mismatch(step)), now: now, into: &out)
             }
         }
@@ -227,10 +227,16 @@ struct HIDPPLink: Sendable {
             perform(gesture.step(.move(dx: Double(dx), dy: Double(dy))), into: &out)
         case .wirelessStatus(let reconfigure):
             if reconfigure { request(.deviceAsked, now: now, into: &out) }
+        case .thumbWheel:
+            if plan?.listening == true { out.events.append(.heard(.thumbWheel)) }
         }
     }
 
     private mutating func pressed(_ cid: CID, into out: inout HIDPPOutput) {
+        if let plan, plan.listening {
+            if plan.listens(to: cid) { out.events.append(.heard(.hidpp(cid))) }
+            return
+        }
         switch plan?.behavior(of: cid) ?? .native {
         case .native:
             break
@@ -263,8 +269,8 @@ enum HIDPPStep: Equatable, Sendable, CustomStringConvertible {
     case describeControl(UInt8)
     case setReporting(CID, ControlReporting)
     case checkReporting(CID, ControlReporting)
-    case setThumbWheel(inverted: Bool)
-    case checkThumbWheel(inverted: Bool)
+    case setThumbWheel(ThumbWheelReporting)
+    case checkThumbWheel(ThumbWheelReporting)
 
     var request: HIDPPRequest {
         switch self {
@@ -273,7 +279,7 @@ enum HIDPPStep: Equatable, Sendable, CustomStringConvertible {
         case .describeControl(let index): .getControlInfo(index)
         case .setReporting(let cid, let reporting): .setControlReporting(cid, reporting)
         case .checkReporting(let cid, _): .getControlReporting(cid)
-        case .setThumbWheel(let inverted): .setThumbWheelReporting(inverted: inverted)
+        case .setThumbWheel(let reporting): .setThumbWheelReporting(reporting)
         case .checkThumbWheel: .getThumbWheelReporting
         }
     }
@@ -314,6 +320,8 @@ enum HIDPPEvent: Equatable, Sendable {
     case applyFinished(ApplyScheduler.Job, HIDPPOutcome)
     case perform(Action)
     case holdScroll(HoldScrollEvent)
+    /// A control pressed or the wheel turned while the plan listens. Nothing else happens for it.
+    case heard(ListenPress)
 }
 
 enum HIDPPOutcome: Equatable, Sendable {

@@ -87,6 +87,27 @@ enum Labels {
         }
     }
 
+    /// Under Add Rule, after a listen that heard no press.
+    static func listenEnded(_ why: ListenEnd, device: String) -> String {
+        switch why {
+        case .timedOut: "No press heard in \(Int(ListenStatus.timeout)) seconds. Add Rule to try again."
+        case .disconnected: "\(device) disconnected, so Hyperpoint stopped listening."
+        case .paused: "Hyperpoint is paused, so it stopped listening."
+        case .slept: "The Mac went to sleep, so Hyperpoint stopped listening."
+        case .needsAccessibility: "Hyperpoint needs Accessibility to hear this mouse's buttons."
+        }
+    }
+
+    /// Under Add Rule, after a press or a pick that added nothing. A rule that was added is highlighted instead.
+    static func learned(_ note: LearnNote) -> String? {
+        switch note {
+        case .added: nil
+        case .full(_, .thumbWheel): "Thumb wheel already has a rule for every way to turn it. Change it here."
+        case .full(_, let full): "\(control(full)) already has a rule for every way to press it. Change one of these."
+        case .unnamed: "Hyperpoint cannot make a rule for that key."
+        }
+    }
+
     /// Under a hold-and-move scroll rule, what the button still does on a quick press.
     static func holdToScroll(control: Control, hasClickRule: Bool) -> String {
         let press =
@@ -128,9 +149,13 @@ enum Labels {
 
     /// In the order macOS menus show them, as in ⌃⌥⇧⌘S.
     static func chord(_ chord: Chord) -> String {
+        modifierSymbols(chord.modifiers).joined() + keySymbol(chord.key.name ?? "")
+    }
+
+    /// One symbol per modifier, in the order macOS menus show them.
+    static func modifierSymbols(_ modifiers: Modifiers) -> [String] {
         let symbols: [(Modifiers, String)] = [(.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
-        let modifiers = symbols.filter { chord.modifiers.contains($0.0) }.map(\.1).joined()
-        return modifiers + keySymbol(chord.key.name ?? "")
+        return symbols.filter { modifiers.contains($0.0) }.map(\.1)
     }
 
     private static let keySymbols: [String: String] = [
@@ -165,12 +190,16 @@ enum Labels {
     /// The chord a key press records, or nil for a key the config file cannot name.
     static func recordedChord(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Chord? {
         guard let key = KeyCode(virtualKeyCode: keyCode) else { return nil }
+        return Chord(key: key, modifiers: modifiers(flags))
+    }
+
+    /// The modifiers a shortcut can use, out of an event's flags.
+    static func modifiers(_ flags: NSEvent.ModifierFlags) -> Modifiers {
         let pairs: [(NSEvent.ModifierFlags, Modifiers)] = [
             (.control, .control), (.option, .option), (.shift, .shift), (.command, .command),
         ]
-        let modifiers = pairs.reduce(into: Modifiers()) { result, pair in
+        return pairs.reduce(into: Modifiers()) { result, pair in
             if flags.contains(pair.0) { result.insert(pair.1) }
         }
-        return Chord(key: key, modifiers: modifiers)
     }
 }

@@ -117,14 +117,14 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
     @Test mutating func newRulesForgetHeldHyper() {
         _ = pipeline.process(.keyDown, key(f18, down: true))
-        pipeline.replaceRulesAndForgetHeldKeys(Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap)
+        pipeline.replaceRules(Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap)
         let rDown = key(r, down: true)
         _ = pipeline.process(.keyDown, rDown)
         #expect(rDown.flags.isDisjoint(with: hyperFlags))
     }
 
     @Test mutating func withoutRulesF18IsAnOrdinaryKey() {
-        pipeline.replaceRulesAndForgetHeldKeys(.empty)
+        pipeline.replaceRules(.empty)
         let down = key(f18, down: true)
         #expect(pipeline.process(.keyDown, down) == .pass)
         #expect(down.type == .keyDown && keyCode(down) == Int64(f18))
@@ -228,7 +228,7 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
         var pipeline = pipeline(mxSender)
         var faster = rules
         faster.smoothScroll[mxSender]?.duration = 9
-        pipeline.replaceRulesAndForgetHeldKeys(faster)
+        pipeline.replaceRules(faster)
         guard case .scroll(let tick) = pipeline.process(.scrollWheel, wheel(1)) else {
             Issue.record("the tick is taken")
             return
@@ -404,5 +404,110 @@ private func isMarked(_ event: CGEvent) -> Bool {
             #expect(TapPipeline.mask & (1 << CGEventMask(type.rawValue)) != 0, "\(type.rawValue)")
         }
         #expect(TapPipeline.mask & (1 << CGEventMask(CGEventType.leftMouseDown.rawValue)) == 0, "the left button is left alone")
+    }
+}
+
+private let listenID = ListenID(rawValue: 7)
+private let returnKey: CGKeyCode = 36
+private let f13: CGKeyCode = 105
+
+@Suite struct LearnStageTests {
+    /// The MX with rules on its right and back buttons, and the 2.4G's Return carrier.
+    func rules(listen: ListenID? = listenID) -> TapRules {
+        var config = Config.example
+        config.devices[0].rules = [
+            Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
+            Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft)),
+        ]
+        var rules = Intent.compile(
+            config, paused: false, tapAvailable: true,
+            present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue]), present(6, Bags.mouse24GKeys)]
+        ).tap
+        rules.listen = listen.map { TapListen(id: $0, senders: [mxSender]) }
+        return rules
+    }
+
+    func pipeline(_ sender: SenderID? = mxSender) -> TapPipeline {
+        TapPipeline(rules: rules(), origin: { _ in sender.map { HIDOrigin(sender: $0, wheelDetents: 0) } })
+    }
+
+    @Test func aListenTakesOnePressFromItsDevice() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .heard(listenID, .button(3)))
+        #expect(pipeline.process(.otherMouseDragged, mouse(.otherMouseDragged, button: 3, dx: 40)) == .drop)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .drop)
+        #expect(
+            pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .perform(.system(.spaceLeft)),
+            "one press per listen, then the rules again")
+    }
+
+    @Test func otherDevicesPassWhileListening() {
+        var trackpad = pipeline(trackpadSender)
+        #expect(trackpad.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .pass)
+        #expect(trackpad.process(.keyDown, key(returnKey, down: true)) == .pass)
+        var unattributed = pipeline(nil)
+        #expect(unattributed.process(.otherMouseDown, mouse(.otherMouseDown, button: 2)) == .pass)
+    }
+
+    @Test func aListenedPressReachesNoRuleOrCarrier() {
+        var buttons = pipeline()
+        #expect(buttons.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .heard(listenID, .button(1)))
+        #expect(buttons.process(.rightMouseDragged, mouse(.rightMouseDragged, button: 1, dy: 500)) == .drop, "no scroll")
+        #expect(buttons.process(.rightMouseUp, mouse(.rightMouseUp, button: 1)) == .drop, "no click replayed")
+        var keys = pipeline()
+        #expect(keys.process(.keyDown, key(f13, down: true)) == .heard(listenID, .key(KeyCode(rawValue: 105))))
+        #expect(keys.process(.keyUp, key(f13, down: false)) == .drop)
+    }
+
+    @Test func theTakenReleaseIsDroppedAfterTheListenEnds() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3))
+        pipeline.reset()
+        pipeline.replaceRules(rules(listen: nil))
+        #expect(pipeline.process(.otherMouseDragged, mouse(.otherMouseDragged, button: 3, dx: 5)) == .drop)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .drop)
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .perform(.system(.spaceLeft)))
+    }
+
+    @Test func aNewPressOfTheTakenButtonMeansItsReleaseWasLost() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3))
+        pipeline.replaceRules(rules(listen: nil))
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .perform(.system(.spaceLeft)))
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .drop, "the rule's own release")
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .pass, "nothing is taken any more")
+    }
+
+    @Test func aTakenKeyDropsItsRepeatsAndRelease() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.keyDown, key(returnKey, down: true)) == .heard(listenID, .key(KeyCode(name: "return")!)))
+        let repeated = key(returnKey, down: true)
+        repeated.setIntegerValueField(.keyboardEventAutorepeat, value: 1)
+        #expect(pipeline.process(.keyDown, repeated) == .drop)
+        #expect(pipeline.process(.keyUp, key(returnKey, down: false)) == .drop)
+        #expect(pipeline.process(.keyDown, key(returnKey, down: true)) == .pass, "the next press types")
+    }
+
+    @Test func aNewListenHearsTheNextPress() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3))
+        _ = pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3))
+        let next = ListenID(rawValue: 8)
+        pipeline.replaceRules(rules(listen: next))
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 4)) == .heard(next, .button(4)))
+    }
+
+    @Test func theLeftButtonIsNeverTaken() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.leftMouseDown, mouse(.leftMouseDown, button: 0)) == .pass)
+        #expect(pipeline.process(.leftMouseUp, mouse(.leftMouseUp, button: 0)) == .pass)
+        #expect(pipeline.process(.rightMouseDown, mouse(.rightMouseDown, button: 1)) == .heard(listenID, .button(1)))
+    }
+
+    @Test func aListenAloneInstallsTheTap() {
+        var rules = TapRules.empty
+        #expect(rules.isEmpty)
+        rules.listen = TapListen(id: listenID, senders: [mxSender])
+        #expect(!rules.isEmpty)
     }
 }

@@ -40,8 +40,12 @@ let topButton = CID(rawValue: 0xC4)
             bytes: "11 FF 08 3B 00 C4 23 00 00"),
         Golden(request: .setControlReporting(CID(rawValue: 0x52), .native), featureIndex: 0x08, bytes: "11 FF 08 3B 00 52 22 00 00"),
         Golden(request: .getControlReporting(gestureButton), featureIndex: 0x08, bytes: "11 FF 08 2B 00 C3"),
-        Golden(request: .setThumbWheelReporting(inverted: true), featureIndex: 0x0E, bytes: "11 FF 0E 2B 00 01"),
-        Golden(request: .setThumbWheelReporting(inverted: false), featureIndex: 0x0E, bytes: "11 FF 0E 2B 00 00"),
+        Golden(
+            request: .setThumbWheelReporting(ThumbWheelReporting(diverted: false, inverted: true)), featureIndex: 0x0E,
+            bytes: "11 FF 0E 2B 00 01"),
+        Golden(
+            request: .setThumbWheelReporting(ThumbWheelReporting(diverted: true, inverted: false)), featureIndex: 0x0E,
+            bytes: "11 FF 0E 2B 01 00"),
         Golden(request: .getThumbWheelReporting, featureIndex: 0x0E, bytes: "11 FF 0E 1B"),
     ]
 
@@ -74,9 +78,7 @@ let topButton = CID(rawValue: 0xC4)
             control("11 FF 08 1B 00 50 00 38 01 00 01 01 04")
                 == HIDPPCapabilities.Control(cid: CID(rawValue: 0x50), divertable: false, rawXY: false),
             "the left button is not divertable, and additional flag 0x04 is not rawXY")
-        #expect(
-            control("11 FF 08 1B 00 D7 00 B4 A0 00 04 00 03")
-                == HIDPPCapabilities.Control(cid: CID(rawValue: 0xD7), divertable: true, rawXY: true))
+        #expect(control("11 FF 08 1B 00 D7 00 B4 A0 00 04 00 03") == nil, "0xD7 is virtual, with no button to press")
     }
 
     @Test func notificationsDecode() {
@@ -86,7 +88,12 @@ let topButton = CID(rawValue: 0xC4)
         #expect(notice(report("11 FF 08 10 FF BA 00 03"), .reprogControls) == .rawXY(dx: -70, dy: 3))
         #expect(notice(report("11 FF 04 00 01 01 01"), .wirelessStatus) == .wirelessStatus(reconfigure: true))
         #expect(notice(report("11 FF 04 00 01 00 01"), .wirelessStatus) == .wirelessStatus(reconfigure: false))
-        #expect(notice(report("11 FF 0E 00 01 02"), .thumbWheel) == nil, "thumb wheel events are not acted on")
+    }
+
+    @Test func aThumbWheelTurnDecodesToItsRotation() {
+        #expect(notice(report("11 FF 0E 00 00 03 12 34 02 00"), .thumbWheel) == .thumbWheel(rotation: 3))
+        #expect(notice(report("11 FF 0E 00 FF FB 12 40 01 00"), .thumbWheel) == .thumbWheel(rotation: -5))
+        #expect(notice(report("11 FF 0E 00 00 00 12 48 03 00"), .thumbWheel) == nil, "a stop is not a turn")
     }
 
     @Test func otherTrafficIsIgnored() {

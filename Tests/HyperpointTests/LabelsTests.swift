@@ -32,6 +32,15 @@ import Testing
         #expect(Labels.action(.scroll) == "Scroll")
     }
 
+    @Test func aFullControlSaysHowItIsUsed() {
+        #expect(
+            Labels.learned(.full(mx, .thumbWheel))
+                == "Thumb wheel already has a rule for every way to turn it. Change it here.")
+        #expect(
+            Labels.learned(.full(mx, gestureButton))
+                == "Gesture button already has a rule for every way to press it. Change one of these.")
+    }
+
     @Test func aScrollRuleSaysWhatAQuickPressStillDoes() {
         #expect(
             Labels.holdToScroll(control: topButton, hasClickRule: true)

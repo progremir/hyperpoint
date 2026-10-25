@@ -48,6 +48,16 @@ struct SettingsDevice: Identifiable, Equatable {
         profile.kind ?? status?.kind ?? (profile.match == .builtIn || profile.hyper != nil ? .keyboard : .mouse)
     }
 
+    /// Why Add Rule cannot listen for a press, or nil when it can. The engine checks again when it starts.
+    func cannotListen(paused: Bool, permissions: PermissionState) -> String? {
+        if !connected { return "Connect \(name) to add a rule by pressing its button." }
+        if paused { return "Resume Hyperpoint to add a rule by pressing a button." }
+        if permissions.accessibility != .granted, !speaksHIDPP {
+            return "Hyperpoint needs Accessibility to hear this mouse's buttons."
+        }
+        return nil
+    }
+
     func card(paused: Bool, time: (Date) -> String) -> StatusCard {
         guard let status, let connectedAt = status.connectedAt else {
             return StatusCard(

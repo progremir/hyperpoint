@@ -83,6 +83,17 @@ struct FakeHIDPPDevice {
         return notification(0x1B04, event: 1, [UInt8(x >> 8), UInt8(x & 0xFF), UInt8(y >> 8), UInt8(y & 0xFF)])
     }
 
+    /// One turn of the thumb wheel, an active report and the stop after it. Like the mouse, nothing while the wheel
+    /// is not diverted, since macOS then gets the turn as a scroll.
+    func turned(_ rotation: Int16) -> [[UInt8]] {
+        guard wheelDiverted else { return [] }
+        let value = UInt16(bitPattern: rotation)
+        return [
+            notification(0x2150, event: 0, [UInt8(value >> 8), UInt8(value & 0xFF), 0x12, 0x34, 0x02, 0x00]),
+            notification(0x2150, event: 0, [0x00, 0x00, 0x12, 0x48, 0x03, 0x00]),
+        ]
+    }
+
     /// 0x1D4B after a reconnect: status 1, software reconfiguration requested, powered on.
     func askedToReconfigure() -> [UInt8] { notification(0x1D4B, event: 0, [0x01, 0x01, 0x01]) }
 

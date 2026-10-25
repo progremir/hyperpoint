@@ -89,10 +89,13 @@ public struct DeviceStatus: Equatable, Sendable {
     public var hyper: HyperStatus?
     /// Nil until Hyperpoint has read or written the device over HID++.
     public var hidpp: HIDPPStatus?
+    /// Non-nil while Hyperpoint listens for a press on this device, and after a listen that heard none, until the next
+    /// listen or a stop.
+    public var listen: ListenStatus?
 
     public init(
         name: String, match: DeviceMatch, kind: DeviceKind? = nil, transport: String? = nil, connectedAt: Date?,
-        hyper: HyperStatus?, hidpp: HIDPPStatus? = nil
+        hyper: HyperStatus?, hidpp: HIDPPStatus? = nil, listen: ListenStatus? = nil
     ) {
         self.name = name
         self.match = match
@@ -101,7 +104,45 @@ public struct DeviceStatus: Equatable, Sendable {
         self.connectedAt = connectedAt
         self.hyper = hyper
         self.hidpp = hidpp
+        self.listen = listen
     }
+}
+
+public enum ListenStatus: Equatable, Sendable {
+    /// The device is still being set up to listen, so a press may still do its own thing.
+    case gettingReady(until: Date)
+    case listening(until: Date)
+    case ended(ListenEnd)
+
+    /// How long a listen waits for a press.
+    public static let timeout: TimeInterval = 10
+}
+
+/// Why a listen ended without a press. A press, a stop and quit end it with no reason to show.
+public enum ListenEnd: Equatable, Sendable {
+    case timedOut
+    case disconnected
+    case paused
+    case slept
+    /// Neither the tap nor HID++ can hear the device.
+    case needsAccessibility
+}
+
+/// A press heard on a device, named the way the config names controls. Each comes once, on `Engine.heard`.
+public struct LearnedPress: Equatable, Sendable {
+    public var match: DeviceMatch
+    public var heard: Heard
+
+    public init(match: DeviceMatch, heard: Heard) {
+        self.match = match
+        self.heard = heard
+    }
+}
+
+public enum Heard: Equatable, Sendable {
+    case control(Control)
+    /// A key or button the config cannot name, such as F16.
+    case unnamed
 }
 
 public enum DeviceKind: String, Codable, Equatable, Sendable {

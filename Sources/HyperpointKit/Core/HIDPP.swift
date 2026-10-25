@@ -68,9 +68,8 @@ struct HIDPPRequest: Equatable, Sendable {
 
     static let getThumbWheelReporting = HIDPPRequest(feature: .thumbWheel, function: 1, params: [])
 
-    /// Byte 0 is the divert, byte 1 the invert. The wheel is never diverted, so macOS keeps scrolling natively.
-    static func setThumbWheelReporting(inverted: Bool) -> HIDPPRequest {
-        HIDPPRequest(feature: .thumbWheel, function: 2, params: [0, inverted ? 1 : 0])
+    static func setThumbWheelReporting(_ reporting: ThumbWheelReporting) -> HIDPPRequest {
+        HIDPPRequest(feature: .thumbWheel, function: 2, params: reporting.params)
     }
 
     private static func bigEndian(_ value: UInt16) -> [UInt8] { [UInt8(value >> 8), UInt8(value & 0xFF)] }
@@ -99,6 +98,24 @@ struct ControlReporting: Equatable, Sendable {
 
     init(readFlags: UInt8) {
         self.init(divert: readFlags & Self.divertBit != 0, rawXY: readFlags & Self.rawXYBit != 0)
+    }
+}
+
+/// The thumb wheel's reporting mode and direction, bit 0 of the first two bytes both ways. Diverted, the wheel stops
+/// scrolling and reports each turn to software instead.
+struct ThumbWheelReporting: Equatable, Sendable {
+    var diverted: Bool
+    var inverted: Bool
+
+    var params: [UInt8] { [diverted ? 1 : 0, inverted ? 1 : 0] }
+
+    init(diverted: Bool, inverted: Bool) {
+        self.diverted = diverted
+        self.inverted = inverted
+    }
+
+    init(read params: [UInt8]) {
+        self.init(diverted: params[0] & 1 == 1, inverted: params[1] & 1 == 1)
     }
 }
 
@@ -135,6 +152,10 @@ enum HIDPPNotice: Equatable, Sendable {
     case rawXY(dx: Int, dy: Int)
     /// 0x1D4B event 0. Byte 1 is 1 when the device asks software to configure it again.
     case wirelessStatus(reconfigure: Bool)
+    /// 0x2150 event 0, only while the wheel is diverted: a signed rotation, a timestamp, the rotation status and touch
+    /// flags, as Logitech documents it and Solaar reads it. A touch or the stop that ends a turn rotates by 0, so it
+    /// is none.
+    case thumbWheel(rotation: Int)
 
     init?(_ report: UnsafeBufferPointer<UInt8>, feature: HIDPPFeature, event: UInt8) {
         func word(_ offset: Int) -> UInt16 { UInt16(report[4 + offset]) << 8 | UInt16(report[5 + offset]) }
@@ -145,6 +166,10 @@ enum HIDPPNotice: Equatable, Sendable {
             self = .rawXY(dx: Int(Int16(bitPattern: word(0))), dy: Int(Int16(bitPattern: word(2))))
         case (.wirelessStatus, 0):
             self = .wirelessStatus(reconfigure: report[5] == 1)
+        case (.thumbWheel, 0):
+            let rotation = Int(Int16(bitPattern: word(0)))
+            guard rotation != 0 else { return nil }
+            self = .thumbWheel(rotation: rotation)
         default:
             return nil
         }
@@ -153,10 +178,14 @@ enum HIDPPNotice: Equatable, Sendable {
 
 extension HIDPPCapabilities.Control {
     private static let temporarilyDivertable: UInt8 = 0x20
+    private static let virtual: UInt8 = 0x80
     private static let rawXYCapable: UInt8 = 0x01
 
-    /// getCidInfo reply: cid, task, flags, fkey position, group, group mask, additional flags.
-    init(cidInfo params: [UInt8]) {
+    /// getCidInfo reply: cid, task, flags, fkey position, group, group mask, additional flags. Nil for a virtual
+    /// control, which has no physical button, so no press can reach it and no rule should name it. The MX Master 3
+    /// reports 0xD7 as virtual (measured).
+    init?(cidInfo params: [UInt8]) {
+        guard params[4] & Self.virtual == 0 else { return nil }
         self.init(
             cid: CID(rawValue: UInt16(params[0]) << 8 | UInt16(params[1])),
             divertable: params[4] & Self.temporarilyDivertable != 0,

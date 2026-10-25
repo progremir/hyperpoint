@@ -46,7 +46,7 @@ func index(of id: UInt16) -> UInt8? {
     return reply[0]
 }
 
-let names: [UInt16: String] = [0x50: "left", 0x51: "right", 0x52: "middle", 0x53: "back", 0x56: "forward", 0xC3: "gesture", 0xC4: "top", 0xD7: "thumb-click"]
+let names: [UInt16: String] = [0x50: "left", 0x51: "right", 0x52: "middle", 0x53: "back", 0x56: "forward", 0xC3: "gesture", 0xC4: "top", 0xD7: "virtual"]
 let reprog = index(of: 0x1B04), thumb = index(of: 0x2150), smart = index(of: 0x2110), hires = index(of: 0x2121)
 print("features reprog=\(reprog.map { String(format: "0x%02X", $0) } ?? "absent") thumbwheel=\(thumb.map { String(format: "0x%02X", $0) } ?? "absent") smartshift=\(smart.map { String(format: "0x%02X", $0) } ?? "absent") hires=\(hires.map { String(format: "0x%02X", $0) } ?? "absent")")
 
