@@ -84,7 +84,7 @@ let capsLock = HIDUsage(name: "capsLock")!
 let measuredMXCapabilities = HIDPPCapabilities(
     controls: [
         (0x50, false, false), (0x51, false, false), (0x52, true, true), (0x53, true, true), (0x56, true, true),
-        (0xC3, true, true), (0xC4, true, true), (0xD7, true, true),
+        (0xC3, true, true), (0xC4, true, true),
     ].map { HIDPPCapabilities.Control(cid: CID(rawValue: $0.0), divertable: $0.1, rawXY: $0.2) },
     thumbWheel: true)
 

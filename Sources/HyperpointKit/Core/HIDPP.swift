@@ -153,10 +153,14 @@ enum HIDPPNotice: Equatable, Sendable {
 
 extension HIDPPCapabilities.Control {
     private static let temporarilyDivertable: UInt8 = 0x20
+    private static let virtual: UInt8 = 0x80
     private static let rawXYCapable: UInt8 = 0x01
 
-    /// getCidInfo reply: cid, task, flags, fkey position, group, group mask, additional flags.
-    init(cidInfo params: [UInt8]) {
+    /// getCidInfo reply: cid, task, flags, fkey position, group, group mask, additional flags. Nil for a virtual
+    /// control, which has no physical button, so no press can reach it and no rule should name it. The MX Master 3
+    /// reports 0xD7 as virtual (measured).
+    init?(cidInfo params: [UInt8]) {
+        guard params[4] & Self.virtual == 0 else { return nil }
         self.init(
             cid: CID(rawValue: UInt16(params[0]) << 8 | UInt16(params[1])),
             divertable: params[4] & Self.temporarilyDivertable != 0,

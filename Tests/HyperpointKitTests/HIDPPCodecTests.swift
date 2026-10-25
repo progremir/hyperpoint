@@ -74,9 +74,7 @@ let topButton = CID(rawValue: 0xC4)
             control("11 FF 08 1B 00 50 00 38 01 00 01 01 04")
                 == HIDPPCapabilities.Control(cid: CID(rawValue: 0x50), divertable: false, rawXY: false),
             "the left button is not divertable, and additional flag 0x04 is not rawXY")
-        #expect(
-            control("11 FF 08 1B 00 D7 00 B4 A0 00 04 00 03")
-                == HIDPPCapabilities.Control(cid: CID(rawValue: 0xD7), divertable: true, rawXY: true))
+        #expect(control("11 FF 08 1B 00 D7 00 B4 A0 00 04 00 03") == nil, "0xD7 is virtual, with no button to press")
     }
 
     @Test func notificationsDecode() {

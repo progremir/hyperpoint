@@ -362,7 +362,7 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | `IOHIDDeviceSetReport` works and replies arrive through the input report callback. Opening needs Input Monitoring. | measured, sourced |
 | CoreHID matched the device but delivered no input reports in 10 s. | measured |
 | On this mouse, 0x1B04 is at feature index 0x08, 0x2150 at 0x0E, 0x1D4B at 0x04. Indices are per device, so they are always discovered. | measured |
-| Controls are 0x50, 0x51, 0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7. 0xC3 and 0xC4 are temporarily divertable and rawXY-capable. | measured |
+| Controls are 0x50, 0x51, 0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7. 0xC3 and 0xC4 are temporarily divertable and rawXY-capable. 0xD7 is flagged virtual (getCidInfo flags 0xA0, group 4, no group mask): it has no physical button, so discovery leaves it out. The wheel click is 0x52. | measured |
 | setCidReporting flags are 0x22 off, 0x23 divert, 0x33 divert plus rawXY. Divert is volatile. | sourced |
 | BetterMouse currently diverts 0xC3, 0xC4 (flags 0x01) and the thumb wheel. | measured |
 | macOS 27 ignores the CGEvent dock-swipe fields. Symbolic hotkeys 32, 33, 79, 81 trigger Mission Control, App Exposé and Space left and right. | sourced |

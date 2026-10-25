@@ -85,7 +85,7 @@ private func plan(fire: GestureFire) -> HIDPPSetup {
 
 private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
 /// Every divertable MX control, diverted without raw movement.
-private let listening: [UInt16: UInt8] = [0x52: 0x01, 0x53: 0x01, 0x56: 0x01, 0xC3: 0x01, 0xC4: 0x01, 0xD7: 0x01]
+private let listening: [UInt16: UInt8] = [0x52: 0x01, 0x53: 0x01, 0x56: 0x01, 0xC3: 0x01, 0xC4: 0x01]
 private let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
 private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
@@ -250,7 +250,7 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
     @Test func anotherAppWritingTheSameControlIsAMismatch() {
         var bench = Bench()
         bench.request(.connected, plan())
-        bench.settle { $0.fake.writes == 7 }
+        bench.settle { $0.fake.writes == 6 }
         bench.fake.reporting[0xC3] = 0x01
         bench.settle { $0.outcomes.count == 1 }
         guard case .failed(.mismatch(.checkReporting(gestureButton, _))) = bench.outcomes.first else {

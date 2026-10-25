@@ -13,7 +13,6 @@ let mxCapabilities = HIDPPCapabilities(
         .init(cid: CID(rawValue: 0x56), divertable: true, rawXY: true),
         .init(cid: CID(rawValue: 0xC3), divertable: true, rawXY: true),
         .init(cid: CID(rawValue: 0xC4), divertable: true, rawXY: true),
-        .init(cid: CID(rawValue: 0xD7), divertable: true, rawXY: true),
     ],
     thumbWheel: true)
 
@@ -44,7 +43,7 @@ let mxCapabilities = HIDPPCapabilities(
     @Test func pickersOfferTheDivertableControlsTheDeviceReported() {
         #expect(
             mxChoices.controls
-                == [.button(1)] + [0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7].map { Control.hidpp(CID(rawValue: $0)) } + [.thumbWheel],
+                == [.button(1)] + [0x52, 0x53, 0x56, 0xC3, 0xC4].map { Control.hidpp(CID(rawValue: $0)) } + [.thumbWheel],
             "the right button cannot be diverted, so it is a plain button")
         let offline = RuleChoices(rules: mxRules, capabilities: nil, speaksHIDPP: true)
         #expect(offline.controls == [.button(1), gestureButton, topButton, .thumbWheel], "the rules' controls while not connected")
@@ -141,8 +140,8 @@ let mxCapabilities = HIDPPCapabilities(
             }
         }
         #expect(
-            profile(config, mx)?.rules?.count == 33,
-            "5 each for six HID++ controls (click, four swipes), 2 for the right button (click, scroll), 1 for the wheel")
+            profile(config, mx)?.rules?.count == 28,
+            "5 each for five HID++ controls (click, four swipes), 2 for the right button (click, scroll), 1 for the wheel")
     }
 
     @Test func movingARuleKeepsWhatStillWorks() {

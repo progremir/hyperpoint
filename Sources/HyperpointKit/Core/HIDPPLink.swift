@@ -193,7 +193,7 @@ struct HIDPPLink: Sendable {
         case .countControls:
             run?.steps += (0..<params[0]).map(HIDPPStep.describeControl)
         case .describeControl:
-            run?.discovery?.controls.append(HIDPPCapabilities.Control(cidInfo: params))
+            if let control = HIDPPCapabilities.Control(cidInfo: params) { run?.discovery?.controls.append(control) }
         case .setReporting, .setThumbWheel:
             break
         case .checkReporting(_, let expected):
