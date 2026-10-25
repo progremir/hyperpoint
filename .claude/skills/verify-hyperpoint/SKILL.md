@@ -18,6 +18,13 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
+Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
+`hyper-check`, `record` and `settings-*` take it for this worktree and refresh it. When another worktree holds it they
+wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
+`verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
+with `verify.sh unlock` at the end of the run. A lock idle for 20 minutes (`HYPERPOINT_LOCK_STALE`) is taken over by
+the next run. `doctor`, `state`, `log` and `replay` never need it.
+
 Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hidutil` mappings have no effect while it runs), and BetterMouse diverts the same MX controls. `doctor` lists them. Do not quit them yourself; ask the user.
 
 ## Launch
@@ -78,5 +85,6 @@ The app's own log says what it attempted. The read-backs say what the device hol
 
 - Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
 - End every run with the build under test **running**: `verify.sh launch` after any quit. The user depends on it.
+  Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.
 - Leave `.verify-evidence/` in place. It is the proof.
