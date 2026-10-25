@@ -67,6 +67,7 @@ private struct DeviceRow: View {
                     .fixedSize()
                     .help("A mouse gets the Buttons and Scrolling tabs. A keyboard can have the hyper key.")
                     Button("Forget…") { confirmingForget = true }
+                        .fixedSize()
                         .help("Remove this device's settings from the config file")
                 } else {
                     Text(device.name)
