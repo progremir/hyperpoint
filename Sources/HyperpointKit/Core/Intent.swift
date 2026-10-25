@@ -11,12 +11,17 @@ struct Intent: Equatable, Sendable {
     var setups: [DeviceInstanceID: DeviceSetup]
     var tap: TapRules
     var skipped: [DeviceInstanceID: [Rule]] = [:]
+    /// Nil unless a present device with a profile is listened to and Hyperpoint is neither paused nor quitting.
+    var listening: ListenPlan?
 
     static let neutral = Intent(setups: [:], tap: .empty)
 
     func setup(for device: DeviceInstanceID) -> DeviceSetup { setups[device] ?? .neutral }
 
-    static func compile(_ config: Config, paused: Bool, tapAvailable: Bool, present: [PresentDevice]) -> Intent {
+    /// Paused compiles to neutral, listening or not, so pause and quit always give the devices back.
+    static func compile(
+        _ config: Config, paused: Bool, tapAvailable: Bool, present: [PresentDevice], listening: ListenTarget? = nil
+    ) -> Intent {
         guard !paused else { return .neutral }
         var setups: [DeviceInstanceID: DeviceSetup] = [:]
         var skipped: [DeviceInstanceID: [Rule]] = [:]
@@ -52,8 +57,28 @@ struct Intent: Equatable, Sendable {
             setups[device.id] = DeviceSetup(keyMap: KeyMapSetup(routes: routes), hidpp: hidpp, discoverHIDPP: discover)
         }
         let routes = present.flatMap { setups[$0.id]?.keyMap.routes ?? [] }
-        return Intent(
+        var intent = Intent(
             setups: setups, tap: TapRules(routes: routes, smoothScroll: smoothScroll, buttons: buttons), skipped: skipped)
+        if let listening { intent.listen(to: listening, on: present, tapAvailable: tapAvailable) }
+        return intent
+    }
+
+    /// Every HID++ control of the target reports its press, its key map is cleared so that its keys reach the tap as
+    /// themselves, and the tap takes one press from its senders. Other devices and the other tap rules are untouched,
+    /// since another device may share a carrier.
+    private mutating func listen(to target: ListenTarget, on present: [PresentDevice], tapAvailable: Bool) {
+        guard let device = present.first(where: { $0.id == target.device }), var setup = setups[device.id] else { return }
+        if device.properties.speaksHIDPP { setup.hidpp = .listening(over: setup.hidpp) }
+        var carrierSources: [KeyCode: HIDUsage] = [:]
+        for route in setup.keyMap.routes {
+            if case .carrier(let carrier, _) = route.target { carrierSources[carrier.keyCode] = route.source }
+        }
+        setup.keyMap = .neutral
+        setups[device.id] = setup
+        if tapAvailable, !device.eventServices.isEmpty {
+            tap.listen = TapListen(id: target.id, senders: Set(device.eventServices))
+        }
+        listening = ListenPlan(target: target, carrierSources: carrierSources)
     }
 
     /// Each action a key clicks gets its own carrier, in file order, so a device that connects or leaves never moves

@@ -30,31 +30,36 @@ final class Slot {
     private let discovered: @HIDActor (HIDPPCapabilities) -> Void
     private let perform: @HIDActor (Action) -> Void
     private let holdScroll: @HIDActor (HoldScrollEvent) -> Void
+    private let heard: @HIDActor (CID) -> Void
     private let journal: Journal
     private let matching: String
     private let hasKeyMap: Bool
     private let hidppInterface: IOHIDDevice?
     private var session: HIDPPSession?
     /// A session opened only to read the controls has nothing to undo.
-    private var hidppWritten = false
+    private var hidppWritten: Bool
     private var scheduler = ApplyScheduler()
     private var worker: Task<Void, Never>?
     private var retry: Task<Void, Never>?
 
+    /// `owesNativeHIDPP` is for a mouse a crashed run may have left diverted, which then writes native even with
+    /// nothing else to write.
     init(
-        device: PresentDevice, hidppInterface: IOHIDDevice?, journal: Journal,
+        device: PresentDevice, hidppInterface: IOHIDDevice?, owesNativeHIDPP: Bool, journal: Journal,
         desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
         discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void,
-        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void
+        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void, heard: @escaping @HIDActor (CID) -> Void
     ) {
         self.device = device
         self.hidppInterface = hidppInterface
+        hidppWritten = owesNativeHIDPP
         self.journal = journal
         self.desired = desired
         self.changed = changed
         self.discovered = discovered
         self.perform = perform
         self.holdScroll = holdScroll
+        self.heard = heard
         hasKeyMap = device.properties.usagePairs.contains(.keyboard)
         matching = DeviceMatch(identifying: device.properties).hidutilKeyboardMatching
     }
@@ -123,8 +128,8 @@ final class Slot {
             perform(action)
         case .holdScroll(let event):
             holdScroll(event)
-        case .heard:
-            break
+        case .heard(let cid):
+            heard(cid)
         }
     }
 
@@ -160,6 +165,8 @@ final class Slot {
             }
             changed()
         }
+        // The last job's change came while the scheduler still ran, so whoever waits for `busy` to clear hears it here.
+        if !Task.isCancelled { changed() }
     }
 
     private func failed(_ error: KeyMapError) {
