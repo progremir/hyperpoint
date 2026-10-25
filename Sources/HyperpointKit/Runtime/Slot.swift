@@ -37,14 +37,11 @@ final class Slot {
     private let hasKeyMap: Bool
     private let hidppInterface: IOHIDDevice?
     private var session: HIDPPSession?
-    /// A session opened only to read the controls has nothing to undo.
-    private var hidppWritten: Bool
+    private var hidppWrites: HIDPPWrites
     private var scheduler = ApplyScheduler()
     private var worker: Task<Void, Never>?
     private var retry: Task<Void, Never>?
 
-    /// `owesNativeHIDPP` is for a mouse a crashed run may have left diverted, which then writes native even with
-    /// nothing else to write.
     init(
         device: PresentDevice, hidppInterface: IOHIDDevice?, owesNativeHIDPP: Bool, journal: Journal,
         desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
@@ -54,7 +51,7 @@ final class Slot {
     ) {
         self.device = device
         self.hidppInterface = hidppInterface
-        hidppWritten = owesNativeHIDPP
+        hidppWrites = HIDPPWrites(crashMayHaveDiverted: owesNativeHIDPP)
         self.journal = journal
         self.desired = desired
         self.changed = changed
@@ -95,8 +92,8 @@ final class Slot {
 
     private func applyHIDPP(_ reason: ApplyReason) {
         let wanted = desired()
-        let plan = HIDPPSetup.pendingWrite(desired: wanted.hidpp, written: hidppWritten)
-        guard let hidppInterface, plan != nil || wanted.discoverHIDPP else { return }
+        guard let hidppInterface, hidppWrites.pending(desired: wanted.hidpp) != nil || wanted.discoverHIDPP
+        else { return }
         if session == nil {
             do {
                 session = try HIDPPSession(opening: hidppInterface, journal: journal) { [unowned self] in hidppEvent($0) }
@@ -107,7 +104,7 @@ final class Slot {
                 return
             }
         }
-        if plan != nil { hidppWritten = true }
+        let plan = hidppWrites.send(desired: wanted.hidpp)
         session?.request(reason, plan: plan)
     }
 

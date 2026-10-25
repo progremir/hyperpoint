@@ -5,15 +5,20 @@
   </picture>
 </p>
 
-<p align="center">A macOS menu-bar app for your mouse and keys, re-applied every time a device reconnects.</p>
+<p align="center">Your mouse buttons, scroll wheel and Caps Lock, working the way you want and staying that way.</p>
 
-Hyperpoint replaces BetterMouse and Karabiner-Elements. Each keyboard and mouse you set up gets a profile in one config
-file, started from a preset for that device or from another device's profile. Devices forget their settings often (HID++
-diverts are lost on sleep and reconnect, a key mapping dies with its HID service), so Hyperpoint computes the state each
-device should be in from that file and writes all of it back whenever a device appears.
+Hyperpoint is a macOS menu-bar app that does the job of BetterMouse and Karabiner-Elements in one place. Give your
+mouse's buttons and gestures new actions, make the scroll wheel glide like a trackpad, and turn Caps Lock into a hyper
+key for app shortcuts.
+
+Setting it up takes a click and a press. A mouse or keyboard you plug in shows up in Settings, where you set it up from
+a preset for its model, from another device's settings, or empty. Then click Add Rule and press the button you want to
+change. Your setup survives sleep and reconnects, even on mice that forget their settings, like the MX Master 3.
 
 ## Features
 
+- **Rules by pressing.** Click Add Rule and press a button, a key or the thumb wheel on the mouse, and the rule is made
+  for that control. Click a rule's button to change it the same way.
 - **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard. One switch, on the Hyper Key tab or in the menu
   bar, turns it off on every keyboard and back on again.
 - **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission

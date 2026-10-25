@@ -361,6 +361,9 @@ import Testing
         config.devices.append(DevicePreset.keyboard.profile(for: DeviceMatch(identifying: keys.properties), name: "MX Keys"))
         let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [keys]).setup(for: keys.id)
         #expect(setup.hidpp == nil && !setup.discoverHIDPP)
+        config.devices[config.devices.count - 1].kind = .mouse
+        let mouse = Intent.compile(config, paused: false, tapAvailable: true, present: [keys]).setup(for: keys.id)
+        #expect(mouse.discoverHIDPP, "the profile's kind decides")
     }
 
     @Test func aScrollRuleDivertsWithRawMovementAndKeepsTheClick() {
@@ -407,9 +410,12 @@ import Testing
 
     @Test func pauseTurnsAWrittenDeviceNative() {
         let paused = Intent.compile(.example, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
-        #expect(HIDPPSetup.pendingWrite(desired: paused, written: true) == .native)
-        #expect(HIDPPSetup.pendingWrite(desired: paused, written: false) == nil, "a device never written stays untouched")
-        #expect(HIDPPSetup.pendingWrite(desired: presetMX, written: false) == presetMX)
+        var written = HIDPPWrites(crashMayHaveDiverted: false)
+        _ = written.send(desired: presetMX)
+        #expect(written.pending(desired: paused) == .native)
+        #expect(
+            HIDPPWrites(crashMayHaveDiverted: false).pending(desired: paused) == nil,
+            "a device never written stays untouched")
     }
 }
 

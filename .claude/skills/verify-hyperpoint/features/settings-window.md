@@ -10,14 +10,14 @@ Settings… (⌘,) opens a preferences window with a toolbar of five tabs: Gener
 - `settings-rules` edits, adds and removes profile rules with pickers limited to valid choices.
 - `settings-listen` adds a rule for the button the user presses or the thumb wheel the user turns. Add Rule listens for 10 s, the pressed control gets a rule on its first free trigger, and the button's menu adds one without pressing. A rule's Button cell listens the same way and moves that rule to the pressed button.
 - `settings-graph` edits the speed curve by dragging points, saving on mouse-up.
-- `settings-setup` sets a new device up from the Devices, Buttons, Scrolling or Hyper Key tab: the button applies the best preset, and its menu offers the other presets, an empty profile for a mouse and a copy of another profile.
+- `settings-setup` sets a new device up from the Devices, Buttons or Scrolling tab: the button applies the best preset, and its menu offers the other presets, an empty profile for a mouse and a copy of another profile. On the Hyper Key tab, switching on a new keyboard applies the keyboard preset to it.
 - `settings-devices` renames a profile, forgets it after a confirmation, ignores a new device and stops ignoring one.
 - `settings-save` writes the file and the engine re-applies; the window is read-only while the file is invalid.
 
 ## How to get to it (user POV)
 
 - Menu bar icon › Settings… or ⌘, while the menu is open.
-- Toolbar: General (login item, how to grant permissions, config file, log), Hyper Key (key, keyboards, how it works), Buttons (Device popup, status and Re-apply, rules, gestures), Scrolling (Device popup, smooth scrolling, speed graph, glide, hold to scroll, not yet available), Devices (every device, Set Up, Forget, Ignore, Stop Ignoring).
+- Toolbar: General (login item, how to grant permissions, config file, log), Hyper Key (on/off switch, key, keyboards, how it works), Buttons (Device popup, status and Re-apply, rules, gestures), Scrolling (Device popup, smooth scrolling, speed graph, glide, hold to scroll, not yet available), Devices (every device, Set Up, Forget, Ignore, Stop Ignoring).
 
 ## Driving it with verify.sh
 

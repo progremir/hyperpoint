@@ -1,6 +1,6 @@
 # Menu and config reload
 
-The menu-bar menu shows Active or Needs attention, each device's state, the last reconnect, and Re-apply, Pause, Open Config File, Settings… and Quit. Saving the config file by hand reloads it; an invalid file keeps the last good settings and says why.
+The menu-bar menu shows Active or Needs attention, each device's state, the last reconnect, and Re-apply, Hyper Key, Pause, Settings…, Open Config File and Quit. Saving the config file by hand reloads it; an invalid file keeps the last good settings and says why.
 
 ## Sub-features
 
