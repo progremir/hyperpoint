@@ -117,13 +117,13 @@ import Testing
     }
 
     @Test func aKeyboardInterfaceDescribesItsDeviceWhicheverComesFirst() {
-        let keys = HIDProperties(bag: Bags.receiverKeyboard)
-        let pointer = HIDProperties(bag: Bags.receiverPointer)
-        let keysService = SenderID(rawValue: 0x1_0004_2000)
-        let pointerService = SenderID(rawValue: 0x1_0004_2100)
+        let keys = HIDProperties(bag: Bags.mouse24GKeys)
+        let pointer = HIDProperties(bag: Bags.mouse24GPointer)
+        let keysService = SenderID(rawValue: 0x1_0005_2151)
+        let pointerService = SenderID(rawValue: 0x1_0005_214E)
 
         var pointerFirst = DeviceRoster()
-        let appeared = pointerFirst.interfaceAppeared(0xA, properties: pointer, services: [pointerService])
+        let appeared = pointerFirst.interfaceAppeared(0x1_0005_2141, properties: pointer, services: [pointerService])
         guard case .appeared(let early) = appeared else {
             Issue.record("the pointer interface makes the device appear")
             return
@@ -132,11 +132,12 @@ import Testing
         var described = early
         described.properties = keys
         described.eventServices = [pointerService, keysService]
-        #expect(pointerFirst.interfaceAppeared(0xB, properties: keys, services: [keysService]) == .changed(described))
+        let keysJoining = pointerFirst.interfaceAppeared(0x1_0005_2143, properties: keys, services: [keysService])
+        #expect(keysJoining == .changed(described))
 
         var keysFirst = DeviceRoster()
-        _ = keysFirst.interfaceAppeared(0xB, properties: keys, services: [keysService])
-        let joining = keysFirst.interfaceAppeared(0xA, properties: pointer, services: [pointerService])
+        _ = keysFirst.interfaceAppeared(0x1_0005_2143, properties: keys, services: [keysService])
+        let joining = keysFirst.interfaceAppeared(0x1_0005_2141, properties: pointer, services: [pointerService])
         guard case .changed(let joined) = joining else {
             Issue.record("the pointer interface brings its service")
             return

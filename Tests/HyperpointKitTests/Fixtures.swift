@@ -25,15 +25,18 @@ enum Bags {
         "Product": "USB Optical Mouse", "PrimaryUsagePage": 1, "PrimaryUsage": 2,
         "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1]],
     ]
-    /// A receiver that puts its keys and its pointer on separate interfaces, as the 2.4G mouse's may.
-    static let receiverKeyboard: [String: any Sendable] = [
-        "VendorID": 0x1EA7, "ProductID": 0x2, "Transport": "USB", "LocationID": 0x0120_0000, "Product": "2.4G Mouse",
-        "PrimaryUsagePage": 1, "PrimaryUsage": 6,
-        "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 6], ["DeviceUsagePage": 12, "DeviceUsage": 1]],
+    /// The 2.4G mouse's receiver puts its keys and its pointer on separate USB interfaces, and neither has a product
+    /// name (measured).
+    static let mouse24GKeys: [String: any Sendable] = [
+        "VendorID": 0x1EA7, "ProductID": 0x2, "Transport": "USB", "LocationID": 17_965_056,
+        "PrimaryUsagePage": 1, "PrimaryUsage": 6, "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 6]],
     ]
-    static let receiverPointer: [String: any Sendable] = receiverKeyboard.merging([
+    static let mouse24GPointer: [String: any Sendable] = mouse24GKeys.merging([
         "PrimaryUsage": 2,
-        "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1]],
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1],
+            ["DeviceUsagePage": 12, "DeviceUsage": 1], ["DeviceUsagePage": 1, "DeviceUsage": 0x80],
+        ],
     ]) { $1 }
     /// `hidutil list` shows the same keyboard as vendor 0x0, product 0x0.
     static let builtInKeyboardAsListed: [String: any Sendable] = builtInKeyboard.merging(["VendorID": 0, "ProductID": 0]) { $1 }
