@@ -85,7 +85,7 @@ let mxCapabilities = HIDPPCapabilities(
         for _ in 0..<40 {
             let rules = profile(config, mx)?.rules ?? []
             guard let rule = RuleChoices(rules: rules, capabilities: mxCapabilities, speaksHIDPP: true).newRule else { break }
-            config = SettingsEdit.addRule(mx, name: "MX Master 3", rule).applied(to: config)
+            config = SettingsEdit.addRule(mx, rule).applied(to: config)
             #expect(saves(config), "\(rule)")
         }
         #expect(

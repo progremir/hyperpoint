@@ -34,7 +34,7 @@ import Testing
     }
 
     @Test func aNewDeviceIsListedOnceAfterItGetsAProfile() {
-        let config = SettingsEdit.hyperOn(karabiner, name: "Virtual", true).applied(to: .example)
+        let config = SettingsEdit.addDevice(karabiner, name: "Virtual", .preset(.keyboard)).applied(to: .example)
         let devices = SettingsDevice.all(config: config, status: status(devices: [], newDevices: [virtualKeyboard]))
         #expect(devices.filter { $0.match == karabiner }.map(\.isNew) == [false])
     }
@@ -53,7 +53,7 @@ import Testing
         #expect(devices[1].card(paused: false, time: time).title == "Not connected")
         #expect(
             devices[4].card(paused: false, time: time).detail
-                == "First seen at 15:06. Hyperpoint changes nothing on it until you turn on the hyper key for it.")
+                == "First seen at 15:06. Hyperpoint changes nothing on it until you set it up.")
         #expect(devices[0].card(paused: true, time: time).detail.contains("paused"))
     }
 

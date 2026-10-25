@@ -34,7 +34,12 @@ struct HyperKeyTab: View {
                                     keyboard.name,
                                     isOn: Binding(
                                         get: { keyboard.profile?.hyper == true },
-                                        set: { model.apply(.hyperOn(keyboard.match, name: keyboard.name, $0)) }))
+                                        set: { on in
+                                            model.apply(
+                                                keyboard.isNew
+                                                    ? .addDevice(keyboard.match, name: keyboard.name, .preset(.keyboard))
+                                                    : .hyperOn(keyboard.match, on))
+                                        }))
                                 Explanation(Self.detail(keyboard)).padding(.leading, 20)
                             }
                         }

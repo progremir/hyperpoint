@@ -47,7 +47,6 @@ private struct DeviceList: View {
     }
 }
 
-/// A device's name, how it is connected and what was applied, with Forget for a profile and Ignore for a new device.
 private struct DeviceRow: View {
     let model: SettingsModel
     let device: SettingsDevice
@@ -73,11 +72,18 @@ private struct DeviceRow: View {
                         .padding(.vertical, 1)
                         .background(.quaternary, in: Capsule())
                     Spacer()
-                    Button("Ignore") { model.apply(.ignore(device.match, true)) }
-                        .help("Stop listing this device as new. Hyperpoint leaves it as macOS has it.")
                 }
             }
             Explanation("\(card.title). \(card.detail)").padding(.leading, 16)
+            if device.isNew {
+                HStack(spacing: 8) {
+                    SetUpButton(model: model, device: device)
+                    Button("Ignore") { model.apply(.ignore(device.match, true)) }
+                        .help("Stop listing this device as new. Hyperpoint leaves it as macOS has it.")
+                }
+                .padding(.leading, 16)
+                .padding(.top, 4)
+            }
         }
         .padding(.bottom, 4)
         .confirmationDialog("Forget \(device.name)?", isPresented: $confirmingForget) {

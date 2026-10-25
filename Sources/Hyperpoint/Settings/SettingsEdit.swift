@@ -17,11 +17,10 @@ struct RuleKey: Hashable, Sendable {
 /// lands where the user meant, or does nothing.
 enum SettingsEdit: Equatable, Sendable {
     case hyperKey(HIDUsage)
-    /// Creates the profile when the keyboard has none.
-    case hyperOn(DeviceMatch, name: String, Bool)
+    case addDevice(DeviceMatch, name: String, ProfileSource)
+    case hyperOn(DeviceMatch, Bool)
     case rename(DeviceMatch, String)
-    /// Creates the profile when the device has none.
-    case addRule(DeviceMatch, name: String, Rule)
+    case addRule(DeviceMatch, Rule)
     case replaceRule(DeviceMatch, RuleKey, Rule)
     case removeRule(DeviceMatch, RuleKey)
     case gestureFire(DeviceMatch, GestureFire)
@@ -41,18 +40,31 @@ enum SettingsEdit: Equatable, Sendable {
         switch self {
         case .hyperKey(let key):
             config.hyper.key = key
-        case .hyperOn(let match, let name, let on):
-            if !config.editProfile(match, { $0.hyper = on }), on {
-                config.devices.append(DeviceProfile(match: match, name: name, hyper: true))
-            }
+        case .addDevice(let match, let name, let source):
+            let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !config.ignored.contains(match), !config.devices.contains(where: { $0.match == match })
+            else { break }
+            let profile: DeviceProfile? =
+                switch source {
+                case .preset(let preset): preset.isForAnotherModel(than: match) ? nil : preset.profile(for: match, name: name)
+                case .copy(let other):
+                    config.devices.first { $0.match == other }.map { profile in
+                        var copy = profile
+                        copy.match = match
+                        copy.name = name
+                        return copy
+                    }
+                case .blank: DeviceProfile(match: match, name: name)
+                }
+            if let profile { config.devices.append(profile) }
+        case .hyperOn(let match, let on):
+            config.editProfile(match) { $0.hyper = on }
         case .rename(let match, let name):
             let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { break }
             config.editProfile(match) { $0.name = name }
-        case .addRule(let match, let name, let rule):
-            if !config.editProfile(match, { $0.rules = ($0.rules ?? []) + [rule] }) {
-                config.devices.append(DeviceProfile(match: match, name: name, rules: [rule]))
-            }
+        case .addRule(let match, let rule):
+            config.editProfile(match) { $0.rules = ($0.rules ?? []) + [rule] }
         case .replaceRule(let match, let key, let rule):
             config.editProfile(match) { profile in
                 guard let index = profile.rules?.firstIndex(where: { RuleKey($0) == key }) else { return }
@@ -99,9 +111,12 @@ enum SettingsEdit: Equatable, Sendable {
     var logDescription: String {
         switch self {
         case .hyperKey(let key): "hyper.key = \(key.name ?? "?")"
-        case .hyperOn(let match, _, let on): "\(Self.profile(match)).hyper = \(on)"
+        case .addDevice(let match, _, .preset(let preset)): "devices += \(Self.json(match)) from preset \(preset)"
+        case .addDevice(let match, _, .copy(let other)): "devices += \(Self.json(match)) from copy of \(Self.json(other))"
+        case .addDevice(let match, _, .blank): "devices += \(Self.json(match)) blank"
+        case .hyperOn(let match, let on): "\(Self.profile(match)).hyper = \(on)"
         case .rename(let match, let name): "\(Self.profile(match)).name = \(Self.json(name))"
-        case .addRule(let match, _, let rule): "\(Self.profile(match)).rules += \(Self.json(rule))"
+        case .addRule(let match, let rule): "\(Self.profile(match)).rules += \(Self.json(rule))"
         case .replaceRule(let match, let key, let rule):
             "\(Self.profile(match)).rules[\(Self.json(key.control)) \(key.trigger.name)] = \(Self.json(rule))"
         case .removeRule(let match, let key):
@@ -129,12 +144,15 @@ enum SettingsEdit: Equatable, Sendable {
     }
 }
 
+enum ProfileSource: Hashable, Sendable {
+    case preset(DevicePreset)
+    case copy(of: DeviceMatch)
+    case blank
+}
+
 extension Config {
-    /// Changes the profile for `match` and says whether there was one.
-    @discardableResult
-    fileprivate mutating func editProfile(_ match: DeviceMatch, _ change: (inout DeviceProfile) -> Void) -> Bool {
-        guard let index = devices.firstIndex(where: { $0.match == match }) else { return false }
+    fileprivate mutating func editProfile(_ match: DeviceMatch, _ change: (inout DeviceProfile) -> Void) {
+        guard let index = devices.firstIndex(where: { $0.match == match }) else { return }
         change(&devices[index])
-        return true
     }
 }
