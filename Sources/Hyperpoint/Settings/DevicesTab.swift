@@ -59,7 +59,7 @@ private struct DeviceRow: View {
                 ConnectionDot(connected: card.connected)
                 if let profile = device.profile {
                     NameField(name: profile.name) { model.apply(.rename(device.match, $0)) }
-                        .frame(width: 220)
+                        .frame(maxWidth: 220)
                     Picker("Kind", selection: Binding(get: { device.kind }, set: { model.apply(.kind(device.match, $0)) })) {
                         Text("Mouse").tag(DeviceKind.mouse)
                         Text("Keyboard").tag(DeviceKind.keyboard)
@@ -69,6 +69,7 @@ private struct DeviceRow: View {
                     .help("A mouse gets the Buttons and Scrolling tabs. A keyboard can have the hyper key.")
                     Spacer()
                     Button("Forget…") { confirmingForget = true }
+                        .fixedSize()
                         .help("Remove this device's settings from the config file")
                 } else {
                     Text(device.name)
