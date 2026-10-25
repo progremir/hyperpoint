@@ -30,6 +30,16 @@ func rejection(_ json: String) -> ConfigError? {
         #expect(try decode(documentedExampleJSON) == Config.example)
     }
 
+    @Test func aFileWithoutTheHyperSwitchHasTheHyperKeyOn() throws {
+        #expect(documentedExampleJSON.contains(#""hyper": { "key": "capsLock", "onTap": "nothing" }"#))
+        #expect(try decode(documentedExampleJSON).hyper.enabled)
+        let off = documentedExampleJSON.replacingOccurrences(
+            of: #""onTap": "nothing" }"#, with: #""onTap": "nothing", "enabled": false }"#)
+        var expected = Config.example
+        expected.hyper.enabled = false
+        #expect(try decode(off) == expected)
+    }
+
     @Test func encodedConfigDecodesToTheSameValue() throws {
         let everyShape = Config(
             version: 1,

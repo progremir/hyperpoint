@@ -38,6 +38,13 @@ final class AppModel {
 
     func setPaused(_ paused: Bool) { Task { await engine.setPaused(paused) } }
 
+    /// Nil until the config file has loaded.
+    var hyperKeyEnabled: Bool? { settings.config?.hyper.enabled }
+
+    var configEditable: Bool { settings.editable }
+
+    func setHyperKeyEnabled(_ on: Bool) { settings.apply(.hyperEnabled(on)) }
+
     func openConfig() { NSWorkspace.shared.open(store.url) }
 
     func openSettings() { settingsWindow.show() }

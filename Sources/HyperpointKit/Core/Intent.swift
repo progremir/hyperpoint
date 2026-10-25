@@ -29,7 +29,7 @@ struct Intent: Equatable, Sendable {
                 for sender in device.eventServices { buttons[ButtonKey(sender: sender, button: button)] = behavior }
             }
             var routes: [KeyRoute] = []
-            if profile.hyper == true, tapAvailable, device.properties.hostsHyper {
+            if config.hyper.enabled, profile.hyper == true, tapAvailable, device.properties.hostsHyper {
                 routes.append(.hyper(from: config.hyper.key))
             }
             var hidpp: HIDPPSetup?

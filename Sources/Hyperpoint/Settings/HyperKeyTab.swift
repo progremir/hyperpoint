@@ -13,37 +13,46 @@ struct HyperKeyTab: View {
             if let config = model.config {
                 let keys = Self.keys.contains(config.hyper.key) ? Self.keys : [config.hyper.key] + Self.keys
                 VStack(alignment: .leading, spacing: 12) {
-                    FormRow(label: "Key", detail: "Holding it holds ⌃⌥⇧⌘ on the keyboards below. It no longer types as itself.") {
-                        Picker("Key", selection: Binding(get: { config.hyper.key }, set: { model.apply(.hyperKey($0)) })) {
-                            ForEach(keys, id: \.self) { Text(Labels.key($0.name ?? "")).tag($0) }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                    FormRow(label: "While held", detail: "Every key you press gets Control, Option, Shift and Command, for app shortcuts.") {
-                        Text("⌃ ⌥ ⇧ ⌘").font(.body.monospaced())
-                    }
-                    FormRow(label: "Tapped alone", detail: "Other tap actions are not available yet.") {
-                        Text("Does nothing").foregroundStyle(.secondary)
+                    FormRow(label: "Hyper key", detail: "Turns it off on every keyboard at once. Each keyboard keeps its own setting for when you turn it back on.") {
+                        Toggle("Hyper key", isOn: Binding(get: { config.hyper.enabled }, set: { model.apply(.hyperEnabled($0)) }))
+                            .toggleStyle(.switch)
+                            .labelsHidden()
                     }
                     Divider()
-                    FormRow(label: "Use on", detail: "Keyboards you connect later show up here, switched off.") {
-                        ForEach(model.devices.filter { $0.kind == .keyboard }) { keyboard in
-                            VStack(alignment: .leading, spacing: 1) {
-                                Toggle(
-                                    keyboard.name,
-                                    isOn: Binding(
-                                        get: { keyboard.profile?.hyper == true },
-                                        set: { on in
-                                            model.apply(
-                                                keyboard.isNew
-                                                    ? .addDevice(keyboard.match, name: keyboard.name, .preset(.keyboard))
-                                                    : .hyperOn(keyboard.match, on))
-                                        }))
-                                Explanation(Self.detail(keyboard)).padding(.leading, 20)
+                    Group {
+                        FormRow(label: "Key", detail: "Holding it holds ⌃⌥⇧⌘ on the keyboards below. It no longer types as itself.") {
+                            Picker("Key", selection: Binding(get: { config.hyper.key }, set: { model.apply(.hyperKey($0)) })) {
+                                ForEach(keys, id: \.self) { Text(Labels.key($0.name ?? "")).tag($0) }
+                            }
+                            .labelsHidden()
+                            .fixedSize()
+                        }
+                        FormRow(label: "While held", detail: "Every key you press gets Control, Option, Shift and Command, for app shortcuts.") {
+                            Text("⌃ ⌥ ⇧ ⌘").font(.body.monospaced())
+                        }
+                        FormRow(label: "Tapped alone", detail: "Other tap actions are not available yet.") {
+                            Text("Does nothing").foregroundStyle(.secondary)
+                        }
+                        Divider()
+                        FormRow(label: "Use on", detail: "Keyboards you connect later show up here, switched off.") {
+                            ForEach(model.devices.filter { $0.kind == .keyboard }) { keyboard in
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Toggle(
+                                        keyboard.name,
+                                        isOn: Binding(
+                                            get: { keyboard.profile?.hyper == true },
+                                            set: { on in
+                                                model.apply(
+                                                    keyboard.isNew
+                                                        ? .addDevice(keyboard.match, name: keyboard.name, .preset(.keyboard))
+                                                        : .hyperOn(keyboard.match, on))
+                                            }))
+                                    Explanation(Self.detail(keyboard)).padding(.leading, 20)
+                                }
                             }
                         }
                     }
+                    .disabled(!config.hyper.enabled)
                 }
                 .disabled(!model.editable)
                 Divider()

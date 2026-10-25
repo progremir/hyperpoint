@@ -17,6 +17,7 @@ struct RuleKey: Hashable, Sendable {
 /// lands where the user meant, or does nothing.
 enum SettingsEdit: Equatable, Sendable {
     case hyperKey(HIDUsage)
+    case hyperEnabled(Bool)
     case addDevice(DeviceMatch, name: String, ProfileSource)
     case hyperOn(DeviceMatch, Bool)
     case rename(DeviceMatch, String)
@@ -40,6 +41,8 @@ enum SettingsEdit: Equatable, Sendable {
         switch self {
         case .hyperKey(let key):
             config.hyper.key = key
+        case .hyperEnabled(let on):
+            config.hyper.enabled = on
         case .addDevice(let match, let name, let source):
             let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty, !config.ignored.contains(match), !config.devices.contains(where: { $0.match == match })
@@ -111,6 +114,7 @@ enum SettingsEdit: Equatable, Sendable {
     var logDescription: String {
         switch self {
         case .hyperKey(let key): "hyper.key = \(key.name ?? "?")"
+        case .hyperEnabled(let on): "hyper.enabled = \(on)"
         case .addDevice(let match, _, .preset(let preset)): "devices += \(Self.json(match)) from preset \(preset)"
         case .addDevice(let match, _, .copy(let other)): "devices += \(Self.json(match)) from copy of \(Self.json(other))"
         case .addDevice(let match, _, .blank): "devices += \(Self.json(match)) blank"
