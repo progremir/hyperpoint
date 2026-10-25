@@ -1,6 +1,8 @@
 struct DeviceSetup: Equatable, Sendable {
     var keyMap: KeyMapSetup
     var hidpp: HIDPPSetup?
+    /// Read a HID++ mouse's controls even when there is nothing to write, so the rule pickers can offer them.
+    var discoverHIDPP = false
 
     static let neutral = DeviceSetup(keyMap: .neutral, hidpp: nil)
 }
@@ -45,7 +47,9 @@ struct Intent: Equatable, Sendable {
                 skippedRules = compiled.skipped + skippedRules
             }
             if !skippedRules.isEmpty { skipped[device.id] = skippedRules }
-            setups[device.id] = DeviceSetup(keyMap: KeyMapSetup(routes: routes), hidpp: hidpp)
+            let discover =
+                device.properties.speaksHIDPP && profile.kind(of: device.properties) == .mouse && device.hidpp == nil
+            setups[device.id] = DeviceSetup(keyMap: KeyMapSetup(routes: routes), hidpp: hidpp, discoverHIDPP: discover)
         }
         let routes = present.flatMap { setups[$0.id]?.keyMap.routes ?? [] }
         return Intent(

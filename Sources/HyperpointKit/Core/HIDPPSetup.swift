@@ -6,8 +6,9 @@ struct HIDPPSetup: Equatable, Sendable {
 
     func behavior(of cid: CID) -> ControlBehavior { controls[cid] ?? .native }
 
-    static func pendingWrite(desired: HIDPPSetup?, opened: Bool) -> HIDPPSetup? {
-        desired ?? (opened ? .native : nil)
+    /// Nil writes nothing. Once this connection has written, nil desired turns the device back to native.
+    static func pendingWrite(desired: HIDPPSetup?, written: Bool) -> HIDPPSetup? {
+        desired ?? (written ? .native : nil)
     }
 }
 

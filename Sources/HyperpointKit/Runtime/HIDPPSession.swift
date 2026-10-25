@@ -44,7 +44,8 @@ final class HIDPPSession {
 
     var isApplying: Bool { link.isApplying }
 
-    func request(_ reason: ApplyReason, plan: HIDPPSetup) {
+    /// A nil plan writes nothing and only reads the controls.
+    func request(_ reason: ApplyReason, plan: HIDPPSetup?) {
         pump(link.request(reason, plan: plan, now: .now))
     }
 

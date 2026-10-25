@@ -97,7 +97,7 @@ A 0x1D4B notification with the reconfigure flag, a config save, a permission gra
 1. A connected device that no profile matches and `ignored` does not list goes into `EngineStatus.newDevices` with its match, name and kind. Hyperpoint writes nothing to it.
 2. The Devices, Buttons and Scrolling tabs show its Set Up control. `SetupChoices` decides what it offers: the presets `DevicePreset.offered(for:kind:)` returns (one made for this exact model first, then any for its kind), then an empty profile for a mouse, then copies of saved profiles of the same kind. The first is the button and the rest are its menu.
 3. The click sends `SettingsEdit.addDevice(match, name:, source)`, which `ConfigStore.update` applies to the file as it is on disk. It adds nothing when the device already has a profile or is ignored, when a model preset is for another device, or when the profile to copy is gone.
-4. The reload enters call site 1 at step 3. The MX preset has HID++ rules, so the slot opens its session and discovery runs. A profile without them never opens one, so an empty profile on a Logitech mouse offers only the thumb wheel until a rule needs the session.
+4. The reload enters call site 1 at step 3. The MX preset has HID++ rules, so the slot opens its session, discovers and writes. A HID++ mouse whose profile has none still opens its session to discover, read-only, so the Buttons tab offers its real controls. Its plan is nil, so the link sends get requests only and writes nothing until a rule needs it. A Logitech keyboard without HID++ rules is never opened.
 
 ### Call site 3. Caps Lock is held and R is pressed
 

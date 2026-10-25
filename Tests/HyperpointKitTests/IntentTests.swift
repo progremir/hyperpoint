@@ -314,6 +314,25 @@ import Testing
         #expect(intent.setup(for: mx.id).hidpp == nil)
     }
 
+    @Test func aMouseWithNothingToWriteStillReadsItsControls() {
+        var config = Config.example
+        config.devices[0].rules = nil
+        let unknown = Intent.compile(config, paused: false, tapAvailable: true, present: [thisMac[2]]).setup(for: mx.id)
+        #expect(unknown.hidpp == nil && unknown.discoverHIDPP)
+        let known = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id)
+        #expect(!known.discoverHIDPP, "nothing is left to read")
+        let paused = Intent.compile(config, paused: true, tapAvailable: true, present: [thisMac[2]]).setup(for: mx.id)
+        #expect(!paused.discoverHIDPP)
+    }
+
+    @Test func aLogitechKeyboardWithoutHIDPPRulesIsNotRead() {
+        let keys = present(6, Bags.mxKeys)
+        var config = Config.example
+        config.devices.append(DevicePreset.keyboard.profile(for: DeviceMatch(identifying: keys.properties), name: "MX Keys"))
+        let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [keys]).setup(for: keys.id)
+        #expect(setup.hidpp == nil && !setup.discoverHIDPP)
+    }
+
     @Test func aScrollRuleDivertsWithRawMovementAndKeepsTheClick() {
         var config = Config.example
         config.devices[0].rules = [
@@ -356,11 +375,11 @@ import Testing
         #expect(intent.skipped[mx.id] == [scroll])
     }
 
-    @Test func pauseTurnsAnOpenedDeviceNative() {
+    @Test func pauseTurnsAWrittenDeviceNative() {
         let paused = Intent.compile(.example, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
-        #expect(HIDPPSetup.pendingWrite(desired: paused, opened: true) == .native)
-        #expect(HIDPPSetup.pendingWrite(desired: paused, opened: false) == nil, "a device never opened stays untouched")
-        #expect(HIDPPSetup.pendingWrite(desired: presetMX, opened: false) == presetMX)
+        #expect(HIDPPSetup.pendingWrite(desired: paused, written: true) == .native)
+        #expect(HIDPPSetup.pendingWrite(desired: paused, written: false) == nil, "a device never written stays untouched")
+        #expect(HIDPPSetup.pendingWrite(desired: presetMX, written: false) == presetMX)
     }
 }
 

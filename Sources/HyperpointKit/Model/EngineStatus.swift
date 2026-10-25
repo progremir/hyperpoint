@@ -87,7 +87,7 @@ public struct DeviceStatus: Equatable, Sendable {
     public var connectedAt: Date?
     /// Nil when the profile does not ask for the hyper key.
     public var hyper: HyperStatus?
-    /// Nil until Hyperpoint has something to write to the device over HID++.
+    /// Nil until Hyperpoint has read or written the device over HID++.
     public var hidpp: HIDPPStatus?
 
     public init(

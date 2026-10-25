@@ -6,7 +6,8 @@ struct HIDPPLink: Sendable {
 
     private(set) var capabilities: HIDPPCapabilities?
     private var features = FeatureMap()
-    private var plan = HIDPPSetup.native
+    /// Nil writes nothing, and the link only learns the controls.
+    private var plan: HIDPPSetup?
     private var scheduler = ApplyScheduler()
     private var run: Run?
     private var retryAt: Instant?
@@ -16,7 +17,7 @@ struct HIDPPLink: Sendable {
 
     private struct Run: Sendable {
         let job: ApplyScheduler.Job
-        let plan: HIDPPSetup
+        let plan: HIDPPSetup?
         var steps: [HIDPPStep]
         var next = 0
         var inFlight: InFlight?
@@ -59,7 +60,7 @@ struct HIDPPLink: Sendable {
         }
     }
 
-    mutating func request(_ reason: ApplyReason, plan: HIDPPSetup, now: Instant) -> HIDPPOutput {
+    mutating func request(_ reason: ApplyReason, plan: HIDPPSetup?, now: Instant) -> HIDPPOutput {
         var out = HIDPPOutput()
         self.plan = plan
         request(reason, now: now, into: &out)
@@ -131,6 +132,11 @@ struct HIDPPLink: Sendable {
 
     private mutating func startNextJob(now: Instant, into out: inout HIDPPOutput) {
         guard let job = scheduler.nextJob() else { return }
+        guard plan != nil || capabilities == nil else {
+            // Nothing to write and nothing left to learn.
+            _ = scheduler.finished(failed: false)
+            return startNextJob(now: now, into: &out)
+        }
         retryAt = nil
         perform(gesture.step(.cancel), into: &out)
         if let capabilities {
@@ -142,7 +148,8 @@ struct HIDPPLink: Sendable {
         sendNext(now: now, into: &out)
     }
 
-    private static func applySteps(_ plan: HIDPPSetup, _ capabilities: HIDPPCapabilities) -> [HIDPPStep] {
+    private static func applySteps(_ plan: HIDPPSetup?, _ capabilities: HIDPPCapabilities) -> [HIDPPStep] {
+        guard let plan else { return [] }
         let targets = capabilities.controls.filter(\.divertable).map { ($0.cid, plan.behavior(of: $0.cid).reporting(for: $0)) }
         let wheel = capabilities.thumbWheel ? [plan.thumbWheelInverted] : []
         return targets.map { HIDPPStep.setReporting($0, $1) } + wheel.map { HIDPPStep.setThumbWheel(inverted: $0) }
@@ -224,7 +231,7 @@ struct HIDPPLink: Sendable {
     }
 
     private mutating func pressed(_ cid: CID, into out: inout HIDPPOutput) {
-        switch plan.behavior(of: cid) {
+        switch plan?.behavior(of: cid) ?? .native {
         case .native:
             break
         case .press(let action):

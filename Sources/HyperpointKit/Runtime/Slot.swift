@@ -35,6 +35,8 @@ final class Slot {
     private let hasKeyMap: Bool
     private let hidppInterface: IOHIDDevice?
     private var session: HIDPPSession?
+    /// A session opened only to read the controls has nothing to undo.
+    private var hidppWritten = false
     private var scheduler = ApplyScheduler()
     private var worker: Task<Void, Never>?
     private var retry: Task<Void, Never>?
@@ -84,9 +86,9 @@ final class Slot {
     }
 
     private func applyHIDPP(_ reason: ApplyReason) {
-        guard let hidppInterface,
-            let plan = HIDPPSetup.pendingWrite(desired: desired().hidpp, opened: session != nil)
-        else { return }
+        let wanted = desired()
+        let plan = HIDPPSetup.pendingWrite(desired: wanted.hidpp, written: hidppWritten)
+        guard let hidppInterface, plan != nil || wanted.discoverHIDPP else { return }
         if session == nil {
             do {
                 session = try HIDPPSession(opening: hidppInterface, journal: journal) { [unowned self] in hidppEvent($0) }
@@ -97,6 +99,7 @@ final class Slot {
                 return
             }
         }
+        if plan != nil { hidppWritten = true }
         session?.request(reason, plan: plan)
     }
 
