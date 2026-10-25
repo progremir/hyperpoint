@@ -125,6 +125,18 @@ import Testing
         #expect(intent.tap.isEmpty)
     }
 
+    @Test func theHyperSwitchTurnsItOffOnEveryKeyboardAndBackOn() {
+        var config = Config.example
+        config.hyper.enabled = false
+        let off = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
+        #expect(thisMac.allSatisfy { off.setup(for: $0.id).keyMap == .neutral })
+        #expect(off.tap.isEmpty)
+
+        config.hyper.enabled = true
+        let on = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
+        #expect(thisMac.map { on.setup(for: $0.id).keyMap } == [hyperMap, hyperMap, .neutral, .neutral])
+    }
+
     @Test func hyperOffLeavesTheKeyboardNeutral() {
         var config = Config.example
         config.devices[3].hyper = false

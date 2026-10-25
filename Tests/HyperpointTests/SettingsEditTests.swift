@@ -70,6 +70,13 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(SettingsEdit.addDevice(usbMouse, name: "Other", .blank).applied(to: once) == once)
     }
 
+    @Test func theHyperSwitchKeepsEveryKeyboardsOwnSetting() {
+        let off = SettingsEdit.hyperEnabled(false).applied(to: base)
+        #expect(off.hyper.enabled == false)
+        #expect(off.devices == base.devices)
+        #expect(SettingsEdit.hyperEnabled(true).applied(to: off) == base)
+    }
+
     @Test func hyperOnTurnsAProfileOffAndOn() {
         let off = SettingsEdit.hyperOn(magicKeyboard, false).applied(to: base)
         #expect(profile(off, magicKeyboard)?.hyper == false)
@@ -145,6 +152,7 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
 
     static let everyEdit: [SettingsEdit] = [
         .hyperKey(HIDUsage(name: "f5")!),
+        .hyperEnabled(false),
         .addDevice(karabiner, name: "Virtual Keyboard", .preset(.keyboard)),
         .addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)),
         .addDevice(usbMouse, name: "USB Mouse", .blank),
@@ -217,6 +225,7 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(
             SettingsEdit.smoothKnob(mx, .brake, 2.5).logDescription
                 == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.brake = 2.5"#)
+        #expect(SettingsEdit.hyperEnabled(false).logDescription == "hyper.enabled = false")
         #expect(
             SettingsEdit.addDevice(mx, name: "MX Master 3", .preset(.mxMaster3)).logDescription
                 == #"devices += {"product":"0xB023","vendor":"0x046D"} from preset mxMaster3"#)

@@ -15,13 +15,24 @@ public struct Config: Codable, Equatable, Sendable {
 }
 
 public struct HyperSettings: Codable, Equatable, Sendable {
+    /// Off turns the hyper key off on every keyboard, while each profile keeps its own `hyper` for when it is turned
+    /// back on. Files written before this switch have the hyper key on.
+    public var enabled: Bool
     /// The key that becomes hyper on every keyboard whose profile has `"hyper": true`.
     public var key: HIDUsage
     public var onTap: HyperTap
 
-    public init(key: HIDUsage, onTap: HyperTap) {
+    public init(enabled: Bool = true, key: HIDUsage, onTap: HyperTap) {
+        self.enabled = enabled
         self.key = key
         self.onTap = onTap
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        key = try container.decode(HIDUsage.self, forKey: .key)
+        onTap = try container.decode(HyperTap.self, forKey: .onTap)
     }
 }
 

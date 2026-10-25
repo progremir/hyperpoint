@@ -79,6 +79,7 @@ The rules for the file:
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
 - A profile comes only from Set Up, which starts it from a preset, from a copy of another profile, or empty. The file never records which, so changing a preset later leaves every saved profile as it is.
+- `"hyper": { "enabled": false }` turns the hyper key off on every keyboard. Each profile keeps its own `hyper`, so turning it back on restores them. A file without `enabled` has the hyper key on.
 - Pause is runtime state, not config.
 
 ### Call site 1. The MX Master 3 connects

@@ -94,6 +94,8 @@ build_helpers() {
     swiftc -swift-version 5 -O -o "$BIN/tab-switches" "$SKILL_DIR/helpers/tab-switches.swift"
   [[ "$BIN/set-up" -nt "$SKILL_DIR/helpers/set-up.swift" ]] ||
     swiftc -swift-version 5 -O -o "$BIN/set-up" "$SKILL_DIR/helpers/set-up.swift"
+  [[ "$BIN/menu" -nt "$SKILL_DIR/helpers/menu.swift" ]] ||
+    swiftc -swift-version 5 -O -o "$BIN/menu" "$SKILL_DIR/helpers/menu.swift"
   if [[ ! "$PROBE_APP/Contents/MacOS/HyperpointProbe" -nt "$SKILL_DIR/helpers/probe.swift" ]]; then
     swiftc -swift-version 5 -O -framework IOKit -o "$BIN/HyperpointProbe" "$SKILL_DIR/helpers/probe.swift"
     mkdir -p "$PROBE_APP/Contents/MacOS"
@@ -212,6 +214,10 @@ case ${1:-help} in
     build_helpers
     "$BIN/set-up" "${@:2}" | tee -a "$EVIDENCE/set-up.txt"
     ;;
+  menu)
+    build_helpers
+    "$BIN/menu" "${@:2}" | tee -a "$EVIDENCE/menu.txt"
+    ;;
   replay)
     # Runs the real scroll animator on recorded wheel steps. Needs no installed app, no device and no permissions.
     wheels=${2:-$(ls -t "$REPO"/.verify-evidence/*/record-wheel.txt 2>/dev/null | head -1)}
@@ -242,6 +248,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
                      the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
   settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
+  menu "<item>"      press an item of the menu bar menu by title, such as "Hyper Key"
   evidence           print this run's evidence directory
 EOF
     ;;
