@@ -103,7 +103,7 @@ final class SettingsWindow {
 
 /// One toolbar item and SwiftUI page per `SettingsTab`, and the window sized to the selected page. A tab switch works
 /// like a native preferences window: the new page stays hidden while the window animates to its height, then shows.
-/// A page that grows or shrinks in place animates the window with it.
+/// A page that grows in place hides the same way, and one that shrinks stays in view while the window follows.
 private final class SettingsTabs: NSTabViewController {
     private let model: SettingsModel
     private var fits: [SettingsTab: PageFit] = [:]
@@ -154,8 +154,17 @@ private final class SettingsTabs: NSTabViewController {
         fitSoon()
     }
 
+    /// A page that grew in place would show clipped until the window caught up, so like a new page it is hidden until
+    /// the window has its height. This runs while SwiftUI places the page, so the page is hidden in the same update
+    /// that draws it grown. A page that shrank stays in view.
     private func resized(_ tab: SettingsTab) {
-        if tab == self.tab { fitSoon() }
+        guard tab == self.tab else { return }
+        if let window = view.window, window.isVisible, let size = fits[tab]?.size,
+            target(for: size, in: window).frame.height > window.frame.height
+        {
+            tabView.selectedTabViewItem?.view?.isHidden = true
+        }
+        fitSoon()
     }
 
     /// Started in the same turn of the run loop as a tab switch or a SwiftUI update, the window's animation often ends
@@ -177,13 +186,8 @@ private final class SettingsTabs: NSTabViewController {
         guard let window = view.window, let fit = fits[tab] else { return }
         tabView.selectedTabViewItem?.view?.layoutSubtreeIfNeeded()
         guard let size = fit.size else { return }
-        let screen = window.screen?.visibleFrame ?? .infinite
-        let content = NSSize(width: size.width, height: size.height.rounded(.up))
-        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: content))
-        let scrolls = frame.height > screen.height
+        let (frame, scrolls) = target(for: size, in: window)
         if fit.scrolls != scrolls { fit.scrolls = scrolls }
-        frame.size.height = min(frame.height, screen.height)
-        frame.origin = NSPoint(x: window.frame.minX, y: max(window.frame.maxY - frame.height, screen.minY))
         guard animated, frame != window.frame else {
             heading = nil
             window.setFrame(frame, display: true)
@@ -195,11 +199,23 @@ private final class SettingsTabs: NSTabViewController {
         NSAnimationContext.runAnimationGroup { context in
             // Short enough that a switch to the slowest page to attach, Buttons, still ends within 0.35 s.
             context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            // Ease-in would hold a small resize under a point, so unmoved, for its first two frames.
+            context.timingFunction = CAMediaTimingFunction(name: .default)
             window.animator().setFrame(frame, display: true)
         } completionHandler: { [weak self, frame] in
             MainActor.assumeIsolated { self?.arrived(at: frame) }
         }
+    }
+
+    /// The window's frame for a page of `size`, top edge in place, and whether it had to stop at the screen's bottom.
+    private func target(for size: CGSize, in window: NSWindow) -> (frame: NSRect, scrolls: Bool) {
+        let screen = window.screen?.visibleFrame ?? .infinite
+        let content = NSSize(width: size.width, height: size.height.rounded(.up))
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: content))
+        let scrolls = frame.height > screen.height
+        frame.size.height = min(frame.height, screen.height)
+        frame.origin = NSPoint(x: window.frame.minX, y: max(window.frame.maxY - frame.height, screen.minY))
+        return (frame, scrolls)
     }
 
     /// A later fit to another frame owns the page from here, so an overtaken animation leaves it alone.

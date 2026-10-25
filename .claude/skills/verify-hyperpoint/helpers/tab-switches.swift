@@ -108,13 +108,18 @@ struct Sample {
 }
 
 /// Reads the page first and the window's frame after it, both from the app, so the frame is never older than the page
-/// it is compared with. The window server's height lags the app's by about a frame, so it only gives the animation's
-/// shape. The app answers once its main thread is free, so the sample is timed when the answer arrives.
+/// it is compared with. Reading the content size can make SwiftUI lay the page out ahead of drawing it, so the page has
+/// to still be in the window after that read to count as shown. The window server's height lags the app's by about a
+/// frame, so it only gives the animation's shape. The app answers once its main thread is free, so the sample is timed
+/// when the answer arrives.
 func sample(since start: Date, outgoing: [AXUIElement]) -> Sample {
     var result = Sample(time: 0)
-    let incoming = scrollAreas(in: window).first { area in !outgoing.contains { CFEqual($0, area) } }
-    if let incoming, let area = rect(incoming), let frame = rect(window) {
-        result.content = contentSize(incoming).map { Double($0.height) }
+    let isIncoming = { (area: AXUIElement) in !outgoing.contains { CFEqual($0, area) } }
+    if let incoming = scrollAreas(in: window).first(where: isIncoming), let content = contentSize(incoming),
+        scrollAreas(in: window).contains(where: { CFEqual($0, incoming) }), let area = rect(incoming),
+        let frame = rect(window)
+    {
+        result.content = Double(content.height)
         result.shown = Double(min(area.maxY, frame.maxY) - area.minY)
         result.scroller = attribute(incoming, kAXVerticalScrollBarAttribute) != nil
     }
@@ -183,14 +188,22 @@ func record(_ label: String, outgoing: [AXUIElement], _ act: @escaping @Sendable
 enum Change {
     /// A new page comes in: it must not show until the window has its height.
     case tabSwitch
-    /// The page grows or shrinks where it is: the window has to follow it.
+    /// The page grows or shrinks where it is: the window follows within 50 ms, and a page that grew is hidden until
+    /// the window has its height.
     case inPlace
     /// A page taller than the screen comes in: the window stops at the screen's bottom and the page scrolls.
     case pastScreen(visibleHeight: Double)
+
+    var isInPlace: Bool {
+        if case .inPlace = self { return true }
+        return false
+    }
 }
 
 /// The height moves one way over 0.1 to 0.3 s. A switch never shows the page clipped or with a scroll bar and is done
-/// within 0.35 s. A page past the screen's bottom shows only at the window's final height, which is the screen's.
+/// within 0.35 s. An in-place change is never clipped either, and the window starts within 50 ms of the page changing,
+/// timed from the first sample that saw the change. A page past the screen's bottom shows only at the window's final
+/// height, which is the screen's.
 func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool {
     let heights = recording.heights
     let changes = heights.indices.dropFirst().filter { heights[$0].height != heights[$0 - 1].height }
@@ -203,12 +216,14 @@ func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool 
     let finished = max(ended, shown.first?.time ?? .infinity)
     let clipped = recording.pages.filter(\.clipped).count
     let scroller = recording.pages.filter(\.scroller).count
+    let changedAt = recording.pages.first { $0.content != recording.pages.first?.content }?.time
+    let lag = changes.isEmpty ? nil : changedAt.map { began - $0 }
     let ok: Bool
     switch change {
     case .tabSwitch:
         ok = monotonic && (changes.isEmpty || animated) && clipped == 0 && scroller == 0 && finished <= 0.35
     case .inPlace:
-        ok = monotonic && animated
+        ok = monotonic && animated && clipped == 0 && scroller == 0 && (lag ?? .infinity) <= 0.05
     case .pastScreen(let visibleHeight):
         let final = shown.last
         ok = monotonic && animated && abs(heights[heights.count - 1].height - visibleHeight) <= 1
@@ -219,7 +234,12 @@ func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool 
             format: "%@ %@: %.0f to %.0f, %d steps from %.0f to %.0f ms, %@, page shown at %@ ms, done %.0f ms, clipped %d, scroller %d",
             ok ? "PASS" : "FAIL", label, heights[0].height, heights[heights.count - 1].height, changes.count,
             began * 1000, ended * 1000, monotonic ? "monotonic" : "NOT monotonic",
-            shown.first.map { String(format: "%.0f", $0.time * 1000) } ?? "never", finished * 1000, clipped, scroller))
+            shown.first.map { String(format: "%.0f", $0.time * 1000) } ?? "never", finished * 1000, clipped, scroller)
+            + (change.isInPlace
+                ? String(
+                    format: ", page changed at %@ ms, window started %@ ms after",
+                    changedAt.map { String(format: "%.0f", $0 * 1000) } ?? "-",
+                    lag.map { String(format: "%.0f", $0 * 1000) } ?? "-") : ""))
     return ok
 }
 

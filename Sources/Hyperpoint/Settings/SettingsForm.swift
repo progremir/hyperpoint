@@ -1,7 +1,7 @@
 import HyperpointKit
 import SwiftUI
 
-/// A page's link to the window. The page reports its full size whenever it changes, so the window can take its
+/// A page's link to the window. The page reports its full size as SwiftUI places it, so the window can take its
 /// height, and the window says whether it stopped at the bottom of the screen, the only time the page scrolls.
 @MainActor
 @Observable
@@ -12,9 +12,26 @@ final class PageFit {
 
     init(resized: @escaping () -> Void) { self.resized = resized }
 
-    func report(_ size: CGSize) {
+    func place(_ size: CGSize) {
+        guard size != self.size else { return }
         self.size = size
         resized()
+    }
+}
+
+/// Places its one subview and reports the subview's size to `fit` while placing it, in the update that draws the
+/// change. `onGeometryChange` reports after that update, which would let a page that grew draw once, clipped, before
+/// the window could hide it.
+struct PageMeasure: Layout {
+    let fit: PageFit?
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(proposal) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        MainActor.assumeIsolated { fit?.place(bounds.size) }
+        subviews.first?.place(at: bounds.origin, proposal: proposal)
     }
 }
 
@@ -32,35 +49,35 @@ struct SettingsPage<Content: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                if let error = model.snapshot?.error {
-                    FormRow(label: "Config file") {
-                        Label("The config file has an error", systemImage: "exclamationmark.triangle.fill")
-                            .symbolRenderingMode(.multicolor)
-                        Explanation(
-                            "\(error.description). Hyperpoint keeps using the last good settings. Fix the file to change settings here.")
-                        Button("Open in Editor") { model.openConfigInEditor() }
+            PageMeasure(fit: pageFit) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let error = model.snapshot?.error {
+                        FormRow(label: "Config file") {
+                            Label("The config file has an error", systemImage: "exclamationmark.triangle.fill")
+                                .symbolRenderingMode(.multicolor)
+                            Explanation(
+                                "\(error.description). Hyperpoint keeps using the last good settings. Fix the file to change settings here.")
+                            Button("Open in Editor") { model.openConfigInEditor() }
+                        }
+                        Divider()
                     }
-                    Divider()
-                }
-                if let saveError = model.saveError {
-                    FormRow(label: "Not saved") {
-                        Label(saveError, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+                    if let saveError = model.saveError {
+                        FormRow(label: "Not saved") {
+                            Label(saveError, systemImage: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+                        }
+                        Divider()
                     }
-                    Divider()
+                    content
                 }
-                content
+                // A fixed width keeps a scroll bar that shows up mid-animation from rewrapping the text, which would
+                // change the height the window is heading for.
+                .frame(width: 584)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 20)
             }
-            // A fixed width keeps a scroll bar that shows up mid-animation from rewrapping the text, which would
-            // change the height the window is heading for.
-            .frame(width: 584)
-            .padding(.horizontal, 28)
-            .padding(.vertical, 20)
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { pageFit?.report($0) }
         }
         .scrollBounceBehavior(.basedOnSize)
-        // While the window grows to a page that grew, the page is briefly taller than the window but has nothing to
-        // scroll to.
+        // A page that fits the screen has nothing to scroll to, even in a frame where the window is still catching up.
         .scrollIndicators(pageFit?.scrolls == true ? .automatic : .never)
         .frame(width: 640)
     }
