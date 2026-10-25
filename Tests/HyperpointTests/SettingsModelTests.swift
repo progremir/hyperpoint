@@ -6,15 +6,10 @@ import Testing
 
 @MainActor
 @Suite struct SettingsModelTests {
-    let defaults: UserDefaults
-    let store: ConfigStore
-
-    init() {
-        let suite = "hyperpoint-tests-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        store = ConfigStore(url: FileManager.default.temporaryDirectory.appending(path: "\(suite)/config.json"))
-    }
+    /// One suite for every run, so the tests leave a single preferences file behind rather than one per run.
+    static let suite = "dev.emir.hyperpoint.tests"
+    let defaults = UserDefaults(suiteName: suite)!
+    let store = ConfigStore(url: FileManager.default.temporaryDirectory.appending(path: "hyperpoint-\(UUID().uuidString)/config.json"))
 
     func model(_ config: Config = .default, newDevices: [DeviceStatus] = []) -> SettingsModel {
         let model = SettingsModel(store: store, engine: Engine(), defaults: defaults)
@@ -31,6 +26,7 @@ import Testing
         kind: .mouse, connectedAt: Date(timeIntervalSince1970: 0), hyper: nil)
 
     @Test func theWindowReopensOnTheLastTab() {
+        defaults.removePersistentDomain(forName: Self.suite)
         #expect(model().tab == .general, "a first launch opens on General")
         model().tab = .scrolling
         #expect(model().tab == .scrolling)
