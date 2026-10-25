@@ -12,6 +12,8 @@ EVIDENCE="$REPO/.verify-evidence/$RUN"
 IDENTITY="Apple Development: Emir Amanbekov (KGBFPV5MVR)"
 BUILT_IN='{"Built-In":1,"PrimaryUsagePage":1,"PrimaryUsage":6}'
 MAGIC='{"VendorID":0x4C,"ProductID":0x321}'
+# Both of the 2.4G mouse's services, so its pointer service shows it holds no map.
+MOUSE_24G='{"VendorID":0x1EA7,"ProductID":0x2}'
 LOG=/usr/bin/log
 
 mkdir -p "$EVIDENCE" "$BIN"
@@ -44,7 +46,7 @@ quit_app() {
 }
 
 key_maps() {
-  for m in "$BUILT_IN" "$MAGIC"; do
+  for m in "$BUILT_IN" "$MAGIC" "$MOUSE_24G"; do
     echo "== hidutil --matching $m"
     hidutil property --matching "$m" --get UserKeyMapping
   done
@@ -128,8 +130,8 @@ case ${1:-help} in
     ;;
   record)
     build_helpers
-    mode=${2:?record posted|wheel|senders|hold}
-    echo "recording $mode; ask the user to act now (posted/wheel/hold: 40-45 s, senders: 90 s)"
+    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]}
+    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, senders: 90 s)"
     probe "$mode" "$EVIDENCE/record-$mode.txt" || exit $?
     python3 "$SKILL_DIR/helpers/analyze.py" "$mode" "$EVIDENCE/record-$mode.txt" | tee "$EVIDENCE/record-$mode-summary.txt"
     ;;
@@ -177,7 +179,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
-  record <mode>      posted | wheel | senders | hold, needs the user to use the mouse
+  record <mode>      posted | wheel | senders | hold | keys[-seconds], needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu

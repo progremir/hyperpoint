@@ -2,12 +2,14 @@ import AppKit
 import Carbon.HIToolbox
 import CoreGraphics
 
-// Throwaway probe. Modes: overlay | real | senders | posted | wheel | hold.
+// Throwaway probe. Modes: overlay | real | senders | posted | wheel | hold | keys.
 // overlay, real: posts F18 down, F16 down/up, F18 up at the HID tap. A rewriting tap turns F18 into hyper using
 // the chosen strategy. A Carbon hotkey for cmd+ctrl+opt+shift+F16 and a later listen-only tap report what apps see.
 // senders: logs the IOHIDEvent sender id of every pointer event for 40 s, grouped every 2 s.
 // hold: 45 s of what apps receive while a button scrolls: posted scrolls on both axes with their phases, right and
 // other button events, and where the pointer is at each.
+// keys[-seconds]: 45 s (or the given seconds) of key events as they enter the HID tap ahead of Hyperpoint's ("in") and as apps receive them ("app"),
+// with sender, flags and marker; HID-system modifier changes; and a Carbon hotkey for opt+shift+S counting its fires.
 
 @_silgen_name("CGEventCopyIOHIDEvent") func CGEventCopyIOHIDEvent(_ event: CGEvent) -> Unmanaged<CFTypeRef>?
 @_silgen_name("IOHIDEventGetSenderID") func IOHIDEventGetSenderID(_ event: CFTypeRef) -> UInt64
@@ -103,6 +105,34 @@ let senders: CGEventTapCallBack = { _, type, event, _ in
     return Unmanaged.passUnretained(event)
 }
 
+/// The four modifiers plus the left and right device bits (NX_DEVICE*KEYMASK), so Right Option shows as itself.
+let deviceBits: [(UInt64, String)] = [
+    (0x1, "lCtrl"), (0x2, "lShift"), (0x4, "rShift"), (0x8, "lCmd"), (0x10, "rCmd"), (0x20, "lOpt"), (0x40, "rOpt"),
+    (0x2000, "rCtrl"),
+]
+let modifierMask = CGEventFlags(rawValue: deviceBits.reduce(0) { $0 | $1.0 } | hyperFlags.rawValue)
+
+func flagNames(_ flags: CGEventFlags) -> String {
+    let names = [(CGEventFlags.maskControl, "ctrl"), (.maskAlternate, "opt"), (.maskShift, "shift"), (.maskCommand, "cmd"),
+                 (.maskSecondaryFn, "fn")].filter { flags.contains($0.0) }.map(\.1)
+        + deviceBits.filter { flags.rawValue & $0.0 != 0 }.map(\.1)
+    return names.isEmpty ? "-" : names.joined(separator: "+")
+}
+
+/// S, Return, Escape, the modifiers, F13 and F18. Every other key is logged as "other", so typing is not recorded.
+let loggedKeys = Set<Int64>([1, 36, 53, 105, 79]).union(54...63)
+
+func keyLine(_ stage: String, _ type: CGEventType, _ event: CGEvent) -> String {
+    let code = event.getIntegerValueField(.keyboardEventKeycode)
+    var sender: UInt64 = 0
+    if let hid = CGEventCopyIOHIDEvent(event) { sender = IOHIDEventGetSenderID(hid.takeRetainedValue()) }
+    let name = [CGEventType.keyDown: "down", .keyUp: "up", .flagsChanged: "flags"][type] ?? "type\(type.rawValue)"
+    return String(format: "%.1f %@ %@ key=%@ repeat=%lld flags=%@ ours=%d sender=0x%llx",
+        Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6, stage, name,
+        loggedKeys.contains(code) ? String(code) : "other", event.getIntegerValueField(.keyboardEventAutorepeat),
+        flagNames(event.flags), event.getIntegerValueField(.eventSourceUserData) == marker ? 1 : 0, sender)
+}
+
 func install(_ tap: CGEventTapLocation, _ place: CGEventTapPlacement, _ options: CGEventTapOptions, _ mask: CGEventMask, _ cb: CGEventTapCallBack) -> Bool {
     guard let port = CGEvent.tapCreate(tap: tap, place: place, options: options, eventsOfInterest: mask, callback: cb, userInfo: nil) else { return false }
     CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, port, 0), .commonModes)
@@ -185,6 +215,45 @@ if variant == "posted" {
     // Active, passing every event unchanged: a listen-only tap gets no hardware events without Input Monitoring.
     guard install(.cgAnnotatedSessionEventTap, .tailAppendEventTap, .defaultTap, mask, hold) else { print("tapCreate failed"); exit(2) }
     DispatchQueue.main.asyncAfter(deadline: .now() + 45) { print(wheelLines.joined(separator: "\n")); fflush(stdout); exit(0) }
+} else if variant == "keys" {
+    let mask = bit(.keyDown) | bit(.keyUp) | bit(.flagsChanged)
+    let input: CGEventTapCallBack = { _, type, event, _ in
+        if type.rawValue < 0xFFFF_FFFE { wheelLines.append(keyLine("in", type, event)) }
+        return Unmanaged.passUnretained(event)
+    }
+    let delivered: CGEventTapCallBack = { _, type, event, _ in
+        if type.rawValue < 0xFFFF_FFFE { wheelLines.append(keyLine("app", type, event)) }
+        return Unmanaged.passUnretained(event)
+    }
+    // Installed after Hyperpoint's, so this head tap runs ahead of it. Both pass every event unchanged.
+    guard install(.cghidEventTap, .headInsertEventTap, .defaultTap, mask, input),
+          install(.cgAnnotatedSessionEventTap, .tailAppendEventTap, .defaultTap, mask, delivered)
+    else { print("tapCreate failed"); exit(2) }
+    var hotKeyRef: EventHotKeyRef?
+    var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+    InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+        hotkeyFired += 1
+        wheelLines.append(String(format: "%.1f hotkey opt+shift+S fired", Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6))
+        return noErr
+    }, 1, &spec, nil, nil)
+    let reg = RegisterEventHotKey(UInt32(kVK_ANSI_S), UInt32(optionKey | shiftKey), EventHotKeyID(signature: 0x48595052, id: 2),
+        GetApplicationEventTarget(), 0, &hotKeyRef)
+    print("RegisterEventHotKey opt+shift+S status=\(reg)")
+    var lastHID = CGEventFlags()
+    Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
+        let now = CGEventSource.flagsState(.hidSystemState).intersection(modifierMask)
+        guard now != lastHID else { return }
+        lastHID = now
+        wheelLines.append(String(format: "%.1f hidSystemState flags=%@", Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6, flagNames(now)))
+    }
+    // "keys-120" records for 120 s.
+    let seconds = arg.split(separator: "-").dropFirst().first.flatMap { Double($0) } ?? 45
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+        print(wheelLines.joined(separator: "\n"))
+        print("carbonHotkeyFired=\(hotkeyFired)")
+        fflush(stdout)
+        exit(0)
+    }
 } else if variant == "wheel" {
     let wheel: CGEventTapCallBack = { _, type, event, _ in
         guard type == .scrollWheel, event.getIntegerValueField(.eventSourceUserData) != marker else { return Unmanaged.passUnretained(event) }
