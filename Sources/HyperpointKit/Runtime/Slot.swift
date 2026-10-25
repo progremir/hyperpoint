@@ -30,6 +30,7 @@ final class Slot {
     private let discovered: @HIDActor (HIDPPCapabilities) -> Void
     private let perform: @HIDActor (Action) -> Void
     private let holdScroll: @HIDActor (HoldScrollEvent) -> Void
+    private let holdKeys: @HIDActor (KeyHoldEvent) -> Void
     private let heard: @HIDActor (ListenPress) -> Void
     private let journal: Journal
     private let matching: String
@@ -48,7 +49,8 @@ final class Slot {
         device: PresentDevice, hidppInterface: IOHIDDevice?, owesNativeHIDPP: Bool, journal: Journal,
         desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
         discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void,
-        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void, heard: @escaping @HIDActor (ListenPress) -> Void
+        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void, holdKeys: @escaping @HIDActor (KeyHoldEvent) -> Void,
+        heard: @escaping @HIDActor (ListenPress) -> Void
     ) {
         self.device = device
         self.hidppInterface = hidppInterface
@@ -59,6 +61,7 @@ final class Slot {
         self.discovered = discovered
         self.perform = perform
         self.holdScroll = holdScroll
+        self.holdKeys = holdKeys
         self.heard = heard
         hasKeyMap = device.properties.usagePairs.contains(.keyboard)
         matching = DeviceMatch(identifying: device.properties).hidutilKeyboardMatching
@@ -128,6 +131,10 @@ final class Slot {
             perform(action)
         case .holdScroll(let event):
             holdScroll(event)
+        case .holdKeys(let cid, let keys):
+            holdKeys(.press(.control(device.id, cid), keys))
+        case .releaseKeys(let cid):
+            holdKeys(.release(.control(device.id, cid)))
         case .heard(let press):
             heard(press)
         }

@@ -53,6 +53,9 @@ func rejection(_ json: String) -> ConfigError? {
                         Rule(control: .button(4), trigger: .click, action: .system(.spaceLeft)),
                         Rule(control: .hidpp(CID(rawValue: 0x1A0)), trigger: .holdMove(.up), action: .shortcut(
                             Chord(key: KeyCode(name: "leftBracket")!, modifiers: .hyper))),
+                        Rule(control: .button(3), trigger: .hold, action: .modifier(.rightCommand)),
+                        Rule(control: .hidpp(CID(rawValue: 0x53)), trigger: .hold, action: .shortcut(
+                            Chord(key: KeyCode(name: "space")!, modifiers: [.control, .option]))),
                     ],
                     gestures: GestureSettings(fire: .onRelease, distance: 300),
                     scrolling: ScrollSettings(
@@ -156,6 +159,38 @@ func rejection(_ json: String) -> ConfigError? {
         let json = try Self.beforeHoldToScroll(momentum: true)
             .replacingOccurrences(of: #"{ "momentum": true }"#, with: #"{ "momentum": true, "speed": 2 }"#)
         #expect(rejection(json)?.path == "devices[0].scrolling.rightButtonPan.speed")
+    }
+
+    @Test func aButtonHeldHoldsAModifierOrAShortcut() throws {
+        let json = documentedExampleJSON.replacingOccurrences(
+            of: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }"#,
+            with: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }, "#
+                + #"{ "control": { "button": 3 }, "when": "hold", "do": { "modifier": "leftCommand" } }, "#
+                + #"{ "control": { "hidpp": "0x56" }, "when": "hold", "do": { "shortcut": "ctrl+opt+space" } }"#)
+        let rules = try #require(try decode(json).devices[0].rules)
+        #expect(
+            rules.suffix(2) == [
+                Rule(control: .button(3), trigger: .hold, action: .modifier(.leftCommand)),
+                Rule(
+                    control: .hidpp(CID(rawValue: 0x56)), trigger: .hold,
+                    action: .shortcut(Chord(key: KeyCode(name: "space")!, modifiers: [.control, .option]))),
+            ])
+    }
+
+    @Test func aHoldCannotShareItsControlWithAClickOrAMove() throws {
+        let click = documentedExampleJSON.replacingOccurrences(
+            of: #""when": "holdMoveDown", "do": "appExpose""#, with: #""when": "hold", "do": { "modifier": "leftCommand" }"#)
+        let clickError = try #require(rejection(click))
+        #expect(clickError.path == "devices[0].rules[1].when")
+        #expect(clickError.message.contains("holds them from its press, so it has no click of its own"))
+
+        let move = documentedExampleJSON.replacingOccurrences(
+            of: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }"#,
+            with: #"{ "control": { "button": 1 }, "when": "holdMove", "do": "scroll" }, "#
+                + #"{ "control": { "button": 1 }, "when": "hold", "do": { "modifier": "leftCommand" } }"#)
+        let moveError = try #require(rejection(move))
+        #expect(moveError.path == "devices[0].rules[7].when")
+        #expect(moveError.message.contains("so its movement only moves the pointer"))
     }
 
     @Test func chordsAcceptAliasesAndAnyOrder() throws {
@@ -302,6 +337,16 @@ func rejection(_ json: String) -> ConfigError? {
             replace: "{ \"control\": { \"button\": 2 }, \"when\": \"holdMoveDown\", \"do\": \"scroll\" }",
             path: "devices[1].rules[1].when"),
         Mutation(find: "\"kind\": \"mouse\"", replace: "\"kind\": \"trackpad\"", path: "devices[1].kind"),
+        Mutation(
+            find: "\"when\": \"click\", \"do\": \"missionControl\"", replace: "\"when\": \"hold\", \"do\": \"missionControl\"",
+            path: "devices[0].rules[0].do"),
+        Mutation(
+            find: "\"when\": \"hold\", \"do\": { \"modifier\": \"rightOption\" }",
+            replace: "\"when\": \"hold\", \"do\": { \"shortcut\": \"cmd+c\" }", path: "devices[1].rules[0].do"),
+        Mutation(
+            find: "{ \"control\": \"thumbWheel\", \"when\": \"scroll\", \"do\": \"reverse\" }",
+            replace: "{ \"control\": \"thumbWheel\", \"when\": \"hold\", \"do\": { \"modifier\": \"leftShift\" } }",
+            path: "devices[0].rules[5].when"),
         Mutation(find: "\"speed\": 1,", replace: "\"speed\": 9,", path: "devices[0].scrolling.holdToScroll.speed"),
         Mutation(find: "\"speed\": 1,", replace: "\"speed\": 0.1,", path: "devices[0].scrolling.holdToScroll.speed"),
         Mutation(

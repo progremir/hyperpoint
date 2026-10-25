@@ -27,6 +27,7 @@ final class TapHost {
     private var holdScroll = HoldScrollAnimator()
     private var holdPoints = (dx: WholePoints(), dy: WholePoints())
     private var cursorFrozen = false
+    private var heldKeys = HeldKeys()
     /// Between a hold scroll's began and ended, from either recognizer.
     private var handScrolling = false
     private var port: CFMachPort?
@@ -51,6 +52,11 @@ final class TapHost {
     /// HID++ controls' hold-to-scroll, from the HID thread.
     func follow(holdScrolls: AsyncStream<HoldScrollEvent>) async {
         for await event in holdScrolls { holdScrolled(event, at: nil) }
+    }
+
+    /// HID++ controls' held keys, from the HID thread. Posting needs no tap, so they work without one.
+    func follow(keyHolds: AsyncStream<KeyHoldEvent>) async {
+        for await event in keyHolds { holdKeys(event) }
     }
 
     func apply(_ order: TapOrder) {
@@ -127,6 +133,9 @@ final class TapHost {
             case .holdScroll(let scroll):
                 holdScrolled(scroll, at: event.location)
                 return nil
+            case .keys(let hold):
+                holdKeys(hold)
+                return nil
             case .heard(let id, let press):
                 signals.yield(.heard(id, press))
                 return nil
@@ -164,12 +173,27 @@ final class TapHost {
         updateCursor()
     }
 
-    /// A button the pipeline forgot while it was down. A press held back from apps goes to them, and its scroll ends.
-    /// `endingEverything` also ends a scroll an HID++ control drives, for a tap that stops or lost events.
+    /// A button the pipeline forgot while it was down. A press held back from apps goes to them, its scroll ends and
+    /// its keys go up. `endingEverything` also ends a scroll an HID++ control drives and lets go of every held key,
+    /// for a tap that stops or lost events.
     private func release(_ release: ButtonStage.Release, endingEverything: Bool) {
         if release.endsScroll || endingEverything { endHoldScroll() }
         updateCursor(force: endingEverything)
         release.press?.post(tap: .cghidEventTap)
+        if endingEverything {
+            post(heldKeys.releaseAll(flags: CGEventSource.flagsState(.combinedSessionState)))
+        } else if let holder = release.letsGo {
+            holdKeys(.release(holder))
+        }
+    }
+
+    /// At the HID tap, so the system's modifier state holds the keys and a click or a key meanwhile carries them.
+    private func holdKeys(_ event: KeyHoldEvent) {
+        post(heldKeys.receive(event, flags: CGEventSource.flagsState(.combinedSessionState)))
+    }
+
+    private func post(_ keys: [CGEvent]) {
+        for key in keys { key.post(tap: .cghidEventTap) }
     }
 
     /// Keeps the display link running for an animator that wants frames. A link that has not fired for `stalled`

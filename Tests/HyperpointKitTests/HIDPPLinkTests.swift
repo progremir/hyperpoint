@@ -52,6 +52,15 @@ struct Bench {
     var scrolls: [HoldScrollEvent] { events.compactMap { if case .holdScroll(let event) = $0 { event } else { nil } } }
 
     var heard: [ListenPress] { events.compactMap { if case .heard(let press) = $0 { press } else { nil } } }
+    /// Pressed and released keys, in order.
+    var keys: [HIDPPEvent] {
+        events.filter {
+            switch $0 {
+            case .holdKeys, .releaseKeys: true
+            default: false
+            }
+        }
+    }
 
     mutating func clearEvents() { events = [] }
 
@@ -93,6 +102,18 @@ private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
 /// Every divertable MX control, diverted without raw movement.
 private let listeningControls: [UInt16: UInt8] = [0x52: 0x01, 0x53: 0x01, 0x56: 0x01, 0xC3: 0x01, 0xC4: 0x01]
 private let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
+private let back = CID(rawValue: 0x53)
+private let forward = CID(rawValue: 0x56)
+private let command = KeyHold(modifiers: [.leftCommand])
+private let talk = KeyHold(modifiers: [.leftOption], key: KeyCode(name: "space")!)
+private var holdingBackAndForward: HIDPPSetup {
+    var config = Config.example
+    config.devices[0].rules? += [
+        Rule(control: .hidpp(back), trigger: .hold, action: .modifier(.leftCommand)),
+        Rule(control: .hidpp(forward), trigger: .hold, action: .shortcut(Chord(key: KeyCode(name: "space")!, modifiers: [.option]))),
+    ]
+    return plan(config)
+}
 
 private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
     var bench = Bench()
@@ -339,6 +360,36 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
         #expect(closed.link.close().events == [.holdScroll(.ended)], "a device going away ends it")
         var idle = connected(scrollingTop)
         #expect(idle.link.close().events.isEmpty, "closing an idle link ends nothing")
+    }
+
+    @Test func aHeldControlHoldsItsKeysUntilItsRelease() {
+        var bench = connected(holdingBackAndForward)
+        #expect(bench.fake.diverted[0x53] == 0x01, "diverted without raw movement")
+        bench.deliver(bench.fake.held(0x53))
+        #expect(bench.keys == [.holdKeys(back, command)], "the keys go down on the press")
+        bench.deliver(bench.fake.held(0x53, 0x56))
+        bench.deliver(bench.fake.held(0x56))
+        bench.deliver(bench.fake.held())
+        #expect(
+            bench.keys == [.holdKeys(back, command), .holdKeys(forward, talk), .releaseKeys(back), .releaseKeys(forward)],
+            "each control lets go on its own release")
+        #expect(bench.performed.isEmpty)
+    }
+
+    @Test func heldKeysGoUpWhenAnApplyOrCloseInterruptsThem() {
+        var applied = connected(holdingBackAndForward)
+        applied.deliver(applied.fake.held(0x53))
+        applied.request(.manual, holdingBackAndForward)
+        #expect(applied.keys == [.holdKeys(back, command), .releaseKeys(back)], "an apply lets go")
+        applied.settle()
+        applied.deliver(applied.fake.held())
+        #expect(applied.keys.count == 2, "the release after the apply lets go of nothing")
+
+        var closed = connected(holdingBackAndForward)
+        closed.deliver(closed.fake.held(0x56))
+        #expect(closed.link.close().events == [.releaseKeys(forward)], "a device going away lets go")
+        var idle = connected(holdingBackAndForward)
+        #expect(idle.link.close().events.isEmpty)
     }
 
     @Test func anApplyCancelsAGestureInFlight() {

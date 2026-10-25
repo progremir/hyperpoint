@@ -19,6 +19,9 @@ public final class Engine {
     /// Every event in order, because a lost end would leave the pointer frozen.
     private nonisolated let holdScrolls: AsyncStream<HoldScrollEvent>
     private nonisolated let holdScrollSink: AsyncStream<HoldScrollEvent>.Continuation
+    /// Every event in order, because a lost release would leave a key held.
+    private nonisolated let keyHolds: AsyncStream<KeyHoldEvent>
+    private nonisolated let keyHoldSink: AsyncStream<KeyHoldEvent>.Continuation
     private nonisolated let tapHost: TapHost
 
     private var config: Config?
@@ -46,6 +49,7 @@ public final class Engine {
         (tapOrders, tapOrderSink) = AsyncStream.makeStream(of: TapOrder.self, bufferingPolicy: .bufferingNewest(1))
         (tapSignals, tapSignalSink) = AsyncStream.makeStream(of: TapSignal.self)
         (holdScrolls, holdScrollSink) = AsyncStream.makeStream(of: HoldScrollEvent.self)
+        (keyHolds, keyHoldSink) = AsyncStream.makeStream(of: KeyHoldEvent.self)
         tapHost = TapHost(signals: tapSignalSink, actions: actionSink)
         permissions = Permissions.current()
     }
@@ -56,6 +60,7 @@ public final class Engine {
         await withDiscardingTaskGroup { group in
             group.addTask { await self.tapHost.follow(self.tapOrders) }
             group.addTask { await self.tapHost.follow(holdScrolls: self.holdScrolls) }
+            group.addTask { await self.tapHost.follow(keyHolds: self.keyHolds) }
             group.addTask { for await signal in self.tapSignals { await self.tapSignaled(signal) } }
             group.addTask { for await snapshot in configs { await self.configChanged(snapshot) } }
             group.addTask { for await state in permissions { await self.permissionsChanged(state) } }
@@ -264,6 +269,7 @@ public final class Engine {
             },
             perform: { [actionSink] in actionSink.yield($0) },
             holdScroll: { [holdScrollSink] in holdScrollSink.yield($0) },
+            holdKeys: { [keyHoldSink] in keyHoldSink.yield($0) },
             heard: { [unowned self] in hear($0, from: .device(device.id)) })
     }
 

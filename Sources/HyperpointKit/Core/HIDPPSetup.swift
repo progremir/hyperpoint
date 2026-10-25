@@ -44,11 +44,13 @@ enum ControlBehavior: Equatable, Sendable {
     case native
     case press(Action)
     case gesture(GesturePlan)
+    /// The keys go down on the press and up on the release, and the pointer moves as usual in between.
+    case hold(KeyHold)
 
     func reporting(for control: HIDPPCapabilities.Control) -> ControlReporting {
         switch self {
         case .native: .native
-        case .press: ControlReporting(divert: true, rawXY: false)
+        case .press, .hold: ControlReporting(divert: true, rawXY: false)
         case .gesture: ControlReporting(divert: true, rawXY: control.rawXY)
         }
     }
@@ -63,7 +65,7 @@ extension HIDPPSetup {
         var skipped: [Rule] = []
         for rule in profile.rules ?? [] {
             switch (rule.control, rule.trigger) {
-            case (.hidpp(let cid), .click), (.hidpp(let cid), .holdMove):
+            case (.hidpp(let cid), .click), (.hidpp(let cid), .hold), (.hidpp(let cid), .holdMove):
                 relevant = true
                 if let capabilities, !capabilities.allows(rule.trigger, on: cid) {
                     skipped.append(rule)
@@ -110,17 +112,21 @@ extension ControlBehavior {
         var click: Action?
         var swipes: [Direction: Action] = [:]
         var scrolls = false
+        var hold: KeyHold?
         for rule in rules {
             switch rule.trigger {
             case .click: click = rule.action
             case .holdMove(let direction?): swipes[direction] = rule.action
             case .holdMove(nil): scrolls = rule.action == .scroll
-            case .hold, .scroll: break
+            case .hold: hold = KeyHold(rule.action)
+            case .scroll: break
             }
         }
         let gestures = profile.gestures ?? .default
         let distance = movement.distance(gestures.distance)
-        if scrolls {
+        if let hold {
+            self = .hold(hold)
+        } else if scrolls {
             let plan = HoldScrollPlan(
                 profile.scrolling?.holdToScroll ?? .default, glide: profile.scrolling?.smooth ?? .default,
                 pointsPerUnit: movement.pointsPerUnit)
