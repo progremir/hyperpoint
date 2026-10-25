@@ -215,7 +215,7 @@ private struct ListenRow: View {
 }
 
 private struct RuleRow: View {
-    static let controlWidth = 184.0
+    static let controlWidth = 152.0
     static let triggerWidth = 150.0
 
     enum ActionChoice: Hashable {
@@ -239,13 +239,17 @@ private struct RuleRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 4) {
+            // A recording capsule needs more room than the Button cell has, so it takes When's too, as a shortcut
+            // takes Do's.
+            if recordingPress {
                 RecorderField(state: buttonField, start: startListening, cancel: stopListening)
-                    .disabled(!recordingPress && cannotListen != nil)
-                    .help(recordingPress ? "" : cannotListen ?? "Click, then press a button on \(device) to use it for this rule")
-                // The menu reaches the thumb wheel, and every button while the mouse is away. A recording capsule
-                // needs the whole cell.
-                if !recordingPress {
+                    .frame(width: Self.controlWidth + 10 + Self.triggerWidth)
+            } else {
+                HStack(spacing: 2) {
+                    RecorderField(state: buttonField, start: startListening, cancel: stopListening)
+                        .disabled(cannotListen != nil)
+                        .help(cannotListen ?? "Click, then press a button on \(device) to use it for this rule")
+                    // The menu reaches the thumb wheel, and every button while the mouse is away.
                     Menu {
                         Picker("Button", selection: Binding(get: { rule.control }, set: { edit(choices.rule(rule, withControl: $0)) })) {
                             ForEach(choices.controls(for: rule), id: \.self) { Text(Labels.control($0)).tag($0) }
@@ -261,8 +265,8 @@ private struct RuleRow: View {
                     .help("Choose a button")
                     .accessibilityLabel("Choose a button")
                 }
+                .frame(width: Self.controlWidth)
             }
-            .frame(width: Self.controlWidth)
             // A shortcut's hint and live chips need more room than the Do cell has, so recording takes When's too.
             if recordingShortcut {
                 ShortcutField { chord in
@@ -273,11 +277,13 @@ private struct RuleRow: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                Picker("When", selection: Binding(get: { rule.trigger }, set: { edit(choices.rule(rule, withTrigger: $0)) })) {
-                    ForEach(choices.triggers(for: rule.control, besides: rule), id: \.self) { Text(Labels.trigger($0)).tag($0) }
+                if !recordingPress {
+                    Picker("When", selection: Binding(get: { rule.trigger }, set: { edit(choices.rule(rule, withTrigger: $0)) })) {
+                        ForEach(choices.triggers(for: rule.control, besides: rule), id: \.self) { Text(Labels.trigger($0)).tag($0) }
+                    }
+                    .buttonSizing(.flexible)
+                    .frame(width: Self.triggerWidth)
                 }
-                .buttonSizing(.flexible)
-                .frame(width: Self.triggerWidth)
                 Picker("Do", selection: Binding(get: { ActionChoice.action(rule.action) }, set: choose)) {
                     ForEach(actionChoices, id: \.choice) { Text($0.label).tag($0.choice) }
                 }

@@ -77,7 +77,7 @@ struct RecorderField: View {
     private func capsule(recording: Bool, @ViewBuilder content: () -> some View) -> some View {
         HStack(spacing: 6) { content() }
             .padding(.leading, 5)
-            .padding(.trailing, recording ? 3 : 7)
+            .padding(.trailing, recording ? 3 : 5)
             .padding(.vertical, 3)
             .frame(minHeight: 24)
             .background {
