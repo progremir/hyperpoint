@@ -20,13 +20,21 @@ struct Carrier: Hashable, Sendable {
     static let pool: [Carrier] = [f13, f14, f15, f16, f17, f18, f19, f20]
 
     static let hyper = f18
+
+    /// What key rules that click can carry, once hyper has its own.
+    static let forKeyRules = pool.filter { $0 != hyper }
 }
 
 enum CarrierMeaning: Equatable, Sendable {
     case holdModifiers(Modifiers)
+    /// The press performs the action, and neither the key's repeats nor its release reach apps.
+    case press(Action)
 }
 
 enum KeyTarget: Equatable, Sendable {
+    /// Another key at the HID layer, which the tap never sees. A modifier this way is held like a real one, in
+    /// secure input too.
+    case native(HIDUsage)
     case carrier(Carrier, CarrierMeaning)
 }
 
@@ -40,6 +48,7 @@ struct KeyRoute: Equatable, Sendable {
 
     var destination: HIDUsage {
         switch target {
+        case .native(let usage): usage
         case .carrier(let carrier, _): carrier.usage
         }
     }

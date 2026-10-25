@@ -216,6 +216,9 @@ func rejection(_ json: String) -> ConfigError? {
             replace: "\"when\": \"click\", \"do\": { \"modifier\": \"rightOption\" }", path: "devices[1].rules[1].do"),
         Mutation(find: "{ \"key\": \"escape\" }", replace: "{ \"key\": \"escap\" }", path: "devices[1].rules[0].control.key"),
         Mutation(
+            find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",
+            replace: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"click\"", path: "devices[1].rules[1].when"),
+        Mutation(
             find: "\"when\": \"holdMoveDown\", \"do\": \"appExpose\"",
             replace: "\"when\": \"click\", \"do\": \"appExpose\"", path: "devices[0].rules[1]"),
         Mutation(find: "\"distance\": 120", replace: "\"distance\": 5", path: "devices[0].gestures.distance"),
