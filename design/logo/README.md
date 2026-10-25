@@ -26,8 +26,9 @@ Change the geometry there and re-run `python3 design/logo/build.py`; don't edit 
 `rsvg-convert` (`brew install librsvg`), `fonttools` (`pip3 install --user fonttools`) and Inter (`brew install --cask font-inter`).
 
 **Menu bar:** load the template and set `image.isTemplate = true`, so macOS tints it for light and dark menu bars and
-for the highlighted state. It is the small cut, black on transparent, 18 × 18 pt. The current app uses
-`NSImage(systemSymbolName: "cursorarrow.rays")` in `Sources/Hyperpoint/StatusMenu.swift`.
+for the highlighted state. It is its own light cut (an 18-unit stroke, about 1.6 pt, to match SF Symbols), black on
+transparent, 18 × 18 pt. `scripts/bundle.sh` copies it and the app icon into the bundle, and
+`Sources/Hyperpoint/StatusMenu.swift` loads it.
 
 ## 2. Construction
 

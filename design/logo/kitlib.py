@@ -57,7 +57,8 @@ class Kit:
     mono_name: str = "mono"
     icon_scale: float = 2.65      # mark scale inside the 824 px app-icon body
     icon_dy: float = 20           # optical drop of the mark inside the tile
-    menubar_box: tuple = (36, 36, 184, 184)  # tight square viewBox around the small cut
+    menubar_box: tuple = (36, 36, 184, 184)  # tight square viewBox around the menu-bar cut
+    menubar_group: object = None  # lighter cut for the 18 pt menu bar; defaults to the small cut
 
     def svg(self, body, w=256, h=256):
         return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}"><title>{self.brand}</title>'
@@ -103,19 +104,22 @@ class Kit:
     def menubar(self):
         x, y, w, h = self.menubar_box
         return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x} {y} {w} {h}"><title>{self.brand}</title>'
-                f'{self.group("#000", "#000", small=True)}</svg>\n')
+                f'{(self.menubar_group or (lambda a, b: self.group(a, b, small=True)))("#000", "#000")}</svg>\n')
 
     def write(self, out):
         """SVG masters, PNGs, macOS icons and web icons into `out`."""
         sv = lambda n: os.path.join(out, "svg", f"{self.slug}-{n}.svg")
         for d in ("svg", "png", "macos/AppIcon.iconset", "web"):
             os.makedirs(os.path.join(out, d), exist_ok=True)
-        files = {**self.symbols(), **self.lockups(), "app-icon": self.app_icon(), "menubar-template": self.menubar()}
+        p = self.palette
+        swatches = {f"swatch-{k.replace('_', '-')}": self.svg(f'<rect width="16" height="16" rx="4" fill="{getattr(p, k)}"/>', 16, 16)
+                    for k in ("ink", "accent", "accent_deep")}
+        files = {**self.symbols(), **self.lockups(), "app-icon": self.app_icon(), "menubar-template": self.menubar(), **swatches}
         for n, s in files.items():
             open(sv(n), "w").write(s)
         run = lambda *a: subprocess.run(a, check=True, capture_output=True)
         for n in files:
-            if n == "menubar-template":
+            if n == "menubar-template" or n.startswith("swatch-"):
                 continue
             w = "1200" if n.startswith(("horizontal", "wordmark")) else "1024"
             run("rsvg-convert", "-w", w, sv(n), "-o", os.path.join(out, "png", f"{self.slug}-{n}-{w}.png"))

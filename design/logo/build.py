@@ -85,9 +85,14 @@ PALETTE = Palette(INK, GREEN, GREEN_DEEP, PAPER, names={
     "accent_deep": ("Deep Green", "one-colour on white"), "paper": ("Paper", "")})
 WORDMARK = Wordmark(kern={"Hy": -14, "yp": -6, "rp": -8})
 
+# Menu-bar cut: the 18 pt template sits beside SF Symbols, whose strokes are ~1.5 pt. The small cut's 30-unit stroke is
+# ~2.7 pt there and reads bold, so the menu bar gets an 18-unit stroke (~1.6 pt) and a thinner bar.
+CAPS_MENUBAR = make_mark([(128, 30), (214, 118), (164, 118), (164, 156), (92, 156), (92, 118), (42, 118)],
+                         9, 9, (82, 184, 92, 20, 7), (82, 184, 92, 20, 7), angle=-22, pivot=(128, 136), offset=(4, 6))
+
 KIT = Kit(brand="Hyperpoint", slug="hyperpoint", group=CAPS, palette=PALETTE, wordmark=WORDMARK, mono_name="green",
           tagline="Caps Lock, tipped over into a pointer: the key that becomes hyper, and the cursor it drives.",
-          icon_scale=2.5, icon_dy=12, menubar_box=(28, 28, 200, 200))
+          icon_scale=2.5, icon_dy=12, menubar_box=(28, 28, 200, 200), menubar_group=CAPS_MENUBAR)
 
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
