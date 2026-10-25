@@ -30,7 +30,7 @@ final class Slot {
     private let discovered: @HIDActor (HIDPPCapabilities) -> Void
     private let perform: @HIDActor (Action) -> Void
     private let holdScroll: @HIDActor (HoldScrollEvent) -> Void
-    private let heard: @HIDActor (CID) -> Void
+    private let heard: @HIDActor (ListenPress) -> Void
     private let journal: Journal
     private let matching: String
     private let hasKeyMap: Bool
@@ -48,7 +48,7 @@ final class Slot {
         device: PresentDevice, hidppInterface: IOHIDDevice?, owesNativeHIDPP: Bool, journal: Journal,
         desired: @escaping @HIDActor () -> DeviceSetup, changed: @escaping @HIDActor () -> Void,
         discovered: @escaping @HIDActor (HIDPPCapabilities) -> Void, perform: @escaping @HIDActor (Action) -> Void,
-        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void, heard: @escaping @HIDActor (CID) -> Void
+        holdScroll: @escaping @HIDActor (HoldScrollEvent) -> Void, heard: @escaping @HIDActor (ListenPress) -> Void
     ) {
         self.device = device
         self.hidppInterface = hidppInterface
@@ -128,8 +128,8 @@ final class Slot {
             perform(action)
         case .holdScroll(let event):
             holdScroll(event)
-        case .heard(let cid):
-            heard(cid)
+        case .heard(let press):
+            heard(press)
         }
     }
 

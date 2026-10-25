@@ -102,6 +102,7 @@ enum Labels {
     static func learned(_ note: LearnNote) -> String? {
         switch note {
         case .added: nil
+        case .full(_, .thumbWheel): "Thumb wheel already has a rule for every way to turn it. Change it here."
         case .full(_, let full): "\(control(full)) already has a rule for every way to press it. Change one of these."
         case .unnamed: "Hyperpoint cannot make a rule for that key."
         }

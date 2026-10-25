@@ -264,7 +264,7 @@ public final class Engine {
             },
             perform: { [actionSink] in actionSink.yield($0) },
             holdScroll: { [holdScrollSink] in holdScrollSink.yield($0) },
-            heard: { [unowned self] in hear(.hidpp($0), from: .device(device.id)) })
+            heard: { [unowned self] in hear($0, from: .device(device.id)) })
     }
 
     private var present: [PresentDevice] {

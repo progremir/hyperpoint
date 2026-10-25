@@ -109,6 +109,25 @@ import Testing
         #expect(second?.config.flatMap { profile($0, mx) }?.rules == replaced + [forward], "Add Rule still adds")
     }
 
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func aHeardTurnGivesTheWheelItsRule(forARow: Bool) async throws {
+        let wheel = Rule(control: .thumbWheel, trigger: .scroll, action: .reverse)
+        let config = SettingsEdit.removeRule(mx, wheel.key).applied(to: .example)
+        try FileManager.default.createDirectory(at: store.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try ConfigCodec.encode(config).write(to: store.url)
+        var saved = await store.snapshots().makeAsyncIterator()
+        let model = model(config, devices: [connectedMX])
+        let rules = profile(config, mx)!.rules!
+        let top = rules.first { $0.control == topButton }!
+        model.listen(for: model.selectedMouse!, to: forARow ? .replaceRule(top.key) : .addRule)
+        model.learned(LearnedPress(match: mx, heard: .control(.thumbWheel)))
+        #expect(model.learnNote == .added(mx, wheel.key))
+        let first = await saved.next()
+        #expect(
+            first?.config.flatMap { profile($0, mx) }?.rules
+                == (forARow ? rules.map { $0 == top ? wheel : $0 } : rules + [wheel]))
+    }
+
     @Test func switchingTheMouseClearsTheNote() {
         let model = model(devices: [connectedMX])
         model.learned(LearnedPress(match: mx, heard: .unnamed))

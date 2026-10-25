@@ -12,12 +12,15 @@ enum ListenPress: Equatable, Sendable, CustomStringConvertible {
     case button(Int)
     /// The virtual key code as the tap saw it, which may be a carrier.
     case key(KeyCode)
+    /// A turn of the diverted wheel, either way.
+    case thumbWheel
 
     var description: String {
         switch self {
         case .hidpp(let cid): "control \(cid.hex)"
         case .button(let number): "button \(number)"
         case .key(let code): "key code \(code.rawValue)"
+        case .thumbWheel: "the thumb wheel"
         }
     }
 }
@@ -115,6 +118,7 @@ struct ListenPlan: Equatable, Sendable {
         case .button(let number): Control.buttonRange.contains(number) ? .control(.button(number)) : .unnamed
         case .key(let code):
             (carrierSources[code] ?? KeyTable.byKeyCode[code]?.usage).map { .control(.key($0)) } ?? .unnamed
+        case .thumbWheel: .control(.thumbWheel)
         }
     }
 }

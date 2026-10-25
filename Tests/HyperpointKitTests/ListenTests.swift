@@ -35,14 +35,30 @@ private func compile(
 
     @Test func listeningDivertsEveryControlOfTheTarget() throws {
         let hidpp = try #require(compile(listening: mx).setup(for: mx.id).hidpp)
-        #expect(hidpp == .listening(over: compile().setup(for: mx.id).hidpp))
+        #expect(hidpp == .listening(over: compile().setup(for: mx.id).hidpp, thumbWheel: true))
+    }
+
+    @Test func listeningDivertsTheWheelOfAMouseThatHasOne() throws {
+        func wheel(_ capabilities: HIDPPCapabilities?) throws -> ThumbWheelReporting {
+            var target = mx
+            target.hidpp = capabilities
+            let present = devices.map { $0.id == mx.id ? target : $0 }
+            let listen = ListenTarget(id: ListenID(rawValue: 1), device: mx.id)
+            let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: present, listening: listen)
+            return try #require(intent.setup(for: mx.id).hidpp).thumbWheel
+        }
+        let noWheel = HIDPPCapabilities(controls: measuredMXCapabilities.controls, thumbWheel: false)
+        #expect(try wheel(measuredMXCapabilities) == ThumbWheelReporting(diverted: true, inverted: true))
+        #expect(try wheel(noWheel).diverted == false)
+        #expect(try wheel(nil).diverted, "the link writes it once discovery finds the wheel")
+        #expect(compile().setup(for: mx.id).hidpp?.thumbWheelDiverted == false, "only a listen diverts it")
     }
 
     @Test func listeningDivertsAMouseWithoutHIDPPRules() throws {
         var config = Config.example
         config.devices[0].rules = [Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)]
         #expect(compile(config).setup(for: mx.id).hidpp == nil)
-        #expect(compile(config, listening: mx).setup(for: mx.id).hidpp == .listening(over: nil))
+        #expect(compile(config, listening: mx).setup(for: mx.id).hidpp == .listening(over: nil, thumbWheel: true))
     }
 
     @Test func pauseAndQuitIgnoreListening() {
@@ -72,6 +88,7 @@ private func compile(
         #expect(plan.heard(.button(3)) == .control(.button(3)))
         #expect(plan.heard(.button(32)) == .unnamed)
         #expect(plan.heard(.hidpp(CID(rawValue: 0xC3))) == .control(.hidpp(CID(rawValue: 0xC3))))
+        #expect(plan.heard(.thumbWheel) == .control(.thumbWheel))
     }
 }
 

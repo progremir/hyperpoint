@@ -201,7 +201,7 @@ final class SettingsModel {
         Task { await engine.stopListening() }
     }
 
-    /// Add Rule's menu, for a control no press makes, such as the thumb wheel, or a mouse that is not connected.
+    /// Add Rule's menu, for a control picked instead of pressed, which a mouse that is not connected needs.
     func pick(_ control: Control, on device: SettingsDevice) {
         stopListening()
         learned(.control(control), on: device.match, for: .addRule)

@@ -2,19 +2,27 @@ struct HIDPPSetup: Equatable, Sendable {
     var controls: [CID: ControlBehavior]
     var thumbWheelInverted: Bool
     /// Every divertable control but the left button diverts without raw movement and only reports its press.
-    /// `controls` and the wheel keep their values, so the next write without it is the real setup again.
+    /// `controls` and the wheel's direction keep their values, so the next write without it is the real setup again.
     var listening = false
+    /// Only while listening, so a turn is reported instead of scrolling.
+    var thumbWheelDiverted = false
 
     static let native = HIDPPSetup(controls: [:], thumbWheelInverted: false)
 
     /// The user clicks Cancel with it, so a listen leaves it native even on a mouse that lets it divert.
     static let leftButton = CID(rawValue: 0x50)
 
-    /// `plan` listening, or a native setup listening when the profile has no HID++ rules.
-    static func listening(over plan: HIDPPSetup?) -> HIDPPSetup {
+    /// `plan` listening, or a native setup listening when the profile has no HID++ rules. A mouse with a thumb wheel
+    /// diverts it too.
+    static func listening(over plan: HIDPPSetup?, thumbWheel: Bool) -> HIDPPSetup {
         var setup = plan ?? .native
         setup.listening = true
+        setup.thumbWheelDiverted = thumbWheel
         return setup
+    }
+
+    var thumbWheel: ThumbWheelReporting {
+        ThumbWheelReporting(diverted: thumbWheelDiverted, inverted: thumbWheelInverted)
     }
 
     func behavior(of cid: CID) -> ControlBehavior { controls[cid] ?? .native }

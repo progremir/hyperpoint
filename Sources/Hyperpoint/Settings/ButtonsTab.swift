@@ -127,7 +127,9 @@ private struct Rules: View {
                 }
             }
             if !device.isNew {
-                AddRule(model: model, device: device, controls: choices.controls, note: note)
+                AddRule(
+                    model: model, device: device, controls: choices.controls,
+                    thumbWheel: choices.capabilities?.thumbWheel == true, note: note)
             }
             Explanation(footer)
         }
@@ -142,12 +144,13 @@ private struct Rules: View {
     }
 }
 
-/// Add Rule listens for the next press on the mouse. Its menu adds a rule for a control without pressing it, which the
-/// thumb wheel and a mouse that is not connected need.
+/// Add Rule listens for the next press or thumb-wheel turn on the mouse. Its menu adds a rule for a control without
+/// pressing it, which a mouse that is not connected needs.
 private struct AddRule: View {
     let model: SettingsModel
     let device: SettingsDevice
     let controls: [Control]
+    let thumbWheel: Bool
     let note: LearnNote?
 
     /// A listen for a rule's Button cell shows in that row, not here.
@@ -155,9 +158,9 @@ private struct AddRule: View {
         let blocked = device.cannotListen(paused: model.paused, permissions: model.permissions)
         switch device.status?.listen {
         case .gettingReady(let until) where model.listenPurpose == .addRule:
-            ListenRow(device: device.name, ready: false, until: until) { model.stopListening() }
+            ListenRow(device: device.name, thumbWheel: thumbWheel, ready: false, until: until) { model.stopListening() }
         case .listening(let until) where model.listenPurpose == .addRule:
-            ListenRow(device: device.name, ready: true, until: until) { model.stopListening() }
+            ListenRow(device: device.name, thumbWheel: thumbWheel, ready: true, until: until) { model.stopListening() }
         case .ended(let why):
             menu(blocked: blocked)
             Explanation(Labels.listenEnded(why, device: device.name))
@@ -196,6 +199,7 @@ private struct AddRule: View {
 /// never reach the window.
 private struct ListenRow: View {
     let device: String
+    let thumbWheel: Bool
     let ready: Bool
     let until: Date
     let cancel: () -> Void
@@ -206,12 +210,14 @@ private struct ListenRow: View {
                 state: .recording(
                     chips: [],
                     hint: ready
-                        ? .prompt("Press a button on \(device). The left button keeps working.")
+                        ? .prompt("\(ask) on \(device). The left button keeps working.")
                         : .gettingReady("Getting \(device) ready…"),
                     trailing: "\(Int(max(0, until.timeIntervalSince(context.date)).rounded(.up))) s"),
                 cancel: cancel)
         }
     }
+
+    private var ask: String { thumbWheel ? "Press a button or turn the thumb wheel" : "Press a button" }
 }
 
 private struct RuleRow: View {
@@ -249,7 +255,7 @@ private struct RuleRow: View {
                     RecorderField(state: buttonField, start: startListening, cancel: stopListening)
                         .disabled(cannotListen != nil)
                         .help(cannotListen ?? "Click, then press a button on \(device) to use it for this rule")
-                    // The menu reaches the thumb wheel, and every button while the mouse is away.
+                    // The menu reaches every control while the mouse is away.
                     Menu {
                         Picker("Button", selection: Binding(get: { rule.control }, set: { edit(choices.rule(rule, withControl: $0)) })) {
                             ForEach(choices.controls(for: rule), id: \.self) { Text(Labels.control($0)).tag($0) }
@@ -324,7 +330,11 @@ private struct RuleRow: View {
     private var buttonField: RecorderField.State {
         switch listen {
         case .gettingReady: .recording(chips: [], hint: .gettingReady("Getting ready…"), trailing: nil)
-        case .listening: .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)
+        case .listening:
+            .recording(
+                chips: [],
+                hint: .prompt(choices.capabilities?.thumbWheel == true ? "Press a button or turn the wheel" : "Press a button"),
+                trailing: nil)
         case .ended, nil: .idle(chips: [Labels.control(rule.control)], label: nil)
         }
     }

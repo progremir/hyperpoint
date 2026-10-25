@@ -18,6 +18,10 @@ struct Bench {
         absorb(report.withUnsafeBufferPointer { link.receive($0, now: now) })
     }
 
+    mutating func turnWheel(_ rotation: Int16) {
+        for report in fake.turned(rotation) { deliver(report) }
+    }
+
     mutating func settle(until done: (Bench) -> Bool = { _ in false }) {
         for _ in 0..<10_000 {
             if done(self) { return }
@@ -47,7 +51,7 @@ struct Bench {
 
     var scrolls: [HoldScrollEvent] { events.compactMap { if case .holdScroll(let event) = $0 { event } else { nil } } }
 
-    var heard: [CID] { events.compactMap { if case .heard(let cid) = $0 { cid } else { nil } } }
+    var heard: [ListenPress] { events.compactMap { if case .heard(let press) = $0 { press } else { nil } } }
 
     mutating func clearEvents() { events = [] }
 
@@ -83,9 +87,11 @@ private func plan(fire: GestureFire) -> HIDPPSetup {
     return plan(config)
 }
 
+private func listening(over setup: HIDPPSetup?) -> HIDPPSetup { .listening(over: setup, thumbWheel: true) }
+
 private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
 /// Every divertable MX control, diverted without raw movement.
-private let listening: [UInt16: UInt8] = [0x52: 0x01, 0x53: 0x01, 0x56: 0x01, 0xC3: 0x01, 0xC4: 0x01]
+private let listeningControls: [UInt16: UInt8] = [0x52: 0x01, 0x53: 0x01, 0x56: 0x01, 0xC3: 0x01, 0xC4: 0x01]
 private let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
 private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
@@ -238,8 +244,9 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
         #expect(bench.lastJob?.reasons == [.configChanged, .manual])
     }
 
-    @Test func pauseReturnsEveryControlToNative() {
-        var bench = connected()
+    @Test(arguments: [false, true])
+    func pauseReturnsEveryControlToNative(whileListening: Bool) {
+        var bench = connected(whileListening ? listening(over: plan()) : plan())
         bench.request(.pauseChanged, .native)
         bench.settle()
         #expect(bench.fake.diverted == [:])
@@ -345,25 +352,53 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
 
     @Test func aListeningPlanDivertsEveryControlWithoutRawMovement() {
         var bench = connected()
-        bench.request(.manual, .listening(over: plan()))
+        bench.request(.manual, listening(over: plan()))
         bench.settle()
-        #expect(bench.fake.diverted == listening)
-        #expect(!bench.fake.wheelDiverted && bench.fake.wheelInverted, "the wheel keeps the profile's setting")
+        #expect(bench.fake.diverted == listeningControls)
+        #expect(bench.fake.wheelDiverted, "a turn is reported instead of scrolling")
+        #expect(bench.fake.wheelInverted, "the wheel keeps the profile's direction")
         #expect(bench.outcomes == [.applied])
     }
 
     @Test func aListenedPressIsHeardAndDoesNothingElse() {
-        var bench = connected(.listening(over: plan()))
+        var bench = connected(listening(over: plan()))
         bench.deliver(bench.fake.held(0xC3))
         bench.deliver(bench.fake.rawXY(dx: 0, dy: 300))
         bench.deliver(bench.fake.held())
         bench.deliver(bench.fake.held(0xC4))
         bench.deliver(bench.fake.held())
-        #expect(bench.events == [.heard(gestureButton), .heard(topButton)], "no gesture, click or shortcut")
+        #expect(
+            bench.events == [.heard(.hidpp(gestureButton)), .heard(.hidpp(topButton))], "no gesture, click or shortcut")
+    }
+
+    @Test func aListenedTurnIsHeardOnce() {
+        var bench = connected(listening(over: plan()))
+        bench.turnWheel(3)
+        #expect(bench.events == [.heard(.thumbWheel)], "the stop after it is not a second turn")
+    }
+
+    @Test func aTurnRightAfterTheListenIsNotHeard() {
+        var bench = connected(listening(over: plan()))
+        bench.request(.manual, plan())
+        bench.clearEvents()
+        bench.turnWheel(3)
+        #expect(bench.fake.wheelDiverted, "the write that gives the wheel back has not landed")
+        #expect(bench.events.isEmpty)
+    }
+
+    @Test func aWheelThatLostItsDivertIsAMismatch() {
+        var bench = Bench()
+        bench.request(.connected, listening(over: plan()))
+        bench.settle { $0.fake.writes == 6 }
+        bench.fake.wheelDiverted = false
+        bench.settle { $0.outcomes.count == 1 }
+        #expect(
+            bench.outcomes.first
+                == .failed(.mismatch(.checkThumbWheel(ThumbWheelReporting(diverted: true, inverted: true)))))
     }
 
     @Test func theRealPlanComesBackAfterAListen() {
-        var bench = connected(.listening(over: plan()))
+        var bench = connected(listening(over: plan()))
         bench.request(.manual, plan())
         bench.settle()
         #expect(bench.fake.diverted == setUp)
@@ -372,9 +407,9 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
 
     @Test func aMouseWithoutHIDPPRulesIsNativeAfterAListen() {
         var bench = connected(nil)
-        bench.request(.manual, .listening(over: nil))
+        bench.request(.manual, listening(over: nil))
         bench.settle()
-        #expect(bench.fake.diverted == listening, "BetterMouse's diverts are replaced too")
+        #expect(bench.fake.diverted == listeningControls, "BetterMouse's diverts are replaced too")
         bench.request(.manual, .native)
         bench.settle()
         #expect(bench.fake.diverted == [:])
@@ -382,7 +417,7 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
     }
 
     @Test func aPressRightAfterTheListenFollowsTheRules() {
-        var bench = connected(.listening(over: plan()))
+        var bench = connected(listening(over: plan()))
         bench.request(.manual, plan())
         bench.deliver(bench.fake.held(0xC3))
         bench.deliver(bench.fake.held())
@@ -393,7 +428,7 @@ private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
     @Test func aListenLeavesTheLeftButtonAloneOnAMouseThatCanDivertIt() {
         var bench = Bench()
         bench.fake.controls[0].flags = 0x31
-        bench.request(.connected, .listening(over: nil))
+        bench.request(.connected, listening(over: nil))
         bench.settle()
         #expect(bench.link.capabilities?.control(HIDPPSetup.leftButton)?.divertable == true)
         #expect(bench.fake.diverted[0x50] == nil)

@@ -118,6 +118,15 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(mxChoices.learned(.unnamed, replacing: top) == .unnamed)
     }
 
+    @Test func aTurnOfTheThumbWheelGetsItsOneRule() {
+        let wheel = Rule(control: .thumbWheel, trigger: .scroll, action: .reverse)
+        let withoutWheel = RuleChoices(rules: mxRules.filter { $0 != wheel }, capabilities: mxCapabilities, speaksHIDPP: true)
+        let top = mxRules.first { $0.control == topButton }!
+        #expect(withoutWheel.learned(.control(.thumbWheel)) == .add(wheel))
+        #expect(withoutWheel.learned(.control(.thumbWheel), replacing: top) == .replace(top.key, wheel))
+        #expect(mxChoices.learned(.control(.thumbWheel)) == .everyTriggerTaken(.thumbWheel))
+    }
+
     @Test func pressingARulesOwnButtonChangesNothing() {
         let top = mxRules.first { $0.control == topButton }!
         #expect(mxChoices.learned(.control(topButton), replacing: top) == .unchanged)

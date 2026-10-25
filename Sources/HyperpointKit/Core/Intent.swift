@@ -63,12 +63,15 @@ struct Intent: Equatable, Sendable {
         return intent
     }
 
-    /// Every HID++ control of the target reports its press, its key map is cleared so that its keys reach the tap as
-    /// themselves, and the tap takes one press from its senders. Other devices and the other tap rules are untouched,
-    /// since another device may share a carrier.
+    /// Every HID++ control of the target reports its press and its thumb wheel its turn, its key map is cleared so that
+    /// its keys reach the tap as themselves, and the tap takes one press from its senders. Other devices and the other
+    /// tap rules are untouched, since another device may share a carrier. A mouse not yet discovered may have a wheel,
+    /// and the link writes it only if it does.
     private mutating func listen(to target: ListenTarget, on present: [PresentDevice], tapAvailable: Bool) {
         guard let device = present.first(where: { $0.id == target.device }), var setup = setups[device.id] else { return }
-        if device.properties.speaksHIDPP { setup.hidpp = .listening(over: setup.hidpp) }
+        if device.properties.speaksHIDPP {
+            setup.hidpp = .listening(over: setup.hidpp, thumbWheel: device.hidpp?.thumbWheel ?? true)
+        }
         var carrierSources: [KeyCode: HIDUsage] = [:]
         for route in setup.keyMap.routes {
             if case .carrier(let carrier, _) = route.target { carrierSources[carrier.keyCode] = route.source }

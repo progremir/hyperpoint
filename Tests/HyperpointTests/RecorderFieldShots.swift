@@ -16,8 +16,9 @@ import Testing
     static let shots: [(name: String, width: CGFloat, state: RecorderField.State)] = [
         ("idle-control", 164, .idle(chips: ["Gesture button"], label: nil)),
         ("idle-chord", 260, .idle(chips: ["⌥", "⇧", "S"], label: "Change shortcut")),
-        ("recording-press", 184, .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)),
-        ("row-getting-ready", 184, .recording(chips: [], hint: .gettingReady("Getting ready…"), trailing: nil)),
+        ("recording-press", 312, .recording(chips: [], hint: .prompt("Press a button"), trailing: nil)),
+        ("recording-turn", 312, .recording(chips: [], hint: .prompt("Press a button or turn the wheel"), trailing: nil)),
+        ("row-getting-ready", 312, .recording(chips: [], hint: .gettingReady("Getting ready…"), trailing: nil)),
         (
             "getting-ready", 584,
             .recording(chips: [], hint: .gettingReady("Getting MX Master 3 ready…"), trailing: "10 s")
@@ -26,6 +27,13 @@ import Testing
             "listening", 584,
             .recording(
                 chips: [], hint: .prompt("Press a button on MX Master 3. The left button keeps working."),
+                trailing: "9 s")
+        ),
+        (
+            "listening-wheel", 584,
+            .recording(
+                chips: [],
+                hint: .prompt("Press a button or turn the thumb wheel on MX Master 3. The left button keeps working."),
                 trailing: "9 s")
         ),
         ("recording-shortcut", 337, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),
