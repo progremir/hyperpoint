@@ -13,7 +13,7 @@ Wheel steps from a device whose profile has `scrolling.smooth` become continuous
 ## How to get to it (user POV)
 
 - Scroll the MX main wheel in any app (Telegram and a browser are the ones the user checks).
-- Scrolling and clicks tab of the MX page in Settings, the speed graph and the glide sliders.
+- The Scrolling tab in Settings with the MX picked as the Device, the speed graph and the glide sliders.
 
 ## Driving it with verify.sh
 
