@@ -43,7 +43,7 @@ struct HyperKeyTab: View {
                 .disabled(!model.editable)
                 Divider()
                 FormRow(label: "How it works") {
-                    Text("Hyperpoint turns the key into F18 on each keyboard above, then holds ⌃⌥⇧⌘ while you hold F18.")
+                    Text("Hyperpoint turns the key into F18 on the keyboards ticked above, then holds ⌃⌥⇧⌘ while you hold F18.")
                         .fixedSize(horizontal: false, vertical: true)
                     Explanation("In password fields macOS keeps typing away from other apps, so the hyper key does nothing there.")
                 }
