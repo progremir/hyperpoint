@@ -76,6 +76,7 @@ The rules for the file:
 - A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
 - A key a mouse sends can be held as a modifier (`"when": "hold"`, `"do": { "modifier": … }`) or click a shortcut, not both. The modifier is mapped at the HID layer, so the key has no click left to give.
+- A button held holds keys from its press to its release. `"when": "hold"` with `"do": { "modifier": "leftCommand" }` holds one modifier, and with `"do": { "shortcut": "ctrl+opt+space" }` holds the shortcut's modifiers and its key. The keys are down from the press, so the button has no click or hold-and-move rule beside it.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
 - A profile comes only from Set Up, which starts it from a preset, from a copy of another profile, or empty. The file never records which, so changing a preset later leaves every saved profile as it is.
@@ -110,7 +111,19 @@ The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-resu
 
 The 2.4G mouse uses the same mechanism. Its keyboard interface gets `UserKeyMapping` the same way. Escape maps straight to Right Option (0xE6) at the HID layer, a `.native` route, so holding it is a real held modifier and it works in password fields. Return maps to F13, a carrier whose meaning is `.press(⌥⇧S)`. The tap drops F13's key-down and has `ActionPerformer` post ⌥⇧S, and it drops the key's repeats and its key-up too. Without the Accessibility grant there is no tap, so Return is left as Return while Escape still becomes Right Option.
 
-### Call site 4. The user adds a rule by pressing a button
+### Call site 4. Back is held as ⌘ and the left button clicks
+
+The MX profile has `{ "control": { "hidpp": "0x53" }, "when": "hold", "do": { "modifier": "leftCommand" } }`.
+
+1. `Intent.compile` gives 0x53 `ControlBehavior.hold(KeyHold)`, which diverts it without raw movement (flags `0x23`), so the pointer moves as usual while it is held.
+2. The press arrives as a 0x1B04 notification on the HID thread. `HIDPPLink` emits `holdKeys(0x53, ⌘)`, and the slot sends `KeyHoldEvent.press(.control(device, 0x53), ⌘)` on its ordered stream to the tap thread.
+3. `TapHost` hands it to `HeldKeys`, which returns a marked `flagsChanged` event for Left Command that keeps the modifiers held elsewhere, and posts it at the HID tap. The system's modifier state now has ⌘.
+4. The tap never watches the left button. The system stamps the click with its modifier state, so apps get a ⌘-click.
+5. The release sends `releaseKeys`, and `HeldKeys` posts the `flagsChanged` event that lets go of ⌘. A release that never comes is covered by an apply, the device going away, a tap timeout, pause and quit, which all let go.
+
+A plain button does the same in `ButtonStage`. Its press becomes `TapVerdict.keys(.press)`, its drags reach apps as plain `mouseMoved` events because apps never saw the press, and its release becomes `.keys(.release)`. A shortcut holds its modifiers in the order macOS menus show them, then its key, and lets go in reverse. The keys are posted, not mapped at the HID layer as a mouse's Escape is, because a button press is a HID++ notification or a mouse event, which no key map can reach.
+
+### Call site 5. The user adds a rule by pressing a button
 
 1. Add Rule on the Buttons tab calls `engine.listen(for: match)`. The engine's `Listener` arms one listen with a new id and a 10 s timeout. It refuses at once, with the reason in `DeviceStatus.listen`, while paused, when the mouse is not connected, or when neither the tap nor HID++ can hear it.
 2. Listening is an input to `Intent.compile`, as a `ListenTarget`. For that device only, the HID++ plan becomes `HIDPPSetup.listening`, which diverts every divertable control but the left button without raw movement. On a mouse with a thumb wheel it also diverts the wheel and keeps its direction, so a turn stops scrolling and reaches `HIDPPLink` as a 0x2150 notification, which it reports as `HIDPPEvent.heard(.thumbWheel)` on the same path as a press. Its key map is cleared, so its keys reach the tap as themselves, and `TapRules.listen` names its event services. A listen alone installs the tap. Paused and quitting still compile to neutral. The engine then calls `slot.invalidate(.listen)` on that device, so a listen is one more absolute write.
@@ -139,13 +152,15 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `Rule` | `Control`, `Trigger`, `Action`. |
 | `Control` | `.hidpp(CID)`, `.thumbWheel`, `.key(HIDUsage)` for a key a mouse sends from a keyboard interface, `.button(Int)` for a plain mouse button in CGEvent numbering. |
 | `Trigger` | `.click`, `.hold`, `.holdMove(Direction?)`, `.scroll`. A nil direction is hold and move any way. |
-| `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`, `.scroll`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. |
+| `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`, `.scroll`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. On a hold, `.modifier` and `.shortcut` stay down until the release. |
 | `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, the ids of its HID event services, `Capabilities`. |
 | `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it keyboard, mouse and HID++ interfaces from IOKit, and it decides which device a newly published event service belongs to. It never tracks a trackpad, and a device with a keyboard interface is described by that interface whichever interface enumerates first. |
 | `Capabilities` | What discovery found. HID++ controls with their flags (temporary divert, rawXY), thumb wheel, keyboard interface, pointer, keyboard. Never stored in config. |
 | `Intent` | `Intent.compile(config, paused, tapAvailable, present, listening)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`, with the listened device's overlay and its `ListenPlan`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
-| `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. HID++ controls and plain buttons build it from their rules with one initializer. |
+| `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`, `.hold(KeyHold)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. HID++ controls and plain buttons build it from their rules with one initializer. |
+| `KeyHold` | The keys a held button holds: modifiers in the order they go down, then at most one other key. A shortcut's modifiers are the left keys. |
+| `HeldKeys` | Every hold in progress, by `KeyHolder` (a plain button, or one device's HID++ control), and the marked key events that press and release them. Each event keeps the modifiers held elsewhere, and a modifier two holds share goes up with the last. |
 | `GesturePlan` | The distance, the click action, and `GestureMoves`, which is `.swipes([Direction: Action], fire)` or `.scroll(HoldScrollPlan)`. One control cannot do both. |
 | `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
@@ -169,7 +184,7 @@ One SwiftPM library with three folders and a thin app target, built into a signe
 | Path | Access | Holds |
 | --- | --- | --- |
 | `Sources/HyperpointKit/Model` | public | `Config` and its parts, `DevicePreset`, `ConfigCodec`, `EngineStatus` |
-| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities`, `Listener` |
+| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `HeldKeys`, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities`, `Listener` |
 | `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ActionPerformer`, `Journal`, `DivertLatch` |
 | `Sources/Hyperpoint` | app | `AppModel`, the menu, Welcome and settings views |
 
@@ -183,7 +198,7 @@ Each device-facing thread is a global actor whose executor is that thread's CFRu
 | --- | --- |
 | Main actor | `AppModel`, SwiftUI, `ActionPerformer` (symbolic hotkey lookup runs on main in Mac Mouse Fix, so Hyperpoint does the same) |
 | `@HIDActor` | `Engine` (desired state), `DeviceHub` and its IOHIDManager, every `Slot`, every `HIDPPSession` and its `HIDPPLink`, `Journal` |
-| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` and `HoldScrollAnimator` instances and their display link, the pointer freeze, the watchdog. Nothing else ever runs here. |
+| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` and `HoldScrollAnimator` instances and their display link, the pointer freeze, `HeldKeys`, the watchdog. Nothing else ever runs here. |
 | Cooperative pool | `ConfigStore` (an actor that owns the file), `KeyMapWriter` (the `hidutil` process), permission polling |
 
 State crosses only as immutable `Sendable` values.
@@ -197,6 +212,7 @@ State crosses only as immutable `Sendable` values.
 | ConfigStore to HID and main | `store.events()` | each element is a full state |
 | HID to tap | `TapRules` | latest wins, applied between events |
 | HID to tap | `HoldScrollEvent` from a HID++ control | ordered, every event, because a lost end would leave the pointer frozen |
+| HID to tap | `KeyHoldEvent` from a HID++ control | ordered, every event, because a lost release would leave a key held |
 | Tap to HID | `TapSignal` (installed, install failed, removed, re-enabled, heard) | ordered, rare |
 | Tap to main | plain-button actions, into `engine.actions` | ordered |
 
@@ -216,6 +232,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 - HID++ wire types stay internal to Core. The runtime sees report bytes in and out, nothing else.
 - Validation happens at five boundaries and nowhere else (per boundary-discipline). `ConfigCodec` for the file, the HID++ codec for device bytes, `KeyMapWriter` for `hidutil` output, `DeviceHub` for IOKit properties, and `TapHost` for CGEvents.
 - `TapPipeline.reset()` runs on tap timeout, on every keyboard removal and before new rules replace the pipeline, so a lost key-up cannot leave hyper held. It also returns a plain-button press the stage was holding back, which `TapHost` posts so that the button's real release pairs with it, and says whether a scroll ended. The press a listen took stays taken through a reset and new rules, so its release is kept from apps too. A new press of the same button or key means that release was lost.
+- Keys a button holds go up on its release, on any pipeline reset, on tap timeout, on uninstall (pause, quit, a lost permission), on an apply to its HID++ device and when that device goes away. `TapHost` posts every key event a hold makes, so the downs and ups of one key never cross threads.
 - The pointer is frozen only while a hold scrolls, and for a plain button from its press. `TapHost` frees it on the release, on the scroll's end, on any pipeline reset, on tap timeout, on uninstall (pause, quit, a lost permission) and when no display can run frames. `Engine.shutdown` waits for the uninstall, so quitting mid-scroll frees it.
 - Every event Hyperpoint posts carries a marker in `eventSourceUserData`, and every stage passes marked events untouched. Hyperpoint's own ⇧⌘4, smooth-scroll, hold-scroll and replayed clicks are never rewritten.
 
@@ -321,7 +338,7 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 - We accept private API in three places (CGS symbolic hotkeys, `IOHIDEventGetSenderID`, and `CGEventSetHIDEvent` if v2 ever wants follow-the-finger swipes), in exchange for honouring the user's own Mission Control shortcuts and per-device pointer settings.
 - We accept spawning `/usr/bin/hidutil` on device appearance and config change, in exchange for a documented interface instead of private SPI.
 - We accept a read-only settings window while the file is invalid, in exchange for never overwriting a hand edit in progress.
-- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch.
+- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch. A crash while a button holds keys leaves them down until that key is pressed and released.
 - We accept that an older app cannot read a newer file, in exchange for unknown keys being errors.
 
 ## Alternatives considered
