@@ -411,7 +411,7 @@ private struct ShortcutField: View {
     }
 
     private var hint: RecorderField.Hint {
-        if unnameable { return .problem("Hyperpoint cannot name that key in a shortcut. Try another.") }
+        if unnameable { return .problem("Can't use that key. Try another.") }
         return .prompt(held.isEmpty ? "Type the shortcut" : "Now press a key")
     }
 }
