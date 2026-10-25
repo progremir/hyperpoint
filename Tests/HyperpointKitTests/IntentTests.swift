@@ -377,9 +377,12 @@ import Testing
 
     @Test func pauseTurnsAWrittenDeviceNative() {
         let paused = Intent.compile(.example, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
-        #expect(HIDPPSetup.pendingWrite(desired: paused, written: true) == .native)
-        #expect(HIDPPSetup.pendingWrite(desired: paused, written: false) == nil, "a device never written stays untouched")
-        #expect(HIDPPSetup.pendingWrite(desired: presetMX, written: false) == presetMX)
+        var written = HIDPPWrites(crashMayHaveDiverted: false)
+        _ = written.send(desired: presetMX)
+        #expect(written.pending(desired: paused) == .native)
+        #expect(
+            HIDPPWrites(crashMayHaveDiverted: false).pending(desired: paused) == nil,
+            "a device never written stays untouched")
     }
 }
 
