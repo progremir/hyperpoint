@@ -54,7 +54,7 @@ svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewB
 {arrow()}
 {text(W / 2, 290, "Drag Hyperpoint into Applications", 16, 600, INK)}
 {text(W / 2, 310, "Then open it from Applications and allow Accessibility and Input Monitoring.", 12, 400, INK, 0.62)}
-{text(W / 2, 334, "macOS blocks the first open? System Settings › Privacy &amp; Security › Open Anyway.", 11, 400, ACCENT_DEEP)}
+{text(W / 2, 334, "Hyperpoint lives in the menu bar, next to the clock.", 11, 400, ACCENT_DEEP)}
 </svg>
 """
 
