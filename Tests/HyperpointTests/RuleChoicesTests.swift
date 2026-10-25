@@ -25,7 +25,10 @@ let mxCapabilities = HIDPPCapabilities(
 
     @Test func eachControlKindOffersItsOwnTriggersAndActions() {
         let fresh = RuleChoices(rules: [], capabilities: mxCapabilities, speaksHIDPP: true)
-        #expect(fresh.triggers(for: gestureButton) == [.click] + Direction.allCases.map(Trigger.holdMove))
+        #expect(fresh.triggers(for: gestureButton) == [.click] + Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
+        #expect(fresh.actions(for: gestureButton, on: .holdMove(nil)) == [.scroll])
+        #expect(fresh.triggers(for: .button(1)) == [.click, .holdMove(nil)])
+        #expect(fresh.actions(for: .button(1), on: .holdMove(nil)) == [.scroll])
         #expect(fresh.actions(for: gestureButton, on: .click).contains(.system(.missionControl)))
         #expect(!fresh.actions(for: gestureButton, on: .click).contains(.modifier(.rightOption)))
         #expect(fresh.triggers(for: .thumbWheel) == [.scroll])
@@ -41,16 +44,23 @@ let mxCapabilities = HIDPPCapabilities(
     @Test func pickersOfferTheDivertableControlsTheDeviceReported() {
         #expect(
             mxChoices.controls
-                == [0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7].map { Control.hidpp(CID(rawValue: $0)) } + [.thumbWheel])
+                == [.button(1)] + [0x52, 0x53, 0x56, 0xC3, 0xC4, 0xD7].map { Control.hidpp(CID(rawValue: $0)) } + [.thumbWheel],
+            "the right button cannot be diverted, so it is a plain button")
         let offline = RuleChoices(rules: mxRules, capabilities: nil, speaksHIDPP: true)
-        #expect(offline.controls == [gestureButton, topButton, .thumbWheel], "the rules' controls while not connected")
-        #expect(choices24G.controls.count == HIDUsage.named.count)
+        #expect(offline.controls == [.button(1), gestureButton, topButton, .thumbWheel], "the rules' controls while not connected")
+        #expect(choices24G.controls == (1...4).map(Control.button) + HIDUsage.named.map(Control.key))
     }
 
     @Test func aTriggerAnotherRuleUsesIsLeftOut() {
         let click = mxRules.first { $0.control == gestureButton && $0.trigger == .click }!
-        #expect(mxChoices.triggers(for: gestureButton) == [.holdMove(.up)])
+        #expect(mxChoices.triggers(for: gestureButton) == [.holdMove(.up)], "swipes rule out scrolling")
         #expect(mxChoices.triggers(for: gestureButton, besides: click) == [.click, .holdMove(.up)])
+        let scroll = Rule(control: topButton, trigger: .holdMove(nil), action: .scroll)
+        let scrolling = RuleChoices(
+            rules: [Rule(control: topButton, trigger: .click, action: .system(.appExpose)), scroll],
+            capabilities: mxCapabilities, speaksHIDPP: true)
+        #expect(scrolling.triggers(for: topButton).isEmpty, "scrolling rules out swipes")
+        #expect(scrolling.triggers(for: topButton, besides: scroll) == Direction.allCases.map(Trigger.holdMove) + [.holdMove(nil)])
     }
 
     @Test func aControlWithoutRawMovementOffersNoSwipes() {
@@ -78,7 +88,9 @@ let mxCapabilities = HIDPPCapabilities(
             config = SettingsEdit.addRule(mx, name: "MX Master 3", rule).applied(to: config)
             #expect(saves(config), "\(rule)")
         }
-        #expect(profile(config, mx)?.rules?.count == 6 * 5 + 1, "six controls with click and four swipes, and the wheel")
+        #expect(
+            profile(config, mx)?.rules?.count == 33,
+            "5 each for six HID++ controls (click, four swipes), 2 for the right button (click, scroll), 1 for the wheel")
     }
 
     @Test func movingARuleKeepsWhatStillWorks() {

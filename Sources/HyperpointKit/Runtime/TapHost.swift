@@ -23,6 +23,11 @@ final class TapHost {
     private var pipeline = TapPipeline(rules: .empty, origin: eventOrigin)
     private var animator = ScrollAnimator()
     private var wholePoints = WholePoints()
+    private var holdScroll = HoldScrollAnimator()
+    private var holdPoints = (dx: WholePoints(), dy: WholePoints())
+    private var cursorFrozen = false
+    /// Between a hold scroll's began and ended, from either recognizer.
+    private var handScrolling = false
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
     private var watchdog: CFRunLoopTimer?
@@ -30,14 +35,25 @@ final class TapHost {
     private var framesDisplay: CGDirectDisplayID?
     private var lastFrame = 0.0
     private let signals: AsyncStream<TapSignal>.Continuation
+    /// Plain-button actions, for `ActionPerformer`.
+    private let actions: AsyncStream<Action>.Continuation
 
-    nonisolated init(signals: AsyncStream<TapSignal>.Continuation) { self.signals = signals }
+    nonisolated init(signals: AsyncStream<TapSignal>.Continuation, actions: AsyncStream<Action>.Continuation) {
+        self.signals = signals
+        self.actions = actions
+    }
 
     func follow(_ orders: AsyncStream<TapOrder>) async {
         for await order in orders { apply(order) }
     }
 
+    /// HID++ controls' hold-to-scroll, from the HID thread.
+    func follow(holdScrolls: AsyncStream<HoldScrollEvent>) async {
+        for await event in holdScrolls { holdScrolled(event, at: nil) }
+    }
+
     func apply(_ order: TapOrder) {
+        release(pipeline.reset(), endingEverything: !order.install)
         pipeline.replaceRulesAndForgetHeldKeys(order.rules)
         if order.install { install() } else { uninstall() }
     }
@@ -75,7 +91,7 @@ final class TapHost {
         if let ended = animator.stop() { post(ended) }
         CFMachPortInvalidate(port)
         (self.port, self.source, self.watchdog, frames) = (nil, nil, nil, nil)
-        pipeline.reset()
+        release(pipeline.reset(), endingEverything: true)
         signals.yield(.removed)
     }
 
@@ -85,24 +101,81 @@ final class TapHost {
             reenable()
             return Unmanaged.passUnretained(event)
         default:
-            switch pipeline.process(type, event) {
+            let verdict = pipeline.process(type, event)
+            updateCursor()
+            switch verdict {
             case .pass:
                 return Unmanaged.passUnretained(event)
             case .drop:
                 return nil
             case .scroll(let tick):
                 let now = Self.uptime()
-                let wasIdle = animator.isIdle
                 animator.tick(tick, at: now)
-                guard wasIdle || now - lastFrame > Self.stalled else { return nil }
-                guard runFrames(at: event.location, renew: !wasIdle) else {
+                guard keepFrames(near: event.location, now: now) else {
                     if let ended = animator.stop() { post(ended) }
                     return Unmanaged.passUnretained(event)
                 }
-                lastFrame = now
+                return nil
+            case .replay(let press, let release):
+                press.post(tap: .cghidEventTap)
+                release.post(tap: .cghidEventTap)
+                return nil
+            case .perform(let action):
+                actions.yield(action)
+                return nil
+            case .holdScroll(let scroll):
+                holdScrolled(scroll, at: event.location)
                 return nil
             }
         }
+    }
+
+    /// `location` is where the pointer is, or nil to ask, which only a display link that has to start needs.
+    private func holdScrolled(_ event: HoldScrollEvent, at location: CGPoint?) {
+        let now = Self.uptime()
+        holdScroll.receive(event, at: now)
+        switch event {
+        case .began: handScrolling = true
+        case .ended: handScrolling = false
+        case .moved: break
+        }
+        updateCursor()
+        guard holdScroll.wantsFrames else { return }
+        if !keepFrames(near: location ?? CGEvent(source: nil)?.location ?? .zero, now: now) { endHoldScroll() }
+    }
+
+    /// The pointer stays put from the press of a plain button that scrolls until its release, and while an HID++
+    /// control scrolls, whether or not the device keeps reporting movement to macOS. `force` frees it even if it
+    /// should be free already, for a tap that stops or lost events.
+    private func updateCursor(force: Bool = false) {
+        let frozen = pipeline.holdsPointer || handScrolling
+        guard frozen != cursorFrozen || force else { return }
+        cursorFrozen = frozen
+        _ = CGAssociateMouseAndMouseCursorPosition(frozen ? 0 : 1)
+    }
+
+    private func endHoldScroll() {
+        if let ended = holdScroll.stop() { post(ended) }
+        handScrolling = false
+        updateCursor()
+    }
+
+    /// A button the pipeline forgot while it was down. A press held back from apps goes to them, and its scroll ends.
+    /// `endingEverything` also ends a scroll an HID++ control drives, for a tap that stops or lost events.
+    private func release(_ release: ButtonStage.Release, endingEverything: Bool) {
+        if release.endsScroll || endingEverything { endHoldScroll() }
+        updateCursor(force: endingEverything)
+        release.press?.post(tap: .cghidEventTap)
+    }
+
+    /// Keeps the display link running for an animator that wants frames. A link that has not fired for `stalled`
+    /// lost its display, so it is rebuilt. False when there is no display to follow.
+    private func keepFrames(near location: @autoclosure () -> CGPoint, now: Double) -> Bool {
+        let running = frames.map { !$0.isPaused } ?? false
+        if running, now - lastFrame <= Self.stalled { return true }
+        guard runFrames(at: location(), renew: running) else { return false }
+        lastFrame = now
+        return true
     }
 
     /// Frames follow the display under the pointer, whose refresh rate the scrolled window draws at. False when there
@@ -129,7 +202,8 @@ final class TapHost {
     fileprivate func glide(at time: Double) {
         lastFrame = Self.uptime()
         if let frame = animator.frame(at: time) { post(frame) }
-        if animator.isIdle { frames?.isPaused = true }
+        if let frame = holdScroll.frame(at: time) { post(frame) }
+        if animator.isIdle, !holdScroll.wantsFrames { frames?.isPaused = true }
     }
 
     /// A fresh event per frame, because CG derives the line, fixed-point and point deltas from one another, so a
@@ -147,13 +221,30 @@ final class TapHost {
         event.post(tap: .cgSessionEventTap)
     }
 
+    /// Both axes, with a trackpad's scroll phases while the hand moves and its momentum phases while it glides.
+    private func post(_ frame: HoldScrollFrame) {
+        let restart = frame.phase == .began
+        let dy = holdPoints.dy.take(frame.dy, restart: restart)
+        let dx = holdPoints.dx.take(frame.dx, restart: restart)
+        guard
+            let event = CGEvent(
+                scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0)
+        else { return }
+        event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: frame.dy / 10)
+        event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: frame.dx / 10)
+        event.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(frame.phase.scrollPhase?.rawValue ?? 0))
+        event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: Int64(frame.phase.momentumPhase.rawValue))
+        event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker)
+        event.post(tap: .cgSessionEventTap)
+    }
+
     private static func uptime() -> Double { Double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1_000_000_000 }
 
     /// macOS disables a tap that answers slowly, and a key-up may have been lost while it was off.
     private func reenable() {
         guard let port else { return }
         CGEvent.tapEnable(tap: port, enable: true)
-        pipeline.reset()
+        release(pipeline.reset(), endingEverything: true)
         signals.yield(.reenabled)
     }
 

@@ -27,8 +27,7 @@ enum ControlBehavior: Equatable, Sendable {
 
 extension HIDPPSetup {
     static func compile(_ profile: DeviceProfile, capabilities: HIDPPCapabilities?) -> (HIDPPSetup?, skipped: [Rule]) {
-        var clicks: [CID: Action] = [:]
-        var swipes: [CID: [Direction: Action]] = [:]
+        var rules: [CID: [Rule]] = [:]
         var order: [CID] = []
         var inverted = false
         var relevant = false
@@ -42,11 +41,7 @@ extension HIDPPSetup {
                     continue
                 }
                 if !order.contains(cid) { order.append(cid) }
-                if case .holdMove(let direction) = rule.trigger {
-                    swipes[cid, default: [:]][direction] = rule.action
-                } else {
-                    clicks[cid] = rule.action
-                }
+                rules[cid, default: []].append(rule)
             case (.thumbWheel, .scroll):
                 relevant = true
                 guard capabilities?.thumbWheel ?? true else {
@@ -59,17 +54,55 @@ extension HIDPPSetup {
             }
         }
         guard relevant else { return (nil, []) }
-        let settings = profile.gestures ?? .default
         var controls: [CID: ControlBehavior] = [:]
         for cid in order {
-            if let swipes = swipes[cid] {
-                controls[cid] = .gesture(
-                    GesturePlan(fire: settings.fire, distance: settings.distance, click: clicks[cid], swipes: swipes))
-            } else if let click = clicks[cid] {
-                controls[cid] = .press(click)
-            }
+            controls[cid] = ControlBehavior(rules[cid] ?? [], profile: profile, movement: .sensorCounts)
         }
         return (HIDPPSetup(controls: controls, thumbWheelInverted: inverted), skipped)
+    }
+}
+
+/// What a control's movement is measured in. The gesture distance is in sensor counts, so a pointer drag's
+/// distance is converted with the same factor that sizes its scrolling.
+enum MovementUnit {
+    /// HID++ raw movement.
+    case sensorCounts
+    /// Pointer drags, already accelerated into screen points.
+    case points
+
+    var pointsPerUnit: Double { self == .sensorCounts ? HoldScrollPlan.pointsPerCount : 1 }
+
+    func distance(_ counts: Int) -> Double { Double(counts) * HoldScrollPlan.pointsPerCount / pointsPerUnit }
+}
+
+extension ControlBehavior {
+    /// One control's behavior from its rules, which the parser has already checked fit together.
+    init(_ rules: [Rule], profile: DeviceProfile, movement: MovementUnit) {
+        var click: Action?
+        var swipes: [Direction: Action] = [:]
+        var scrolls = false
+        for rule in rules {
+            switch rule.trigger {
+            case .click: click = rule.action
+            case .holdMove(let direction?): swipes[direction] = rule.action
+            case .holdMove(nil): scrolls = rule.action == .scroll
+            case .hold, .scroll: break
+            }
+        }
+        let gestures = profile.gestures ?? .default
+        let distance = movement.distance(gestures.distance)
+        if scrolls {
+            let plan = HoldScrollPlan(
+                profile.scrolling?.holdToScroll ?? .default, glide: profile.scrolling?.smooth ?? .default,
+                pointsPerUnit: movement.pointsPerUnit)
+            self = .gesture(GesturePlan(distance: distance, click: click, moves: .scroll(plan)))
+        } else if !swipes.isEmpty {
+            self = .gesture(GesturePlan(distance: distance, click: click, moves: .swipes(swipes, fire: gestures.fire)))
+        } else if let click {
+            self = .press(click)
+        } else {
+            self = .native
+        }
     }
 }
 

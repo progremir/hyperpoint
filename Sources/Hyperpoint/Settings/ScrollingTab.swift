@@ -58,17 +58,68 @@ struct ScrollingTab: View {
         }
         .disabled(!model.editable || smooth == nil)
 
+        HoldToScrollSection(model: model, device: device)
+
         Section("More") {
             if device.speaksHIDPP {
                 UnavailableRow(title: "High-resolution wheel", detail: "Reads the wheel's finer steps for smoother input.")
             }
             UnavailableRow(
-                title: "Hold the right button and drag to scroll",
-                detail: "A right click without dragging would still open the menu.")
-            UnavailableRow(
                 title: "Click-through",
                 detail: "A click on a background window would act right away instead of only bringing it forward.")
         }
+    }
+}
+
+private struct HoldToScrollSection: View {
+    let model: SettingsModel
+    let device: SettingsDevice
+
+    var body: some View {
+        let match = device.match
+        let settings = device.profile?.scrolling?.holdToScroll ?? .default
+        let buttons = (device.profile?.rules ?? []).filter { $0.action == .scroll }.map { Labels.control($0.control) }
+        Section {
+            KnobRow(
+                title: HoldScrollKnob.title, detail: HoldScrollKnob.detail, scale: HoldScrollKnob.scale,
+                unit: HoldScrollKnob.unit, value: settings.speed
+            ) { speed in
+                model.apply(.holdToScroll(match, HoldToScroll(speed: speed, direction: settings.direction, momentum: settings.momentum)))
+            }
+            Picker(
+                selection: Binding(
+                    get: { settings.direction },
+                    set: {
+                        model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: $0, momentum: settings.momentum)))
+                    })
+            ) {
+                Text("Like grabbing the page").tag(HoldScrollDirection.grab)
+                Text("Like the scroll wheel").tag(HoldScrollDirection.wheel)
+            } label: {
+                Text("Direction")
+                Text("Grabbing moves the page with your hand. The scroll wheel way scrolls down when you move down.")
+            }
+            Toggle(
+                isOn: Binding(
+                    get: { settings.momentum },
+                    set: {
+                        model.apply(.holdToScroll(match, HoldToScroll(speed: settings.speed, direction: settings.direction, momentum: $0)))
+                    })
+            ) {
+                Text("Keep gliding after you let go")
+                Text("Let go while moving and the page coasts to a stop, like on a trackpad.")
+            }
+        } header: {
+            Text("Hold to scroll")
+        } footer: {
+            Text(
+                buttons.isEmpty
+                    ? "No button scrolls yet. On the Buttons tab, pick Hold and move, then Scroll, for any button."
+                    : "Buttons that scroll: \(ListFormatter.localizedString(byJoining: buttons)). Change them on the Buttons tab."
+            )
+            .foregroundStyle(.secondary)
+        }
+        .disabled(!model.editable || device.profile == nil)
     }
 }
 

@@ -13,6 +13,9 @@ public final class Engine {
     private nonisolated let tapOrderSink: AsyncStream<TapOrder>.Continuation
     private nonisolated let tapSignals: AsyncStream<TapSignal>
     private nonisolated let tapSignalSink: AsyncStream<TapSignal>.Continuation
+    /// Every event in order, because a lost end would leave the pointer frozen.
+    private nonisolated let holdScrolls: AsyncStream<HoldScrollEvent>
+    private nonisolated let holdScrollSink: AsyncStream<HoldScrollEvent>.Continuation
     private nonisolated let tapHost: TapHost
 
     private var config: Config?
@@ -35,7 +38,8 @@ public final class Engine {
         (actions, actionSink) = AsyncStream.makeStream(of: Action.self)
         (tapOrders, tapOrderSink) = AsyncStream.makeStream(of: TapOrder.self, bufferingPolicy: .bufferingNewest(1))
         (tapSignals, tapSignalSink) = AsyncStream.makeStream(of: TapSignal.self)
-        tapHost = TapHost(signals: tapSignalSink)
+        (holdScrolls, holdScrollSink) = AsyncStream.makeStream(of: HoldScrollEvent.self)
+        tapHost = TapHost(signals: tapSignalSink, actions: actionSink)
         permissions = Permissions.current()
     }
 
@@ -44,6 +48,7 @@ public final class Engine {
         publish()
         await withDiscardingTaskGroup { group in
             group.addTask { await self.tapHost.follow(self.tapOrders) }
+            group.addTask { await self.tapHost.follow(holdScrolls: self.holdScrolls) }
             group.addTask { for await signal in self.tapSignals { await self.tapSignaled(signal) } }
             group.addTask { for await snapshot in configs { await self.configChanged(snapshot) } }
             group.addTask { for await state in permissions { await self.permissionsChanged(state) } }
@@ -66,6 +71,7 @@ public final class Engine {
     public func shutdown() async {
         quitting = true
         reconcile(.quit)
+        await tapHost.apply(TapOrder(install: false, rules: .empty))
         let deadline = ContinuousClock.now + .seconds(1)
         while slots.values.contains(where: \.busy), ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(20))
@@ -145,7 +151,8 @@ public final class Engine {
                 recompile()
                 publish()
             },
-            perform: { [actionSink] in actionSink.yield($0) })
+            perform: { [actionSink] in actionSink.yield($0) },
+            holdScroll: { [holdScrollSink] in holdScrollSink.yield($0) })
     }
 
     private var present: [PresentDevice] {

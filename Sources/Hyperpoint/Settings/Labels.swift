@@ -9,12 +9,15 @@ enum Labels {
         0x56: "Forward button", 0xC3: "Gesture button", 0xC4: "Top button",
     ]
 
+    /// Plain buttons by their CGEvent number.
+    static let buttonNames: [Int: String] = [1: "Right button", 2: "Middle button", 3: "Back button", 4: "Forward button"]
+
     static func control(_ control: Control) -> String {
         switch control {
         case .hidpp(let cid): controlNames[cid.rawValue] ?? "Button 0x\(String(cid.rawValue, radix: 16, uppercase: true))"
         case .thumbWheel: "Thumb wheel"
         case .key(let usage): "Sends \(key(usage.name ?? ""))"
-        case .button(let number): "Button \(number)"
+        case .button(let number): buttonNames[number] ?? "Button \(number)"
         }
     }
 
@@ -22,9 +25,23 @@ enum Labels {
         switch trigger {
         case .click: "Click"
         case .hold: "Hold"
-        case .holdMove(let direction): "Hold, move \(direction.rawValue.lowercased())"
+        case .holdMove(let direction?): "Hold, move \(direction.rawValue.lowercased())"
+        case .holdMove(nil): "Hold and move"
         case .scroll: "Scroll"
         }
+    }
+
+    /// Under a hold-and-move scroll rule, what the button still does on a quick press.
+    static func holdToScroll(control: Control, hasClickRule: Bool) -> String {
+        let press =
+            if hasClickRule {
+                "A quick press still does the click rule."
+            } else if case .button = control {
+                "A quick press still clicks as usual."
+            } else {
+                "A quick press does nothing until you add a click rule."
+            }
+        return "Hold the button and move the mouse to scroll. \(press)"
     }
 
     static func action(_ action: Action) -> String {
@@ -36,6 +53,7 @@ enum Labels {
         case .shortcut(let chord): "Shortcut \(Self.chord(chord))"
         case .modifier(let modifier): Self.modifier(modifier)
         case .reverse: "Horizontal scroll, reversed"
+        case .scroll: "Scroll"
         }
     }
 

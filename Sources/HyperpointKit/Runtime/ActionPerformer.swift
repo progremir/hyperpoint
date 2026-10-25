@@ -34,7 +34,7 @@ public final class ActionPerformer {
             postSymbolicHotKey(hotKey)
         case .shortcut(let chord):
             post(key: CGKeyCode(chord.key.rawValue), flags: chord.modifiers.cgFlags, to: .cghidEventTap)
-        case .modifier, .reverse:
+        case .modifier, .reverse, .scroll:
             log.fault("\(String(describing: action), privacy: .public) is not a button action")
         }
     }

@@ -1,6 +1,6 @@
 ---
 name: verify-hyperpoint
-description: Drive the real Hyperpoint menu-bar app on this Mac and prove a change works. It covers the hyper key, MX Master 3 buttons over HID++, smooth scrolling and the settings window. Use after changing Hyperpoint, before claiming a fix or feature works, or when its behavior on the real devices is in doubt.
+description: Drive the real Hyperpoint menu-bar app on this Mac and prove a change works. It covers the hyper key, MX Master 3 buttons over HID++, smooth scrolling, hold to scroll and the settings window. Use after changing Hyperpoint, before claiming a fix or feature works, or when its behavior on the real devices is in doubt.
 ---
 
 # Verify Hyperpoint
@@ -50,6 +50,7 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 | `verify.sh record posted` | 40 s of scroll events Hyperpoint posts: per-frame points, fixed-point value, `NSEvent.scrollingDeltaY`, phase, frame gaps, leaked line events | the user scrolling the MX wheel |
 | `verify.sh record wheel` | 45 s of raw wheel input: sender id, raw detents per event, macOS's accelerated lines | the user scrolling |
 | `verify.sh record senders` | 90 s of pointer event sender ids grouped every 2 s | the user using each pointer device |
+| `verify.sh record hold` | 45 s of what apps receive during hold to scroll: posted scrolls on both axes with scroll and momentum phases, the pointer position at each, and right and other button events, replayed or native | the user holding a button and moving the mouse |
 | `verify.sh settings-shots` | relaunches with `-snapshotSettings <dir>`; the app renders every settings page to PNG itself | none (the shell has no Screen Recording grant, so `screencapture` fails here) |
 | `verify.sh log [10m]` | Hyperpoint's unified log (`subsystem dev.emir.hyperpoint`, categories `devices` and `menu`) | none |
 

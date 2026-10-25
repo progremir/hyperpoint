@@ -119,7 +119,7 @@ extension Control: Codable {
 
 extension Trigger: Codable {
     static let byName: [String: Trigger] = {
-        var names: [String: Trigger] = ["click": .click, "hold": .hold, "scroll": .scroll]
+        var names: [String: Trigger] = ["click": .click, "hold": .hold, "holdMove": .holdMove(nil), "scroll": .scroll]
         for direction in Direction.allCases { names["holdMove" + direction.rawValue] = .holdMove(direction) }
         return names
     }()
@@ -128,7 +128,7 @@ extension Trigger: Codable {
         switch self {
         case .click: "click"
         case .hold: "hold"
-        case .holdMove(let direction): "holdMove" + direction.rawValue
+        case .holdMove(let direction): "holdMove" + (direction?.rawValue ?? "")
         case .scroll: "scroll"
         }
     }
@@ -155,6 +155,8 @@ extension Action: Codable {
         if let name = try? decoder.singleValueContainer().decode(String.self) {
             if name == "reverse" {
                 self = .reverse
+            } else if name == "scroll" {
+                self = .scroll
             } else if let system = SystemAction.allCases.first(where: { $0.name == name }) {
                 self = .system(system)
             } else {
@@ -181,6 +183,9 @@ extension Action: Codable {
         case .reverse:
             var container = encoder.singleValueContainer()
             try container.encode("reverse")
+        case .scroll:
+            var container = encoder.singleValueContainer()
+            try container.encode("scroll")
         case .system(let action):
             var container = encoder.singleValueContainer()
             try container.encode(action.name)

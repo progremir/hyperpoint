@@ -202,8 +202,10 @@ import Testing
             controls: [
                 gestureButton: .gesture(
                     GesturePlan(
-                        fire: .pastDistance, distance: 120, click: .system(.missionControl),
-                        swipes: [.down: .system(.appExpose), .left: .system(.spaceLeft), .right: .system(.spaceRight)])),
+                        distance: 120, click: .system(.missionControl),
+                        moves: .swipes(
+                            [.down: .system(.appExpose), .left: .system(.spaceLeft), .right: .system(.spaceRight)],
+                            fire: .pastDistance))),
                 topButton: .press(shot),
             ],
             thumbWheelInverted: true)
@@ -240,7 +242,7 @@ import Testing
 
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [discovered(thisMac[2], noWheel)])
 
-        let wheel = try #require(config.devices[0].rules?.last)
+        let wheel = try #require(config.devices[0].rules?.first { $0.control == .thumbWheel })
         #expect(intent.skipped[mx.id] == [absent, leftButton, wheel])
         var expected = defaultMX
         expected.thumbWheelInverted = false
@@ -260,11 +262,13 @@ import Testing
         var config = Config.default
         config.devices[0].gestures = GestureSettings(fire: .onRelease, distance: 300)
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
-        guard case .gesture(let plan) = intent.setup(for: mx.id).hidpp?.behavior(of: gestureButton) else {
-            Issue.record("the gesture button is a gesture")
+        guard case .gesture(let plan) = intent.setup(for: mx.id).hidpp?.behavior(of: gestureButton),
+            case .swipes(_, let fire) = plan.moves
+        else {
+            Issue.record("the gesture button swipes")
             return
         }
-        #expect(plan.fire == .onRelease && plan.distance == 300)
+        #expect(fire == .onRelease && plan.distance == 300)
     }
 
     @Test func aProfileWithoutButtonRulesLeavesTheDeviceAlone() {
@@ -274,11 +278,100 @@ import Testing
         #expect(intent.setup(for: mx.id).hidpp == nil)
     }
 
+    @Test func aScrollRuleDivertsWithRawMovementAndKeepsTheClick() {
+        var config = Config.default
+        config.devices[0].rules = [
+            Rule(control: .hidpp(topButton), trigger: .click, action: shot),
+            Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll),
+        ]
+        config.devices[0].scrolling?.holdToScroll = HoldToScroll(speed: 2, direction: .wheel, momentum: false)
+        let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
+        guard case .gesture(let plan) = setup?.behavior(of: topButton), case .scroll(let scroll) = plan.moves else {
+            Issue.record("the top button scrolls")
+            return
+        }
+        #expect(plan.click == shot)
+        #expect(scroll.gain == -2 * HoldScrollPlan.pointsPerCount, "twice the speed, against the hand")
+        #expect(scroll.momentum == nil)
+        let control = HIDPPCapabilities.Control(cid: topButton, divertable: true, rawXY: true)
+        #expect(setup?.behavior(of: topButton).reporting(for: control) == ControlReporting(divert: true, rawXY: true))
+    }
+
+    @Test func theGlideAfterAScrollIsTheWheelsGlide() {
+        var config = Config.default
+        config.devices[0].rules = [Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll)]
+        config.devices[0].scrolling?.smooth?.duration = 8
+        config.devices[0].scrolling?.smooth?.brake = 3
+        let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
+        guard case .gesture(let plan) = setup?.behavior(of: topButton), case .scroll(let scroll) = plan.moves else {
+            Issue.record("the top button scrolls")
+            return
+        }
+        #expect(scroll.momentum == Glide(seconds: 0.8, brake: 3))
+    }
+
+    @Test func aScrollRuleOnAControlWithoutRawMovementIsSkipped() {
+        var config = Config.default
+        let scroll = Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll)
+        config.devices[0].rules = [scroll]
+        let noRawXY = HIDPPCapabilities(
+            controls: [HIDPPCapabilities.Control(cid: topButton, divertable: true, rawXY: false)], thumbWheel: false)
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [discovered(thisMac[2], noRawXY)])
+        #expect(intent.skipped[mx.id] == [scroll])
+    }
+
     @Test func pauseTurnsAnOpenedDeviceNative() {
         let paused = Intent.compile(.default, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
         #expect(HIDPPSetup.pendingWrite(desired: paused, opened: true) == .native)
         #expect(HIDPPSetup.pendingWrite(desired: paused, opened: false) == nil, "a device never opened stays untouched")
         #expect(HIDPPSetup.pendingWrite(desired: defaultMX, opened: false) == defaultMX)
+    }
+}
+
+@Suite struct PlainButtonIntentTests {
+    let mxService = SenderID(rawValue: 0x1_0003_7032)
+    let otherService = SenderID(rawValue: 0x1_0003_7099)
+    var mx: PresentDevice { present(3, Bags.mxMaster3, services: [mxService.rawValue, otherService.rawValue]) }
+    var rightScroll: Config {
+        var config = Config.default
+        config.devices[0].rules = [Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)]
+        return config
+    }
+
+    @Test func aRightButtonScrollRuleIsATapRuleForEachOfTheDevicesSenders() {
+        let tap = Intent.compile(rightScroll, paused: false, tapAvailable: true, present: [thisMac[0], mx]).tap
+        let expected = ControlBehavior.gesture(
+            GesturePlan(
+                distance: 120 * HoldScrollPlan.pointsPerCount, click: nil,
+                moves: .scroll(HoldScrollPlan(.default, glide: .default, pointsPerUnit: 1))))
+        #expect(tap.buttons == [
+            ButtonKey(sender: mxService, button: 1): expected, ButtonKey(sender: otherService, button: 1): expected,
+        ])
+    }
+
+    @Test func theDefaultMXScrollsWithItsRightButton() {
+        let tap = Intent.compile(.default, paused: false, tapAvailable: true, present: [mx]).tap
+        guard case .gesture(let plan) = tap.buttons[ButtonKey(sender: mxService, button: 1)], case .scroll = plan.moves else {
+            Issue.record("the right button scrolls")
+            return
+        }
+        #expect(plan.click == nil, "a quick press is the ordinary right click")
+    }
+
+    @Test func aPlainButtonClickRuleIsAPress() {
+        var config = Config.default
+        config.devices[0].rules = [Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft))]
+        let tap = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).tap
+        #expect(tap.buttons[ButtonKey(sender: mxService, button: 3)] == .press(.system(.spaceLeft)))
+        #expect(!tap.isEmpty, "button rules alone install the tap")
+    }
+
+    @Test func noButtonRulesOrNoServiceMeansNoTapRules() {
+        var config = rightScroll
+        config.devices[0].rules = config.devices[0].rules?.filter { if case .button = $0.control { false } else { true } }
+        #expect(Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).tap.buttons.isEmpty)
+        #expect(Intent.compile(rightScroll, paused: false, tapAvailable: true, present: [present(3, Bags.mxMaster3)]).tap.buttons.isEmpty)
+        #expect(Intent.compile(rightScroll, paused: true, tapAvailable: true, present: [mx]).tap.buttons.isEmpty)
     }
 }
 

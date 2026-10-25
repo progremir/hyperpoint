@@ -59,22 +59,39 @@ final class SettingsWindow {
             model.tab = page.tab
             window.setContentSize(NSSize(width: size.width, height: 1500))
             try? await Task.sleep(for: .milliseconds(700))
-            guard let view = window.contentView?.superview, let layer = view.layer,
-                let image = NSBitmapImageRep(
-                    bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * window.backingScaleFactor),
-                    pixelsHigh: Int(view.bounds.height * window.backingScaleFactor), bitsPerSample: 8,
-                    samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
-                    bitsPerPixel: 0),
-                let context = NSGraphicsContext(bitmapImageRep: image)?.cgContext
+            let name = String(format: "%02d-%@", index + 1, page.name)
+            render(to: directory.appending(path: name + ".png"))
+            // The window cannot grow past the screen, so a page taller than it is drawn again scrolled to its end.
+            guard let scroller = window.contentView.flatMap(Self.tallestScrollView), let document = scroller.documentView,
+                document.frame.height > scroller.contentView.bounds.height + 1
             else { continue }
-            context.scaleBy(x: window.backingScaleFactor, y: window.backingScaleFactor)
-            layer.render(in: context)
-            let file = directory.appending(path: String(format: "%02d-%@.png", index + 1, page.name))
-            try? image.representation(using: .png, properties: [:])?.write(to: file)
+            document.scroll(NSPoint(x: 0, y: document.isFlipped ? document.frame.height : 0))
+            try? await Task.sleep(for: .milliseconds(400))
+            render(to: directory.appending(path: name + "-end.png"))
         }
         window.setContentSize(size)
         model.pane = .general
         model.tab = .buttons
+    }
+
+    private func render(to file: URL) {
+        guard let view = window.contentView?.superview, let layer = view.layer,
+            let image = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * window.backingScaleFactor),
+                pixelsHigh: Int(view.bounds.height * window.backingScaleFactor), bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
+                bitsPerPixel: 0),
+            let context = NSGraphicsContext(bitmapImageRep: image)?.cgContext
+        else { return }
+        context.scaleBy(x: window.backingScaleFactor, y: window.backingScaleFactor)
+        layer.render(in: context)
+        try? image.representation(using: .png, properties: [:])?.write(to: file)
+    }
+
+    private static func tallestScrollView(in view: NSView) -> NSScrollView? {
+        let own = (view as? NSScrollView).map { [$0] } ?? []
+        let nested = view.subviews.compactMap(tallestScrollView)
+        return (own + nested).max { ($0.documentView?.frame.height ?? 0) < ($1.documentView?.frame.height ?? 0) }
     }
 }
 

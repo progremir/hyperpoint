@@ -26,5 +26,6 @@ This directory is the maintained source for verifying Hyperpoint's user-facing b
 - [Hyper key](./hyper-key.md) covers Caps Lock as ⌘⌃⌥⇧ per keyboard, tap-alone, quit and crash cleanup.
 - [MX buttons and gestures](./mx-buttons.md) covers HID++ diverts, gestures, the top button, the thumb wheel and reconnect re-apply.
 - [Smooth scrolling](./smooth-scrolling.md) covers the speed curve, the glide, frame timing and per-device attribution.
+- [Hold to scroll](./hold-to-scroll.md) covers scrolling by holding the right button and moving, the pointer freeze from the press, the release glide and the right click it keeps.
 - [Settings window](./settings-window.md) covers every pane, editing rules and the speed graph, and saving through the config file.
 - [Menu and config reload](./menu-and-config.md) covers the menu states, re-apply, pause, and invalid-config handling.
