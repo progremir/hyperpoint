@@ -27,6 +27,7 @@ This directory is the maintained source for verifying Hyperpoint's user-facing b
 - [MX buttons and gestures](./mx-buttons.md) covers HID++ diverts, gestures, the top button, the thumb wheel and reconnect re-apply.
 - [Smooth scrolling](./smooth-scrolling.md) covers the speed curve, the glide, frame timing and per-device attribution.
 - [Hold to scroll](./hold-to-scroll.md) covers scrolling by holding the right button and moving, the pointer freeze from the press, the release glide and the right click it keeps.
+- [Held keys](./held-keys.md) covers a mouse button held as a modifier or a shortcut, over HID++ and through the tap, and letting go when it is interrupted.
 - [Mouse keys](./mouse-keys.md) covers the 2.4G mouse's Escape held as Right Option at the HID layer and its Return clicking ⌥⇧S through a carrier.
 - [Settings window](./settings-window.md) covers every tab, the window height animating between them, editing rules and the speed graph, setting up, forgetting and ignoring devices, and saving through the config file.
 - [Menu and config reload](./menu-and-config.md) covers the menu states, re-apply, pause, and invalid-config handling.
