@@ -23,6 +23,15 @@ enum Bags {
             ["DeviceUsagePage": 1, "DeviceUsage": 1], ["DeviceUsagePage": 0xFF43, "DeviceUsage": 0x202],
         ],
     ]
+    /// Not on this Mac. A Logitech keyboard with the same HID++ collection as the MX.
+    static let mxKeys: [String: any Sendable] = [
+        "VendorID": 1133, "ProductID": 0xB35B, "Transport": "Bluetooth Low Energy", "LocationID": 745_701_391,
+        "Product": "MX Keys", "PrimaryUsagePage": 1, "PrimaryUsage": 6,
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 6], ["DeviceUsagePage": 12, "DeviceUsage": 1],
+            ["DeviceUsagePage": 0xFF43, "DeviceUsage": 0x202],
+        ],
+    ]
     static let karabinerVirtualKeyboard: [String: any Sendable] = [
         "VendorID": 0x5AC, "ProductID": 0x24F, "LocationID": 0, "Product": "Karabiner DriverKit VirtualHIDKeyboard 1.8.0",
         "PrimaryUsagePage": 1, "PrimaryUsage": 6,

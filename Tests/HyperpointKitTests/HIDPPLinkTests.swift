@@ -10,7 +10,7 @@ struct Bench {
     private var inbox: [[UInt8]] = []
     private var late: [[UInt8]] = []
 
-    mutating func request(_ reason: ApplyReason, _ plan: HIDPPSetup) {
+    mutating func request(_ reason: ApplyReason, _ plan: HIDPPSetup?) {
         absorb(link.request(reason, plan: plan, now: now))
     }
 
@@ -84,7 +84,7 @@ private func plan(fire: GestureFire) -> HIDPPSetup {
 private let setUp: [UInt16: UInt8] = [0xC3: 0x11, 0xC4: 0x01]
 private let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
-private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
+private func connected(_ setup: HIDPPSetup? = plan()) -> Bench {
     var bench = Bench()
     bench.request(.connected, setup)
     bench.settle()
@@ -110,6 +110,42 @@ private func connected(_ setup: HIDPPSetup = plan()) -> Bench {
         bench.request(.manual, plan())
         bench.settle()
         #expect(bench.fake.diverted == setUp)
+        #expect(!bench.events.contains { if case .discovered = $0 { true } else { false } })
+    }
+
+    @Test(arguments: [0, 2])
+    func nothingToWriteReadsTheControlsAndLeavesTheFirmware(dropped: Int) {
+        var bench = Bench()
+        bench.fake.unanswered = dropped
+        bench.request(.connected, nil)
+        bench.settle()
+        #expect(bench.link.capabilities == measuredMXCapabilities)
+        #expect(bench.events.contains(.discovered(measuredMXCapabilities)))
+        #expect(bench.outcomes.last == .applied)
+        #expect(bench.fake.writes == 0)
+        #expect(bench.fake.diverted == [0xC3: 0x01, 0xC4: 0x01], "BetterMouse's diverts stay")
+        #expect(bench.fake.wheelDiverted && !bench.fake.wheelInverted)
+    }
+
+    @Test func aLinkWithNothingToWriteIsQuietOnceItKnowsTheControls() {
+        var bench = connected(nil)
+        bench.deliver(bench.fake.askedToReconfigure())
+        bench.request(.manual, nil)
+        bench.settle()
+        bench.deliver(bench.fake.held(0xC3))
+        bench.deliver(bench.fake.held())
+        #expect(bench.events.isEmpty, "no apply runs and a still-diverted press performs nothing")
+        #expect(bench.fake.writes == 0)
+        #expect(!bench.link.isApplying && bench.link.deadline == nil)
+    }
+
+    @Test func aRuleAddedAfterReadingWritesWithoutReadingAgain() {
+        var bench = connected(nil)
+        bench.request(.configChanged, plan())
+        bench.settle()
+        #expect(bench.fake.diverted == setUp)
+        #expect(!bench.fake.wheelDiverted && bench.fake.wheelInverted)
+        #expect(bench.outcomes == [.applied])
         #expect(!bench.events.contains { if case .discovered = $0 { true } else { false } })
     }
 
