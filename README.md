@@ -30,8 +30,8 @@ all of it back whenever a device appears.
 Requires macOS 27. Download `Hyperpoint-<version>.dmg` from
 [Releases](https://github.com/progremir/hyperpoint/releases), open it and drag Hyperpoint into Applications.
 
-The release is signed with an Apple Development certificate and is not notarized, so macOS refuses the first open.
-Allow it under System Settings › Privacy & Security › Open Anyway. The installer window says the same.
+Releases are signed with Developer ID and notarized by Apple. v0.1.0 predates that: macOS refuses its first open, so
+allow it under System Settings › Privacy & Security › Open Anyway.
 
 ### From source
 
@@ -67,15 +67,28 @@ build under test and reads device state back as proof.
 
 ### Releasing
 
+One-time setup: create a **Developer ID Application** certificate (Xcode › Settings › Accounts › Manage Certificates)
+and save notarization credentials as the `hyperpoint` keychain profile with an
+[app-specific password](https://account.apple.com):
+
+```bash
+xcrun notarytool store-credentials hyperpoint --apple-id <apple-id> --team-id ZZ2G9658MN
+```
+
+Then:
+
 ```bash
 scripts/release.sh 0.2.0 --publish
 ```
 
-This builds `dist/Hyperpoint-0.2.0.dmg`, signed like `bundle.sh`, tags the pushed HEAD `v0.2.0` and publishes the DMG
-with its SHA-256 to a GitHub release. It refuses to publish with uncommitted changes or an unpushed HEAD. Drop
-`--publish` to only build the DMG. Pull requests that touch the pipeline run `.github/workflows/release.yml`, which
-builds an ad-hoc DMG on CI as an artifact. The installer window is drawn by `design/installer/build.py`;
-`design/installer/preview.png` shows it mounted.
+This builds `dist/Hyperpoint-0.2.0.dmg`, signs the app and the DMG with Developer ID, notarizes and staples the DMG,
+tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release. It refuses to publish without
+Developer ID, with uncommitted changes or with an unpushed HEAD. Drop `--publish` to only build the DMG. Pull requests
+that touch the pipeline run `.github/workflows/release.yml`, which builds an ad-hoc DMG on CI as an artifact. The
+installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+
+The release's Developer ID signature differs from a `bundle.sh` build's Apple Development one, so switching between
+the two asks for the Accessibility and Input Monitoring grants again.
 
 ## Design
 

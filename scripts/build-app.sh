@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Builds, signs and checks Hyperpoint.app at the path given ($1), stamped with an optional version ($2).
+# Builds, signs and checks Hyperpoint.app at the path given ($1), stamped with an optional version ($2). It is signed
+# with the hardened runtime notarization needs, and SIGN_TIMESTAMP=1 adds the secure timestamp it also needs.
 # TCC keys the Accessibility and Input Monitoring grants to the app's designated requirement. An ad-hoc signature
 # makes that a cdhash, which changes on every build and silently revokes both grants, so this refuses one unless
 # ALLOW_ADHOC=1 (CI builds that only check the pipeline).
@@ -28,7 +29,9 @@ cp design/logo/macos/AppIcon.icns design/logo/macos/MenuBarTemplate.png design/l
   "$OUT/Contents/Resources/"
 plutil -lint "$OUT/Contents/Info.plist" >/dev/null
 
-codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$OUT"
+TIMESTAMP=(--timestamp=none)
+[[ "${SIGN_TIMESTAMP:-0}" == 1 ]] && TIMESTAMP=(--timestamp)
+codesign --force --options runtime "${TIMESTAMP[@]}" --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$OUT"
 codesign --verify --strict --verbose=2 "$OUT"
 
 REQ="$(codesign -d -r- "$OUT" 2>&1 | grep '^designated' || true)"
