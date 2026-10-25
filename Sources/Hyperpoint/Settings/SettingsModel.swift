@@ -35,6 +35,28 @@ enum SettingsTab: String, CaseIterable {
     }
 }
 
+/// What the last heard press or menu pick did, for the note under Add Rule and the rows it highlights. Window feedback,
+/// not engine state.
+enum LearnNote: Equatable {
+    case added(DeviceMatch, RuleKey)
+    case full(DeviceMatch, Control)
+    case unnamed(DeviceMatch)
+
+    var match: DeviceMatch {
+        switch self {
+        case .added(let match, _), .full(let match, _), .unnamed(let match): match
+        }
+    }
+
+    func highlights(_ rule: Rule) -> Bool {
+        switch self {
+        case .added(_, let key): RuleKey(rule) == key
+        case .full(_, let control): rule.control == control
+        case .unnamed: false
+        }
+    }
+}
+
 /// What the settings window renders: the latest config snapshot and engine status, as published. It never holds
 /// config of its own. Edits go to `ConfigStore.update` one at a time, and the window redraws from the snapshot the
 /// save publishes.
@@ -47,10 +69,16 @@ final class SettingsModel {
     private(set) var saveError: String?
     private(set) var loginItem = LoginItemState.off
     private(set) var loginItemError: String?
-    /// Remembered across launches, so the window opens where the user left it.
-    var tab: SettingsTab { didSet { defaults.set(tab.rawValue, forKey: Self.tabKey) } }
+    private(set) var learnNote: LearnNote?
+    /// Remembered across launches, so the window opens where the user left it. A listen belongs to the Buttons tab.
+    var tab: SettingsTab {
+        didSet {
+            defaults.set(tab.rawValue, forKey: Self.tabKey)
+            if tab != .buttons { stopListening() }
+        }
+    }
     /// The mouse the Buttons and Scrolling tabs both show. Nil, or a mouse no longer listed, means the first one.
-    var mouse: DeviceMatch?
+    var mouse: DeviceMatch? { didSet { if mouse != oldValue { stopListening() } } }
 
     let configURL: URL
     private let engine: Engine
@@ -151,6 +179,47 @@ final class SettingsModel {
     }
 
     func reapplyAll() { Task { await engine.reapplyAll() } }
+
+    func listen(for device: SettingsDevice) {
+        learnNote = nil
+        Task { await engine.listen(for: device.match) }
+    }
+
+    /// Ends a listen, and clears the note under Add Rule.
+    func stopListening() {
+        learnNote = nil
+        Task { await engine.stopListening() }
+    }
+
+    /// Add Rule's menu, for a control no press makes, such as the thumb wheel, or a mouse that is not connected.
+    func pick(_ control: Control, on device: SettingsDevice) {
+        stopListening()
+        learned(LearnedPress(match: device.match, heard: .control(control)))
+    }
+
+    /// The only place a heard press or a picked control becomes config.
+    func learned(_ press: LearnedPress) {
+        guard editable, let device = devices.first(where: { $0.match == press.match }), device.profile != nil else { return }
+        switch choices(for: device).learned(press.heard) {
+        case .add(let rule):
+            apply(.addRule(device.match, rule))
+            note(.added(device.match, RuleKey(rule)))
+        case .everyTriggerTaken(let control):
+            note(.full(device.match, control))
+        case .unnamed:
+            note(.unnamed(device.match))
+        }
+    }
+
+    /// A new rule stays highlighted for two seconds. The other notes stay until the next listen or a stop.
+    private func note(_ note: LearnNote) {
+        learnNote = note
+        guard case .added = note else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            if self?.learnNote == note { self?.learnNote = nil }
+        }
+    }
 
     func refreshLoginItem() {
         loginItem =

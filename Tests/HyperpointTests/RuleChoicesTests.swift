@@ -69,24 +69,51 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(choices.triggers(for: .hidpp(CID(rawValue: 0x53))) == [.click])
     }
 
-    @Test func addRuleFillsAFreeTriggerOnAButtonThatAlreadyHasRules() {
-        #expect(mxChoices.newRule == Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.missionControl)))
+    @Test func aPressedButtonGetsItsFirstFreeTrigger() {
+        let back = Control.hidpp(CID(rawValue: 0x53))
         #expect(
-            choices24G.newRule == Rule(control: .button(1), trigger: .click, action: .system(.missionControl)),
-            "a key held as a modifier cannot also click, so both of its keys are full")
-        let full = RuleChoices(
-            rules: [Rule(control: .thumbWheel, trigger: .scroll, action: .reverse)],
-            capabilities: HIDPPCapabilities(controls: [], thumbWheel: true), speaksHIDPP: true)
-        #expect(full.newRule == nil)
+            mxChoices.learned(.control(back)) == .add(Rule(control: back, trigger: .click, action: .system(.missionControl))))
+        #expect(
+            mxChoices.learned(.control(gestureButton))
+                == .add(Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.missionControl))),
+            "a click and three swipes are taken")
+        #expect(
+            mxChoices.learned(.control(.button(1)))
+                == .add(Rule(control: .button(1), trigger: .click, action: .system(.missionControl))),
+            "the right button scrolls, and still has its click")
+    }
+
+    @Test func aBackPressThatBeatTheDivertIsTheHIDPPControl() {
+        #expect(mxChoices.canonical(.button(3)) == .hidpp(CID(rawValue: 0x53)))
+        #expect(mxChoices.canonical(.button(4)) == .hidpp(CID(rawValue: 0x56)))
+        #expect(mxChoices.canonical(.button(1)) == .button(1), "the right button cannot be diverted")
+        #expect(choices24G.canonical(.button(3)) == .button(3), "a mouse without HID++ keeps its plain buttons")
+        #expect(
+            mxChoices.learned(.control(.button(3)))
+                == .add(Rule(control: .hidpp(CID(rawValue: 0x53)), trigger: .click, action: .system(.missionControl))))
+    }
+
+    @Test func aControlWithEveryTriggerTakenAddsNothing() {
+        #expect(mxChoices.learned(.control(.thumbWheel)) == .everyTriggerTaken(.thumbWheel))
+        let enter = Control.key(HIDUsage(name: "return")!)
+        let escape = Control.key(HIDUsage(name: "escape")!)
+        #expect(
+            choices24G.learned(.control(enter)) == .everyTriggerTaken(enter),
+            "a key that clicks cannot also be held as a modifier")
+        #expect(choices24G.learned(.control(escape)) == .everyTriggerTaken(escape))
+        #expect(mxChoices.learned(.unnamed) == .unnamed)
     }
 
     @Test func addRuleSavesUntilEveryTriggerIsTaken() throws {
         var config = Config.example
-        for _ in 0..<40 {
-            let rules = profile(config, mx)?.rules ?? []
-            guard let rule = RuleChoices(rules: rules, capabilities: mxCapabilities, speaksHIDPP: true).newRule else { break }
-            config = SettingsEdit.addRule(mx, rule).applied(to: config)
-            #expect(saves(config), "\(rule)")
+        for control in RuleChoices(rules: [], capabilities: mxCapabilities, speaksHIDPP: true).controls {
+            for _ in 0..<10 {
+                let choices = RuleChoices(
+                    rules: profile(config, mx)?.rules ?? [], capabilities: mxCapabilities, speaksHIDPP: true)
+                guard case .add(let rule) = choices.learned(.control(control)) else { break }
+                config = SettingsEdit.addRule(mx, rule).applied(to: config)
+                #expect(saves(config), "\(rule)")
+            }
         }
         #expect(
             profile(config, mx)?.rules?.count == 33,

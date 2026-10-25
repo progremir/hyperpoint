@@ -14,6 +14,9 @@ final class SettingsWindow {
         window.isReleasedWhenClosed = false
         window.center()
         window.setFrameAutosaveName("HyperpointPreferences")
+        _ = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) {
+            [model] _ in MainActor.assumeIsolated { model.stopListening() }
+        }
         return window
     }()
 

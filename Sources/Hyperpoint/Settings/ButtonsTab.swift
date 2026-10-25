@@ -104,6 +104,7 @@ private struct Rules: View {
                 ForEach(rules, id: \.key) { rule in
                     RuleRow(
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
+                        highlighted: note?.highlights(rule) == true,
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
                     if rule.action == .scroll {
@@ -116,21 +117,90 @@ private struct Rules: View {
                 }
             }
             if !device.isNew {
-                Button {
-                    if let rule = choices.newRule { model.apply(.addRule(device.match, rule)) }
-                } label: {
-                    Label("Add Rule", systemImage: "plus")
-                }
-                .disabled(choices.newRule == nil)
+                AddRule(model: model, device: device, controls: choices.controls, note: note)
             }
             Explanation(footer)
         }
         .disabled(!model.editable)
     }
 
+    private var note: LearnNote? { model.learnNote.flatMap { $0.match == device.match ? $0 : nil } }
+
     private var footer: String {
         if device.speaksHIDPP { return "Buttons without a rule, like Back and Forward, work as usual." }
         return "Hyperpoint carries out rules for plain buttons. It saves rules for keys, but does not carry them out yet."
+    }
+}
+
+/// Add Rule listens for the next press on the mouse. Its menu adds a rule for a control without pressing it, which the
+/// thumb wheel and a mouse that is not connected need.
+private struct AddRule: View {
+    let model: SettingsModel
+    let device: SettingsDevice
+    let controls: [Control]
+    let note: LearnNote?
+
+    var body: some View {
+        switch device.status?.listen {
+        case .gettingReady(let until):
+            ListenRow(device: device.name, ready: false, until: until) { model.stopListening() }
+        case .listening(let until):
+            ListenRow(device: device.name, ready: true, until: until) { model.stopListening() }
+        case .ended(let why):
+            menu(blocked: device.cannotListen(paused: model.paused, permissions: model.permissions))
+            Explanation(Labels.listenEnded(why, device: device.name))
+        case nil:
+            let blocked = device.cannotListen(paused: model.paused, permissions: model.permissions)
+            menu(blocked: blocked)
+            if let text = note.flatMap(Labels.learned) ?? blocked { Explanation(text) }
+        }
+    }
+
+    /// Without a press to listen for, a click opens the menu.
+    @ViewBuilder private func menu(blocked: String?) -> some View {
+        Group {
+            if blocked == nil {
+                Menu { picks } label: { label } primaryAction: { model.listen(for: device) }
+                    .help("Press a button on \(device.name) to add a rule for it, or pick one from the menu")
+            } else {
+                Menu { picks } label: { label }.help("Pick a button to add a rule for")
+            }
+        }
+        .menuIndicator(.visible)
+        .fixedSize()
+    }
+
+    private var label: some View { Label("Add Rule", systemImage: "plus") }
+
+    @ViewBuilder private var picks: some View {
+        Section("Choose a Button") {
+            ForEach(controls, id: \.self) { control in
+                Button(Labels.control(control)) { model.pick(control, on: device) }
+            }
+        }
+    }
+}
+
+/// Replaces Add Rule while Hyperpoint listens. Esc on the Mac's keyboard cancels too. The listened mouse's own keys
+/// never reach the window.
+private struct ListenRow: View {
+    let device: String
+    let ready: Bool
+    let until: Date
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(ready ? "Press a button on \(device). The left button keeps working." : "Getting \(device) ready…")
+            Spacer()
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text("\(Int(max(0, until.timeIntervalSince(context.date)).rounded(.up))) s")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
+        }
     }
 }
 
@@ -146,6 +216,7 @@ private struct RuleRow: View {
     let rule: Rule
     let choices: RuleChoices
     let skipped: Bool
+    let highlighted: Bool
     let replace: (Rule) -> Void
     let remove: () -> Void
     @State private var recording = false
@@ -189,6 +260,10 @@ private struct RuleRow: View {
             .accessibilityLabel("Remove rule")
         }
         .labelsHidden()
+        .background {
+            RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(highlighted ? 0.18 : 0)).padding(-4)
+        }
+        .animation(.easeOut(duration: 0.3), value: highlighted)
     }
 
     private var actionChoices: [(choice: ActionChoice, label: String)] {

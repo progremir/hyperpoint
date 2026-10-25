@@ -1,5 +1,13 @@
 import HyperpointKit
 
+enum LearnedRule: Equatable {
+    case add(Rule)
+    /// Every trigger the control accepts already has a rule, so nothing is added.
+    case everyTriggerTaken(Control)
+    /// A key or button the config cannot name.
+    case unnamed
+}
+
 /// What the rule pickers offer for one profile. Validity comes from the rule table the parser enforces, the controls
 /// from what the device reported, and a control and trigger already used by another rule are left out, so every
 /// choice saves.
@@ -56,18 +64,24 @@ struct RuleChoices {
         Self.actions.filter { control.accepts($0, on: trigger) }
     }
 
-    /// What Add Rule adds: the first free trigger, preferring controls that already have rules, so a new rule
-    /// starts on a button the user has already handed to Hyperpoint. Nil when every trigger is taken.
-    var newRule: Rule? {
-        var seen = Set<Control>()
-        let used = rules.map(\.control).filter { seen.insert($0).inserted }
-        let candidates = used + controls.filter { !used.contains($0) }
-        for control in candidates {
-            if let trigger = triggers(for: control).first, let action = actions(for: control, on: trigger).first {
-                return Rule(control: control, trigger: trigger, action: action)
-            }
+    /// What Add Rule adds for a pressed button or one picked from its menu: the control as the pickers name it, on
+    /// its first free trigger, with that trigger's first action.
+    func learned(_ heard: Heard) -> LearnedRule {
+        guard case .control(let pressed) = heard else { return .unnamed }
+        let control = canonical(pressed)
+        guard let trigger = triggers(for: control).first, let action = actions(for: control, on: trigger).first else {
+            return .everyTriggerTaken(control)
         }
-        return nil
+        return .add(Rule(control: control, trigger: trigger, action: action))
+    }
+
+    /// A plain button whose standard HID++ control the device can divert is that control, so a press that beat the
+    /// listen's divert names the control the pickers offer.
+    func canonical(_ control: Control) -> Control {
+        guard case .button(let number) = control, let cid = Self.plainButtons.first(where: { $0.number == number })?.cid,
+            capabilities?.control(CID(rawValue: cid))?.divertable == true
+        else { return control }
+        return .hidpp(CID(rawValue: cid))
     }
 
     /// `rule` moved to `control`, keeping its trigger and action where they still work.

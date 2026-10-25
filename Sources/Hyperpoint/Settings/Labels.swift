@@ -87,6 +87,26 @@ enum Labels {
         }
     }
 
+    /// Under Add Rule, after a listen that heard no press.
+    static func listenEnded(_ why: ListenEnd, device: String) -> String {
+        switch why {
+        case .timedOut: "No press heard in \(Int(ListenStatus.timeout)) seconds. Add Rule to try again."
+        case .disconnected: "\(device) disconnected, so Hyperpoint stopped listening."
+        case .paused: "Hyperpoint is paused, so it stopped listening."
+        case .slept: "The Mac went to sleep, so Hyperpoint stopped listening."
+        case .needsAccessibility: "Hyperpoint needs Accessibility to hear this mouse's buttons."
+        }
+    }
+
+    /// Under Add Rule, after a press or a pick that added nothing. A rule that was added is highlighted instead.
+    static func learned(_ note: LearnNote) -> String? {
+        switch note {
+        case .added: nil
+        case .full(_, let full): "\(control(full)) already has a rule for every way to press it. Change one of these."
+        case .unnamed: "Hyperpoint cannot make a rule for that key."
+        }
+    }
+
     /// Under a hold-and-move scroll rule, what the button still does on a quick press.
     static func holdToScroll(control: Control, hasClickRule: Bool) -> String {
         let press =

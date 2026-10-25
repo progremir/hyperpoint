@@ -32,6 +32,9 @@ final class AppModel {
         Task { [engine, performer] in
             for await action in engine.actions { performer.perform(action) }
         }
+        Task { [engine, settings] in
+            for await press in engine.heard { settings.learned(press) }
+        }
     }
 
     func reapplyAll() { Task { await engine.reapplyAll() } }
