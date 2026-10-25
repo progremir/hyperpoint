@@ -6,3 +6,4 @@ xcuserdata/
 .claude/worktrees/
 .verify-evidence/
 .verify-bin/
+dist/
