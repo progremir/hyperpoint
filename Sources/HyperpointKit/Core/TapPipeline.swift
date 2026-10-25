@@ -19,9 +19,7 @@ struct TapRules: Equatable, Sendable {
     init(routes: [KeyRoute], smoothScroll: [SenderID: SmoothScroll], buttons: [ButtonKey: ControlBehavior] = [:]) {
         var carriers: [KeyCode: CarrierMeaning] = [:]
         for route in routes {
-            switch route.target {
-            case .carrier(let carrier, let meaning): carriers[carrier.keyCode] = meaning
-            }
+            if case .carrier(let carrier, let meaning) = route.target { carriers[carrier.keyCode] = meaning }
         }
         self.init(carriers: carriers, smoothScroll: smoothScroll, buttons: buttons)
     }
@@ -279,6 +277,9 @@ struct CarrierStage {
             // F-key events carry Fn, and a flagsChanged event with it marks Fn held.
             event.flags.remove(.maskSecondaryFn)
             return .pass
+        case .press(let action):
+            guard type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return .drop }
+            return .perform(action)
         }
     }
 

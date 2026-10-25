@@ -18,6 +18,13 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. Only one session may verify at a time, because `verify.sh build` in any worktree replaces `~/Applications/Hyperpoint.app` for every session. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
+Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
+`hyper-check`, `record` and `settings-*` take it for this worktree and refresh it. When another worktree holds it they
+wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
+`verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
+with `verify.sh unlock` at the end of the run. A lock idle for 20 minutes (`HYPERPOINT_LOCK_STALE`) is taken over by
+the next run. `doctor`, `state`, `log` and `replay` never need it.
+
 Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hidutil` mappings have no effect while it runs), and BetterMouse diverts the same MX controls. `doctor` lists them. Do not quit them yourself; ask the user.
 
 ## Launch
@@ -45,11 +52,12 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `verify.sh state` | `hidutil` key maps for the built-in and Magic keyboards, and read-only HID++ state of the MX (`helpers/hidpp-state.swift`, get requests only) | the MX connected; this shell able to open the device |
+| `verify.sh state` | `hidutil` key maps for the built-in and Magic keyboards and both 2.4G mouse services, and read-only HID++ state of the MX (`helpers/hidpp-state.swift`, get requests only) | the MX connected; this shell able to open the device |
 | `verify.sh hyper-check [n]` | posts F18 then F16 at the HID tap n times; counts ⌘⌃⌥⇧F16 Carbon hotkey fires and modifier state left held | `HyperpointProbe.app` with Accessibility |
 | `verify.sh record posted` | 40 s of scroll events Hyperpoint posts: per-frame points, fixed-point value, `NSEvent.scrollingDeltaY`, phase, frame gaps, leaked line events | the user scrolling the MX wheel |
 | `verify.sh record wheel` | 45 s of raw wheel input: sender id, raw detents per event, macOS's accelerated lines | the user scrolling |
 | `verify.sh record senders` | 90 s of pointer event sender ids grouped every 2 s | the user using each pointer device |
+| `verify.sh record keys` | 45 s of key events as they enter the HID tap ahead of Hyperpoint's and as apps receive them, with sender, flags (left and right modifiers apart) and marker; HID-system modifier changes; and a Carbon hotkey for ⌥⇧S counting its fires | the user pressing the mouse's keys |
 | `verify.sh record hold` | 45 s of what apps receive during hold to scroll: posted scrolls on both axes with scroll and momentum phases, the pointer position at each, and right and other button events, replayed or native | the user holding a button and moving the mouse |
 | `verify.sh settings-shots` | relaunches with `-snapshotSettings <dir>`; the app renders every settings tab to PNG itself, in light then dark, while `helpers/window-heights.swift` records the window's on-screen height to `settings-heights.txt` | none (the shell has no Screen Recording grant, so `screencapture` fails here) |
 | `verify.sh settings-switches` | presses every settings tab from every other tab, switches the Device popup on Buttons and Scrolling, and opens Scrolling on the shortest screen, while `helpers/tab-switches.swift` samples the on-screen window height and the incoming page (clipped, scroll bar) at 120 Hz; one verdict line per change in `settings-switches.txt` | Settings open or openable from the menu; this shell's Accessibility grant |
@@ -80,5 +88,6 @@ The app's own log says what it attempted. The read-backs say what the device hol
 
 - Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
 - End every run with the build under test **running**: `verify.sh launch` after any quit. The user depends on it.
+  Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.
 - Leave `.verify-evidence/` in place. It is the proof.

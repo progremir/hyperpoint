@@ -1,10 +1,10 @@
-"""Summarize a probe recording. Usage: analyze.py posted|wheel|senders|hold <file>"""
+"""Summarize a probe recording. Usage: analyze.py posted|wheel|senders|hold|keys <file>"""
 import collections
 import re
 import statistics
 import sys
 
-mode, path = sys.argv[1], sys.argv[2]
+mode, path = sys.argv[1].split("-")[0], sys.argv[2]
 lines = open(path).read().splitlines()
 
 
@@ -87,5 +87,18 @@ elif mode == "hold":
         print(f"scroll at {g['start']:.0f}ms: hand frames={g['frames']} dy={g['dy']} dx={g['dx']} ended={g['ended']}"
               f" pointer-drift={g['drift']}pt glide frames={g['glide']} dy={g['glide_dy']} dx={g['glide_dx']}"
               f" glide-ended={g['glide_ended']}")
+elif mode == "keys":
+    names = {1: "s", 36: "return", 53: "escape", 56: "leftShift", 58: "leftOption", 61: "rightOption", 105: "f13"}
+    groups = collections.Counter()
+    for line in lines:
+        m = re.match(r"[\d.]+ (in|app) (\w+) key=(\w+) repeat=(\d) flags=(\S+) ours=(\d) sender=(\S+)", line)
+        if m:
+            key = names.get(int(m[3]), m[3]) if m[3].isdigit() else m[3]
+            groups[(m[1], m[2], key, m[4], m[5], m[6], m[7])] += 1
+    for (stage, kind, key, repeat, flags, ours, sender), n in groups.items():
+        print(f"{stage:3} {kind:5} {key:11} repeat={repeat} flags={flags} ours={ours} sender={sender}: {n}")
+    for line in lines:
+        if "hidSystemState" in line or line.startswith("carbonHotkeyFired"):
+            print(line)
 else:
     print("\n".join(lines))

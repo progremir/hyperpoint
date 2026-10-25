@@ -50,6 +50,9 @@ public struct Modifiers: OptionSet, Hashable, Sendable {
 public enum HeldModifier: String, CaseIterable, Codable, Sendable {
     case leftControl, leftShift, leftOption, leftCommand
     case rightControl, rightShift, rightOption, rightCommand
+
+    /// The keyboard page lists the eight modifiers from 0xE0 in this order.
+    var usage: HIDUsage { HIDUsage(rawValue: 0xE0 + UInt16(Self.allCases.firstIndex(of: self)!)) }
 }
 
 enum KeyTable {

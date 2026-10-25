@@ -44,6 +44,9 @@ public enum HyperTap: String, Codable, Sendable {
 public struct DeviceProfile: Codable, Equatable, Sendable {
     public var match: DeviceMatch
     public var name: String
+    /// Which list the window shows the device in, and whether it can host the hyper key. Absent means its interfaces
+    /// decide, which puts a mouse whose keys have an interface of their own, such as the 2.4G mouse, with keyboards.
+    public var kind: DeviceKind?
     public var rules: [Rule]?
     public var gestures: GestureSettings?
     public var scrolling: ScrollSettings?
@@ -54,11 +57,12 @@ public struct DeviceProfile: Codable, Equatable, Sendable {
     private struct RightButtonPan: Decodable { var momentum: Bool }
 
     public init(
-        match: DeviceMatch, name: String, rules: [Rule]? = nil, gestures: GestureSettings? = nil,
-        scrolling: ScrollSettings? = nil, hyper: Bool? = nil
+        match: DeviceMatch, name: String, kind: DeviceKind? = nil, rules: [Rule]? = nil,
+        gestures: GestureSettings? = nil, scrolling: ScrollSettings? = nil, hyper: Bool? = nil
     ) {
         self.match = match
         self.name = name
+        self.kind = kind
         self.rules = rules
         self.gestures = gestures
         self.scrolling = scrolling
@@ -69,6 +73,7 @@ public struct DeviceProfile: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         match = try container.decode(DeviceMatch.self, forKey: .match)
         name = try container.decode(String.self, forKey: .name)
+        kind = try container.decodeIfPresent(DeviceKind.self, forKey: .kind)
         rules = try container.decodeIfPresent([Rule].self, forKey: .rules)
         gestures = try container.decodeIfPresent(GestureSettings.self, forKey: .gestures)
         scrolling = try container.decodeIfPresent(ScrollSettings.self, forKey: .scrolling)

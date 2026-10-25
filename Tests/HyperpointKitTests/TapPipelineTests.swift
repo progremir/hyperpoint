@@ -131,6 +131,24 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
         #expect(down.flags.isDisjoint(with: hyperFlags))
     }
 
+    @Test func theMouseReturnCarrierSendsItsShortcutOncePerPress() {
+        let f13: CGKeyCode = 105
+        let mouse = present(6, Bags.mouse24GKeys)
+        var pipeline = TapPipeline(
+            rules: Intent.compile(.example, paused: false, tapAvailable: true, present: [mouse]).tap, origin: { _ in nil })
+        let optShiftS = Action.shortcut(Chord(key: KeyCode(name: "s")!, modifiers: [.option, .shift]))
+        #expect(pipeline.process(.keyDown, key(f13, down: true)) == .perform(optShiftS))
+        let repeated = key(f13, down: true)
+        repeated.setIntegerValueField(.keyboardEventAutorepeat, value: 1)
+        #expect(pipeline.process(.keyDown, repeated) == .drop, "holding Return does not repeat the shortcut")
+        #expect(pipeline.process(.keyUp, key(f13, down: false)) == .drop)
+        #expect(pipeline.process(.keyDown, key(f13, down: true)) == .perform(optShiftS), "the next press sends it again")
+
+        let rDown = key(r, down: true)
+        #expect(pipeline.process(.keyDown, rDown) == .pass)
+        #expect(rDown.flags.isDisjoint(with: hyperFlags), "a click carrier holds no modifiers")
+    }
+
     @Test func theTapListensForKeysAndScrolls() {
         for type in [CGEventType.keyDown, .keyUp, .scrollWheel] {
             #expect(TapPipeline.mask & (1 << CGEventMask(type.rawValue)) != 0, "\(type.rawValue)")
