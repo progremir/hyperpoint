@@ -67,7 +67,7 @@ public enum DevicePreset: CaseIterable, Sendable {
     }
 
     /// The presets for a device, best first. A preset made for this exact device comes first whatever its kind, since
-    /// the 2.4G mouse may show up as a keyboard. Then the presets for its kind.
+    /// the 2.4G mouse shows up as a keyboard (measured). Then the presets for its kind.
     public static func offered(for match: DeviceMatch, kind: DeviceKind) -> [DevicePreset] {
         allCases.filter { $0.fit == .exact(match) } + allCases.filter { $0.fit == .kind(kind) }
     }

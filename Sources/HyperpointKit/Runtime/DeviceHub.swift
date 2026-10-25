@@ -1,8 +1,8 @@
 import IOKit
 import IOKit.hid
 
-/// Tracks which keyboards and HID++ devices are present. The manager is never opened, so it seizes nothing, and it
-/// still delivers matching callbacks (measured).
+/// Tracks which keyboards, mice and HID++ devices are present. The manager is never opened, so it seizes nothing, and
+/// it still delivers matching callbacks (measured).
 @HIDActor
 final class DeviceHub {
     private let onEvent: @HIDActor (DeviceRoster.Change) -> Void
@@ -22,12 +22,13 @@ final class DeviceHub {
     func start() -> [PresentDevice] {
         guard manager == nil else { return devices }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        // The MX Master 3 matches both. The manager then lists two IOHIDDevice objects for its one service, which
-        // the registry id folds into one interface (measured).
+        // The MX Master 3 matches all three. The manager then lists one IOHIDDevice object per match for its one
+        // service, which the registry id folds into one interface (measured).
         IOHIDManagerSetDeviceMatchingMultiple(
             manager,
             [
                 [kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop, kIOHIDPrimaryUsageKey: kHIDUsage_GD_Keyboard],
+                [kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop, kIOHIDDeviceUsageKey: kHIDUsage_GD_Mouse],
                 [kIOHIDVendorIDKey: Int(VendorID.logitech.rawValue), kIOHIDDeviceUsagePageKey: UsagePair.hidppPage],
             ] as CFArray)
         for device in (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>) ?? [] {

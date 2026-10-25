@@ -16,7 +16,7 @@ import Testing
         let secondService = SenderID(rawValue: 0x1_0003_7040)
         #expect(
             roster.interfaceAppeared(0xC, properties: mx, services: [secondService])
-                == .servicesChanged(device.adding([secondService])),
+                == .changed(device.adding([secondService])),
             "an interface that brings services reports them")
         #expect(roster.interfaceAppeared(0xA, properties: mx, services: [mxService]) == nil, "an interface is tracked once")
         #expect(roster.devices.map(\.id) == [device.id])
@@ -34,7 +34,7 @@ import Testing
 
         let change = roster.serviceAppeared(mxService, ancestors: [hidInterface, userDevice, 0x1_0000_0001])
 
-        #expect(change == .servicesChanged(connected.adding([mxService])))
+        #expect(change == .changed(connected.adding([mxService])))
         #expect(roster.devices.map(\.eventServices) == [[mxService]])
         #expect(roster.devices.map(\.id) == [connected.id], "the device keeps its instance")
         #expect(roster.serviceAppeared(mxService, ancestors: [hidInterface, userDevice]) == nil, "a service is recorded once")
@@ -77,6 +77,74 @@ import Testing
             return
         }
         #expect(after.id != before.id)
+    }
+
+    @Test func aMouseWithOnlyAPointerInterfaceIsANewMouse() {
+        var roster = DeviceRoster()
+        let service = SenderID(rawValue: 0x1_0004_1000)
+        let properties = HIDProperties(bag: Bags.plainMouse)
+        let appeared = roster.interfaceAppeared(0xA, properties: properties, services: [service])
+        guard case .appeared(let mouse) = appeared else {
+            Issue.record("a pointer interface alone makes a device appear")
+            return
+        }
+        #expect(mouse.name == "USB Optical Mouse")
+        #expect(mouse.properties.kind == .mouse)
+        #expect(!mouse.properties.speaksHIDPP)
+        #expect(mouse.eventServices == [service], "its sender id reaches the tap rules")
+    }
+
+    @Test func theBuiltInKeyboardStaysAKeyboardWhicheverInterfaceComesFirst() {
+        let keyboard = HIDProperties(bag: Bags.builtInKeyboard)
+        let trackpad = HIDProperties(bag: Bags.builtInTrackpad)
+        let keyboardService = SenderID(rawValue: 0x1_0000_0CD0)
+        let trackpadService = SenderID(rawValue: 0x1_0000_0D10)
+        for trackpadFirst in [true, false] {
+            var roster = DeviceRoster()
+            func addTrackpad() -> DeviceRoster.Change? {
+                roster.interfaceAppeared(0xD09, properties: trackpad, services: [trackpadService])
+            }
+            if trackpadFirst { #expect(addTrackpad() == nil, "the trackpad is not a device of its own") }
+            _ = roster.interfaceAppeared(0xCC7, properties: keyboard, services: [keyboardService])
+            if !trackpadFirst { #expect(addTrackpad() == nil, "the trackpad does not join the keyboard") }
+
+            #expect(roster.devices.map(\.properties) == [keyboard])
+            #expect(roster.devices.map(\.properties.kind) == [.keyboard])
+            #expect(roster.devices.map(\.eventServices) == [[keyboardService]], "the trackpad is never smoothed")
+            #expect(!roster.tracks(interface: 0xD09))
+            #expect(roster.serviceAppeared(trackpadService, ancestors: [0xD09]) == nil)
+        }
+    }
+
+    @Test func aKeyboardInterfaceDescribesItsDeviceWhicheverComesFirst() {
+        let keys = HIDProperties(bag: Bags.mouse24GKeys)
+        let pointer = HIDProperties(bag: Bags.mouse24GPointer)
+        let keysService = SenderID(rawValue: 0x1_0005_2151)
+        let pointerService = SenderID(rawValue: 0x1_0005_214E)
+
+        var pointerFirst = DeviceRoster()
+        let appeared = pointerFirst.interfaceAppeared(0x1_0005_2141, properties: pointer, services: [pointerService])
+        guard case .appeared(let early) = appeared else {
+            Issue.record("the pointer interface makes the device appear")
+            return
+        }
+        #expect(early.properties.kind == .mouse)
+        var described = early
+        described.properties = keys
+        described.eventServices = [pointerService, keysService]
+        let keysJoining = pointerFirst.interfaceAppeared(0x1_0005_2143, properties: keys, services: [keysService])
+        #expect(keysJoining == .changed(described))
+
+        var keysFirst = DeviceRoster()
+        _ = keysFirst.interfaceAppeared(0x1_0005_2143, properties: keys, services: [keysService])
+        let joining = keysFirst.interfaceAppeared(0x1_0005_2141, properties: pointer, services: [pointerService])
+        guard case .changed(let joined) = joining else {
+            Issue.record("the pointer interface brings its service")
+            return
+        }
+        #expect(joined.properties == keys, "a pointer interface does not replace the keyboard interface")
+        #expect(Set(joined.eventServices) == Set(described.eventServices))
+        #expect(keysFirst.interfaceAppeared(0xC, properties: keys, services: []) == nil, "nothing new to report")
     }
 }
 

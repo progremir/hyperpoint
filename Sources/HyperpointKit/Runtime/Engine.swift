@@ -126,9 +126,18 @@ public final class Engine {
             addSlot(for: device, atLaunch: false)
             recompile()
             slots[device.id]?.invalidate(.connected)
-        case .servicesChanged(let device):
-            journal.servicesChanged(device)
-            recompile()
+        case .changed(let device):
+            journal.changed(device)
+            // A slot reads its device once, so a keyboard interface enumerating after a pointer one needs a new slot
+            // to write its key map.
+            if slots[device.id]?.device.properties != device.properties {
+                slots.removeValue(forKey: device.id)?.close()
+                addSlot(for: device, atLaunch: false)
+                recompile()
+                slots[device.id]?.invalidate(.connected)
+            } else {
+                recompile()
+            }
         case .disappeared(let device):
             slots.removeValue(forKey: device.id)?.close()
             capabilities[device.id] = nil

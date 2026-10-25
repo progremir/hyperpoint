@@ -9,6 +9,35 @@ enum Bags {
             ["DeviceUsagePage": 0xFF00, "DeviceUsage": 6],
         ],
     ]
+    /// The built-in trackpad is a second interface of the built-in keyboard's device, with the same missing ids,
+    /// location and transport (measured).
+    static let builtInTrackpad: [String: any Sendable] = [
+        "Built-In": 1, "Transport": "FIFO", "LocationID": 111, "Product": "Apple Internal Keyboard / Trackpad",
+        "PrimaryUsagePage": 1, "PrimaryUsage": 2,
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1],
+            ["DeviceUsagePage": 13, "DeviceUsage": 5], ["DeviceUsagePage": 0xFF00, "DeviceUsage": 12],
+        ],
+    ]
+    /// A mouse with one pointer interface: no keyboard collection and no HID++.
+    static let plainMouse: [String: any Sendable] = [
+        "VendorID": 0x93A, "ProductID": 0x2510, "Transport": "USB", "LocationID": 0x0110_0000,
+        "Product": "USB Optical Mouse", "PrimaryUsagePage": 1, "PrimaryUsage": 2,
+        "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1]],
+    ]
+    /// The 2.4G mouse's receiver puts its keys and its pointer on separate USB interfaces, and neither has a product
+    /// name (measured).
+    static let mouse24GKeys: [String: any Sendable] = [
+        "VendorID": 0x1EA7, "ProductID": 0x2, "Transport": "USB", "LocationID": 17_965_056,
+        "PrimaryUsagePage": 1, "PrimaryUsage": 6, "DeviceUsagePairs": [["DeviceUsagePage": 1, "DeviceUsage": 6]],
+    ]
+    static let mouse24GPointer: [String: any Sendable] = mouse24GKeys.merging([
+        "PrimaryUsage": 2,
+        "DeviceUsagePairs": [
+            ["DeviceUsagePage": 1, "DeviceUsage": 2], ["DeviceUsagePage": 1, "DeviceUsage": 1],
+            ["DeviceUsagePage": 12, "DeviceUsage": 1], ["DeviceUsagePage": 1, "DeviceUsage": 0x80],
+        ],
+    ]) { $1 }
     /// `hidutil list` shows the same keyboard as vendor 0x0, product 0x0.
     static let builtInKeyboardAsListed: [String: any Sendable] = builtInKeyboard.merging(["VendorID": 0, "ProductID": 0]) { $1 }
     static let magicKeyboard: [String: any Sendable] = [
