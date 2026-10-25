@@ -65,7 +65,10 @@ enum Labels {
                 "Gesture and top buttons, reversed thumb wheel, smooth scrolling, and hold the right button to scroll."
             )
         case .mouse24G:
-            ("Set Up as 2.4G Mouse", "2.4G mouse preset", "Escape becomes Right Option while held, and Return sends ⌥⇧S.")
+            (
+                "Set Up as 2.4G Mouse", "2.4G mouse preset",
+                "Lists it with the mice. Escape becomes Right Option while held, and Return sends ⌥⇧S."
+            )
         case .keyboard: ("Set Up with Hyper Key", "Hyper key", "Turns on the hyper key for this keyboard.")
         }
     }

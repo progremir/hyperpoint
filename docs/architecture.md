@@ -55,6 +55,7 @@ Three things make the shape non-obvious.
     {
       "match": { "vendor": "0x1EA7", "product": "0x0002" },
       "name": "2.4G Mouse",
+      "kind": "mouse",
       "rules": [
         { "control": { "key": "escape" }, "when": "hold", "do": { "modifier": "rightOption" } },
         { "control": { "key": "return" }, "when": "click", "do": { "shortcut": "opt+shift+s" } }
@@ -70,12 +71,15 @@ Three things make the shape non-obvious.
 The rules for the file:
 
 - A device entry is a **profile**. Its `match` names the device. Everything else is optional, and a missing section means "leave the device as macOS has it".
+- `kind` is `"mouse"` or `"keyboard"`. It puts the device in that list in the settings window, and only a keyboard can have the hyper key. Without it, the device's interfaces decide, which lists a mouse whose keys have an interface of their own, like the 2.4G mouse, as a keyboard. The 2.4G preset writes `"mouse"`, and the Devices tab changes it.
 - A rule is `control`, `when`, `do`. Which `when` values a control accepts depends on its kind, and the parser rejects a rule that cannot work, with its path (for example `devices[1].rules[0].when`).
 - A plain button is numbered as CGEvent numbers it. `{ "button": 1 }` is the right button, 2 the middle, 3 back and 4 forward. The left button, 0, cannot have rules.
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
+- A key a mouse sends can be held as a modifier (`"when": "hold"`, `"do": { "modifier": … }`) or click a shortcut, not both. The modifier is mapped at the HID layer, so the key has no click left to give.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
 - A profile comes only from Set Up, which starts it from a preset, from a copy of another profile, or empty. The file never records which, so changing a preset later leaves every saved profile as it is.
+- `"hyper": { "enabled": false }` turns the hyper key off on every keyboard. Each profile keeps its own `hyper`, so turning it back on restores them. A file without `enabled` has the hyper key on.
 - Pause is runtime state, not config.
 
 ### Call site 1. The MX Master 3 connects
@@ -104,7 +108,7 @@ A 0x1D4B notification with the reconfigure flag, a config save, a permission gra
 
 The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-results)).
 
-The 2.4G mouse uses the same mechanism. Its Escape maps straight to Right Option at the HID layer, so holding it is a real held modifier and it works in password fields. Its Return maps to a carrier key, which the tap rewrites to ⌥⇧S.
+The 2.4G mouse uses the same mechanism. Its keyboard interface gets `UserKeyMapping` the same way. Escape maps straight to Right Option (0xE6) at the HID layer, a `.native` route, so holding it is a real held modifier and it works in password fields. Return maps to F13, a carrier whose meaning is `.press(⌥⇧S)`. The tap drops F13's key-down and has `ActionPerformer` post ⌥⇧S, and it drops the key's repeats and its key-up too. Without the Accessibility grant there is no tap, so Return is left as Return while Escape still becomes Right Option.
 
 ## Shape
 
@@ -117,7 +121,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | Type | What it encodes |
 | --- | --- |
 | `Config` | The parsed file. `ConfigCodec.decode` is the only way in. The unknown-key check walks the user's JSON against the encoded types, so no key list exists to drift. |
-| `DeviceProfile` | One device entry. `match`, `name`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
+| `DeviceProfile` | One device entry. `match`, `name`, `kind`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
 | `DevicePreset` | The closed list of starting profiles: one per measured model (the MX Master 3 and the 2.4G mouse) and one for any keyboard. `offered(for:kind:)` ranks them for a new device, its own model first. Set Up copies one into the file once. |
 | `DeviceMatch` | Vendor and product, or `builtIn`. One value classifies a `PresentDevice` and renders hidutil `--matching`. IOHIDManager ignores `Built-In` (measured), so Swift's `matches` is the authority and the manager is only a prefilter. |
 | `Rule` | `Control`, `Trigger`, `Action`. |
@@ -125,7 +129,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `Trigger` | `.click`, `.hold`, `.holdMove(Direction?)`, `.scroll`. A nil direction is hold and move any way. |
 | `Action` | `.system(SystemAction)`, `.shortcut(Chord)`, `.modifier(HeldModifier)`, `.reverse`, `.scroll`. `SystemAction.rawValue` is the CGS symbolic hotkey id (32, 33, 79, 81), so the id table is the enum. |
 | `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, the ids of its HID event services, `Capabilities`. |
-| `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it from IOKit, and it decides which device a newly published event service belongs to. |
+| `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it keyboard, mouse and HID++ interfaces from IOKit, and it decides which device a newly published event service belongs to. It never tracks a trackpad, and a device with a keyboard interface is described by that interface whichever interface enumerates first. |
 | `Capabilities` | What discovery found. HID++ controls with their flags (temporary divert, rawXY), thumb wheel, keyboard interface, pointer, keyboard. Never stored in config. |
 | `Intent` | `Intent.compile(config, paused, present)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
@@ -134,7 +138,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
 | `KeyRoute` | One remap, from a source usage to `.native(usage)` or `.carrier(Carrier, CarrierMeaning)`. The hidutil JSON and the tap's carrier rules both derive from the same `[KeyRoute]`. |
-| `Carrier` | A reserved F13 to F24 key. Hyper is F18. Key rules get carriers from the rest of the pool, assigned in a stable order by `Intent.compile`. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
+| `Carrier` | A reserved F13 to F24 key. Hyper is F18. Each shortcut that a key rule clicks gets one carrier from the rest of the pool, in file order, so a device that connects or leaves never moves another device's carrier. A rule past the seventh shortcut is skipped. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
 | `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. |
 | `EngineStatus` | One immutable value the UI renders. Run state, permissions, per-device link, last apply and capabilities, new devices, learned control, last hyper chord. |
 
@@ -302,7 +306,7 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 - We accept private API in three places (CGS symbolic hotkeys, `IOHIDEventGetSenderID`, and `CGEventSetHIDEvent` if v2 ever wants follow-the-finger swipes), in exchange for honouring the user's own Mission Control shortcuts and per-device pointer settings.
 - We accept spawning `/usr/bin/hidutil` on device appearance and config change, in exchange for a documented interface instead of private SPI.
 - We accept a read-only settings window while the file is invalid, in exchange for never overwriting a hand edit in progress.
-- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything.
+- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch.
 - We accept that an older app cannot read a newer file, in exchange for unknown keys being errors.
 
 ## Alternatives considered
@@ -317,9 +321,9 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 Each of these is settled by a prototype before the code that depends on it, not by asking.
 
 1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock to F18 mapping, which needs Karabiner quit.
-2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse was not plugged in, so its pointer service is unmeasured.
-3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? The current proposal is pointer usage plus not built-in means mouse, with a per-profile override.
-4. **The 2.4G dongle's services.** It is not plugged in, so its keyboard services and their ids are unmeasured.
+2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse's pointer interface owns event service 0x10005214e, which `DeviceHub` now records, but no pointer event has been logged with that sender id yet.
+3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? Today a device with a keyboard interface takes its kind from that interface (a keyboard unless the interface also has a pointer collection or the device is built in), and any other device is a mouse. Trackpads, the built-in one included, are not listed. So the 2.4G mouse, whose keys come from an interface of their own (measured), shows as a keyboard. Its pointer interface looks like a keyboard's mouse-keys interface, so the structure cannot tell them apart. A profile's `kind` overrides this, and the 2.4G preset sets it to mouse.
+4. **The 2.4G dongle's services.** Measured on 2026-10-25, see Appendix A. Its keys and its pointer are separate interfaces, each with one event service.
 5. **Thumb wheel invert while undiverted.** Solaar writes it, but firmware behavior on this mouse is inferred.
 6. **Unprompted 0x1D4B over BLE.** If the MX does not send it after each reconnect, the connect callback and manual re-apply are the only triggers. A periodic read-back is the fallback.
 7. **Hold-to-scroll feel and the frozen pointer under raw-movement divert.** Whether the MX keeps moving the pointer while a rawXY-diverted control is held is unmeasured, and the freeze makes it moot. Whether `CGAssociateMouseAndMouseCursorPosition` holds from a background agent app, and whether the glide's length and the 150 pt/s threshold feel right, are for the user's journey.
@@ -359,6 +363,8 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | The MX wheel's events carry 1 detent each up to 36 events per second, and 1 to 3 in a free spin at 121 events per second. Their line delta is accelerated, up to 13 lines per event. | measured |
 | The MX pointer moves 0.25 to 0.30 points per sensor count below 400 counts a second, 0.33 at 400 to 800, 0.43 at 800 to 1600, 0.59 at 1600 to 3200 and 0.94 at 3200 to 6400 (medians of 50 ms windows). The hand moves at a median 890 counts a second, and the median gain from 200 to 3200 counts a second is 0.40, 0.41 with 100 ms windows. From 20,257 pointer reports over 23 minutes of the user's own use, read passively from the MX's HID reports with the pointer position at each, away from screen edges. The rise is macOS acceleration (`HIDMouseAcceleration` 0.6875, `HIDPointerResolution` 400 dpi on this service). | measured |
 | HID++ raw movement counts in the same sensor counts as the HID pointer report. | sourced (Solaar, logiops), not measured |
+| The 2.4G mouse's receiver (USB, `0x1EA7:0x0002`, no product name) has two IOHIDDevice interfaces. Its pointer interface has primary usage mouse and usage pairs mouse, pointer, consumer and system control (1:0x80), with event service 0x10005214e. Its keyboard interface has only the keyboard pair, with event service 0x100052151. On a plug-in the pointer interface matched first. | measured |
+| The built-in trackpad is a second IOHIDDevice of the built-in keyboard's device, with the same missing vendor and product ids, `Built-In` 1, location 0x6F and FIFO transport. Its primary usage is mouse, and its usage pairs include digitizer touchpad (0x0D, 0x05). | measured |
 | The MX's left and right buttons (0x50, 0x51) are not divertable. The middle, back, forward, gesture, top and thumb buttons are, with raw movement. | measured |
 
 ## Appendix B. Prototype results

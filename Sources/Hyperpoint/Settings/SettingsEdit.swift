@@ -17,9 +17,11 @@ struct RuleKey: Hashable, Sendable {
 /// lands where the user meant, or does nothing.
 enum SettingsEdit: Equatable, Sendable {
     case hyperKey(HIDUsage)
+    case hyperEnabled(Bool)
     case addDevice(DeviceMatch, name: String, ProfileSource)
     case hyperOn(DeviceMatch, Bool)
     case rename(DeviceMatch, String)
+    case kind(DeviceMatch, DeviceKind)
     case addRule(DeviceMatch, Rule)
     case replaceRule(DeviceMatch, RuleKey, Rule)
     case removeRule(DeviceMatch, RuleKey)
@@ -40,6 +42,8 @@ enum SettingsEdit: Equatable, Sendable {
         switch self {
         case .hyperKey(let key):
             config.hyper.key = key
+        case .hyperEnabled(let on):
+            config.hyper.enabled = on
         case .addDevice(let match, let name, let source):
             let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty, !config.ignored.contains(match), !config.devices.contains(where: { $0.match == match })
@@ -63,6 +67,8 @@ enum SettingsEdit: Equatable, Sendable {
             let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { break }
             config.editProfile(match) { $0.name = name }
+        case .kind(let match, let kind):
+            config.editProfile(match) { $0.kind = kind }
         case .addRule(let match, let rule):
             config.editProfile(match) { $0.rules = ($0.rules ?? []) + [rule] }
         case .replaceRule(let match, let key, let rule):
@@ -111,11 +117,13 @@ enum SettingsEdit: Equatable, Sendable {
     var logDescription: String {
         switch self {
         case .hyperKey(let key): "hyper.key = \(key.name ?? "?")"
+        case .hyperEnabled(let on): "hyper.enabled = \(on)"
         case .addDevice(let match, _, .preset(let preset)): "devices += \(Self.json(match)) from preset \(preset)"
         case .addDevice(let match, _, .copy(let other)): "devices += \(Self.json(match)) from copy of \(Self.json(other))"
         case .addDevice(let match, _, .blank): "devices += \(Self.json(match)) blank"
         case .hyperOn(let match, let on): "\(Self.profile(match)).hyper = \(on)"
         case .rename(let match, let name): "\(Self.profile(match)).name = \(Self.json(name))"
+        case .kind(let match, let kind): "\(Self.profile(match)).kind = \(kind.rawValue)"
         case .addRule(let match, let rule): "\(Self.profile(match)).rules += \(Self.json(rule))"
         case .replaceRule(let match, let key, let rule):
             "\(Self.profile(match)).rules[\(Self.json(key.control)) \(key.trigger.name)] = \(Self.json(rule))"

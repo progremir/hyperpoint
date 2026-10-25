@@ -14,20 +14,29 @@ device should be in from that file and writes all of it back whenever a device a
 
 ## Features
 
-- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard.
+- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard. One switch, on the Hyper Key tab or in the menu
+  bar, turns it off on every keyboard and back on again.
 - **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission
   Control, App Exposé, Space switching or any shortcut. The thumb wheel can be reversed.
 - **Smooth scrolling.** Each wheel step glides as an eased pulse sized by a speed curve you edit as a graph.
 - **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset gives it to the
   right button, and any button can be given the rule.
 - **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
-  modifiers or shortcuts.
+  modifiers or shortcuts. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
   to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
 
 ## Install
 
-Requires macOS 27 and Swift 6.2 or later.
+Requires macOS 27. Download `Hyperpoint-<version>.dmg` from
+[Releases](https://github.com/progremir/hyperpoint/releases), open it and drag Hyperpoint into Applications.
+
+Releases are signed with Developer ID and notarized by Apple. v0.1.0 predates that: macOS refuses its first open, so
+allow it under System Settings › Privacy & Security › Open Anyway.
+
+### From source
+
+Requires Swift 6.2 or later.
 
 ```bash
 scripts/bundle.sh
@@ -51,16 +60,20 @@ The button applies the best choice for that device, and its menu holds the other
 | Choice | Offered for | What it sets |
 |---|---|---|
 | MX Master 3 preset | The MX Master 3 (`0x046D:0xB023`) | The gesture button opens Mission Control, App Exposé and the Spaces left and right. The top button sends ⇧⌘4. The thumb wheel is reversed, the wheel scrolls smoothly, and holding the right button scrolls. |
-| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Escape becomes Right Option while held, and Return sends ⌥⇧S. |
+| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Lists it with the mice. Escape becomes Right Option while held, and Return sends ⌥⇧S. |
 | Hyper key | Any keyboard | The hyper key. |
 | Nothing yet | Any mouse | No rules. Add them on the **Buttons** tab. |
 | Same as *a profile* | A device of the same kind as that profile | A copy of that profile's rules, gestures, scrolling and hyper key. |
 
+Next to each profile's name, a menu says whether the device is a **Mouse** or a **Keyboard**. A mouse gets the
+**Buttons** and **Scrolling** tabs, and a keyboard can have the hyper key. Hyperpoint guesses from the device until you
+choose. A mouse that sends keys from an interface of its own, like the 2.4G mouse, looks like a keyboard to it.
+
 A preset only starts the profile. After Set Up the config file holds every setting, and a later change to a preset does
 not touch a saved profile. To start a device again from a preset, click **Forget…** and set it up again.
 
-Hyperpoint sees keyboards, Logitech HID++ devices, and mice that also send keys. A plain mouse with only a pointer
-interface does not show up yet.
+Hyperpoint lists keyboards and mice, Logitech HID++ mice included. Trackpads, the built-in one too, stay as macOS has
+them and are not listed.
 
 ## Configuration
 
@@ -78,6 +91,31 @@ scripts/check-layers.sh
 `check-layers.sh` enforces the module layering described in the architecture doc. To try a change on the real devices,
 use the [verify-hyperpoint](.claude/skills/verify-hyperpoint/SKILL.md) skill: it replaces the running app with the
 build under test and reads device state back as proof.
+
+### Releasing
+
+One-time setup: create a **Developer ID Application** certificate (Xcode › Settings › Accounts › Manage Certificates)
+and save notarization credentials as the `hyperpoint` keychain profile with an
+[app-specific password](https://account.apple.com):
+
+```bash
+xcrun notarytool store-credentials hyperpoint --apple-id <apple-id> --team-id ZZ2G9658MN
+```
+
+Then:
+
+```bash
+scripts/release.sh 0.2.0 --publish
+```
+
+This builds `dist/Hyperpoint-0.2.0.dmg`, signs the app and the DMG with Developer ID, notarizes and staples the DMG,
+tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release. It refuses to publish without
+Developer ID, with uncommitted changes or with an unpushed HEAD. Drop `--publish` to only build the DMG. Pull requests
+that touch the pipeline run `.github/workflows/release.yml`, which builds an ad-hoc DMG on CI as an artifact. The
+installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+
+The release's Developer ID signature differs from a `bundle.sh` build's Apple Development one, so switching between
+the two asks for the Accessibility and Input Monitoring grants again.
 
 ## Design
 

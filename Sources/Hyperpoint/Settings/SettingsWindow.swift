@@ -27,6 +27,7 @@ final class SettingsWindow {
         let window = self.window
         tabs.fitWindow(animated: false)
         window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(nil)
     }
 
     /// Writes a PNG of every tab in light and then dark appearance, at the window's own size for that tab with the
@@ -146,9 +147,11 @@ private final class SettingsTabs: NSTabViewController {
         item?.view?.isHidden = view.window?.isVisible == true
     }
 
-    /// Laying the hidden page out makes it report its size before the window starts moving.
+    /// Laying the hidden page out makes it report its size before the window starts moving. The tab view puts the
+    /// caret in the page's first text field, which on Devices is a device's name, so it would look mid-edit.
     override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
         super.tabView(tabView, didSelect: item)
+        view.window?.makeFirstResponder(nil)
         model.tab = tab
         item?.view?.layoutSubtreeIfNeeded()
         fitSoon()

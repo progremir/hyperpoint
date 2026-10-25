@@ -7,13 +7,13 @@ struct Journal: Sendable {
         let properties = device.properties
         let ids = "vendor=0x\(String(properties.vendor.rawValue, radix: 16)) product=0x\(String(properties.product.rawValue, radix: 16))"
         logger.notice(
-            "\(atLaunch ? "present" : "connect", privacy: .public) \(device.id, privacy: .public) \(device.name, privacy: .public) profile=\(profile ?? "none", privacy: .public) \(ids, privacy: .public) builtIn=\(properties.builtIn, privacy: .public) transport=\(properties.transport ?? "-", privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
+            "\(atLaunch ? "present" : "connect", privacy: .public) \(device.id, privacy: .public) \(device.name, privacy: .public) profile=\(profile ?? "none", privacy: .public) \(ids, privacy: .public) builtIn=\(properties.builtIn, privacy: .public) kind=\(String(describing: properties.kind), privacy: .public) transport=\(properties.transport ?? "-", privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
         )
     }
 
-    func servicesChanged(_ device: PresentDevice) {
+    func changed(_ device: PresentDevice) {
         logger.notice(
-            "services \(device.id, privacy: .public) \(device.name, privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
+            "services \(device.id, privacy: .public) \(device.name, privacy: .public) kind=\(String(describing: device.properties.kind), privacy: .public) services=[\(Self.services(of: device), privacy: .public)]"
         )
     }
 

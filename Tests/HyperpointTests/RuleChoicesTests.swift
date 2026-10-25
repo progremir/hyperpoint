@@ -72,8 +72,8 @@ let mxCapabilities = HIDPPCapabilities(
     @Test func addRuleFillsAFreeTriggerOnAButtonThatAlreadyHasRules() {
         #expect(mxChoices.newRule == Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.missionControl)))
         #expect(
-            choices24G.newRule
-                == Rule(control: .key(HIDUsage(name: "escape")!), trigger: .click, action: .shortcut(RuleChoices.placeholderChord)))
+            choices24G.newRule == Rule(control: .button(1), trigger: .click, action: .system(.missionControl)),
+            "a key held as a modifier cannot also click, so both of its keys are full")
         let full = RuleChoices(
             rules: [Rule(control: .thumbWheel, trigger: .scroll, action: .reverse)],
             capabilities: HIDPPCapabilities(controls: [], thumbWheel: true), speaksHIDPP: true)

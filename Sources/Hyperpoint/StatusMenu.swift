@@ -50,6 +50,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         if let footnote = presentation.footnote { menu.addItem(info(left: footnote, right: nil)) }
         menu.addItem(.separator())
         menu.addItem(ActionItem(title: "Re-apply Settings Now", key: "r") { [model] in model.reapplyAll() })
+        if let hyper = model.hyperKeyEnabled {
+            let item = ActionItem(title: "Hyper Key") { [model] in model.setHyperKeyEnabled(!hyper) }
+            item.state = hyper ? .on : .off
+            item.isEnabled = model.configEditable
+            menu.addItem(item)
+        }
         let paused = presentation.paused
         menu.addItem(
             ActionItem(title: paused ? "Resume Hyperpoint" : "Pause Hyperpoint") { [model] in

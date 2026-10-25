@@ -131,10 +131,10 @@ public enum ConfigCodec {
                 }
                 if let earlier = rules[..<ruleIndex].firstIndex(where: {
                     $0.control == rule.control && $0.trigger.conflicts(with: rule.trigger)
-                }) {
+                }), let reason = rule.trigger.conflict(with: rules[earlier].trigger) {
                     return ConfigError(
                         path: "\(rulePath).when",
-                        message: "\"\(rule.trigger.name)\" cannot share a control with rules[\(earlier)], because scrolling and swipes both use the movement")
+                        message: "\"\(rule.trigger.name)\" cannot share a control with rules[\(earlier)], because \(reason)")
                 }
             }
         }
@@ -198,13 +198,18 @@ enum RuleShape {
 }
 
 extension Trigger {
-    /// Scrolling and swipes both read the movement while the button is held, so one control cannot have both.
-    public func conflicts(with other: Trigger) -> Bool {
+    /// Why one control cannot have both triggers, or nil when it can.
+    func conflict(with other: Trigger) -> String? {
         switch (self, other) {
-        case (.holdMove(nil), .holdMove(.some)), (.holdMove(.some), .holdMove(nil)): true
-        default: false
+        case (.holdMove(nil), .holdMove(.some)), (.holdMove(.some), .holdMove(nil)):
+            "scrolling and swipes both use the movement"
+        case (.click, .hold), (.hold, .click):
+            "a key held as a modifier becomes that modifier, so it has no click of its own"
+        default: nil
         }
     }
+
+    public func conflicts(with other: Trigger) -> Bool { conflict(with: other) != nil }
 }
 
 extension Control {

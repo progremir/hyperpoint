@@ -70,6 +70,13 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(SettingsEdit.addDevice(usbMouse, name: "Other", .blank).applied(to: once) == once)
     }
 
+    @Test func theHyperSwitchKeepsEveryKeyboardsOwnSetting() {
+        let off = SettingsEdit.hyperEnabled(false).applied(to: base)
+        #expect(off.hyper.enabled == false)
+        #expect(off.devices == base.devices)
+        #expect(SettingsEdit.hyperEnabled(true).applied(to: off) == base)
+    }
+
     @Test func hyperOnTurnsAProfileOffAndOn() {
         let off = SettingsEdit.hyperOn(magicKeyboard, false).applied(to: base)
         #expect(profile(off, magicKeyboard)?.hyper == false)
@@ -86,6 +93,12 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
     @Test func renameTrimsAndIgnoresAnEmptyName() {
         #expect(profile(SettingsEdit.rename(mx, "  My MX ").applied(to: base), mx)?.name == "My MX")
         #expect(SettingsEdit.rename(mx, "  ").applied(to: base) == base)
+    }
+
+    @Test func kindSetsWhatTheProfileIs() {
+        #expect(profile(SettingsEdit.kind(magicKeyboard, .mouse).applied(to: base), magicKeyboard)?.kind == .mouse)
+        #expect(profile(SettingsEdit.kind(mouse24G, .keyboard).applied(to: base), mouse24G)?.kind == .keyboard)
+        #expect(SettingsEdit.kind(karabiner, .mouse).applied(to: base) == base, "a device without a profile has no kind to set")
     }
 
     @Test func addRuleAppendsToTheProfile() {
@@ -139,6 +152,7 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
 
     static let everyEdit: [SettingsEdit] = [
         .hyperKey(HIDUsage(name: "f5")!),
+        .hyperEnabled(false),
         .addDevice(karabiner, name: "Virtual Keyboard", .preset(.keyboard)),
         .addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)),
         .addDevice(usbMouse, name: "USB Mouse", .blank),
@@ -152,6 +166,8 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
                 control: .hidpp(CID(rawValue: 0x53)), trigger: .holdMove(.left),
                 action: .shortcut(Chord(key: KeyCode(name: "left")!, modifiers: [.control])))),
         .removeRule(mx, RuleKey(Rule(control: .thumbWheel, trigger: .scroll, action: .reverse))),
+        .kind(mx, .keyboard),
+        .kind(mouse24G, .keyboard),
         .gestureFire(mx, .onRelease),
         .gestureDistance(mx, 2000),
         .smooth(mx, nil),
@@ -209,12 +225,15 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(
             SettingsEdit.smoothKnob(mx, .brake, 2.5).logDescription
                 == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.brake = 2.5"#)
+        #expect(SettingsEdit.hyperEnabled(false).logDescription == "hyper.enabled = false")
         #expect(
             SettingsEdit.addDevice(mx, name: "MX Master 3", .preset(.mxMaster3)).logDescription
                 == #"devices += {"product":"0xB023","vendor":"0x046D"} from preset mxMaster3"#)
         #expect(
             SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).logDescription
                 == #"devices += {"product":"0x0001","vendor":"0x1234"} from copy of {"product":"0xB023","vendor":"0x046D"}"#)
+        #expect(
+            SettingsEdit.kind(mouse24G, .mouse).logDescription == #"devices[{"product":"0x0002","vendor":"0x1EA7"}].kind = mouse"#)
         #expect(
             SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .blank).logDescription
                 == #"devices += {"product":"0x0001","vendor":"0x1234"} blank"#)

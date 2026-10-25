@@ -12,9 +12,44 @@ EVIDENCE="$REPO/.verify-evidence/$RUN"
 IDENTITY="Apple Development: Emir Amanbekov (KGBFPV5MVR)"
 BUILT_IN='{"Built-In":1,"PrimaryUsagePage":1,"PrimaryUsage":6}'
 MAGIC='{"VendorID":0x4C,"ProductID":0x321}'
+# Both of the 2.4G mouse's services, so its pointer service shows it holds no map.
+MOUSE_24G='{"VendorID":0x1EA7,"ProductID":0x2}'
 LOG=/usr/bin/log
+# Every worktree's sessions drive the one install and the same devices, so commands that touch them hold this lock.
+# A run spans many invocations: the lock belongs to the worktree, each locked command refreshes it, and one idle for
+# HYPERPOINT_LOCK_STALE seconds can be taken over.
+LOCK="$HOME/Library/Caches/dev.emir.hyperpoint.verify-lock"
+LOCK_STALE=${HYPERPOINT_LOCK_STALE:-1200}
 
 mkdir -p "$EVIDENCE" "$BIN"
+
+lock_owner() { cat "$LOCK/owner" 2>/dev/null || true; }
+lock_idle() { echo $(( $(date +%s) - $(stat -f %m "$LOCK/owner" "$LOCK" 2>/dev/null | head -1 || date +%s) )); }
+
+try_lock() {
+  if mkdir "$LOCK" 2>/dev/null; then echo "$REPO" > "$LOCK/owner"; return 0; fi
+  local owner; owner=$(lock_owner)
+  if [[ $owner == "$REPO" ]]; then touch "$LOCK/owner"; return 0; fi
+  if (( $(lock_idle) > LOCK_STALE )); then
+    echo "taking the verify lock from ${owner:-an unknown run}, idle $(lock_idle)s" >&2
+    echo "$REPO" > "$LOCK/owner"; return 0
+  fi
+  return 1
+}
+
+acquire() {
+  local deadline=$((SECONDS + $1))
+  try_lock && return 0
+  echo "waiting for the verify lock, held by $(lock_owner) (idle $(lock_idle)s)" >&2
+  until try_lock; do
+    if (( SECONDS >= deadline )); then
+      echo "the installed Hyperpoint is in use by $(lock_owner). Queue with 'verify.sh lock' (in the background)." >&2
+      exit 3
+    fi
+    sleep 5
+  done
+  echo "got the verify lock" >&2
+}
 
 running_pid() { pgrep -f "$APP/Contents/MacOS/Hyperpoint" | head -1 || true; }
 
@@ -44,7 +79,7 @@ quit_app() {
 }
 
 key_maps() {
-  for m in "$BUILT_IN" "$MAGIC"; do
+  for m in "$BUILT_IN" "$MAGIC" "$MOUSE_24G"; do
     echo "== hidutil --matching $m"
     hidutil property --matching "$m" --get UserKeyMapping
   done
@@ -59,6 +94,8 @@ build_helpers() {
     swiftc -swift-version 5 -O -o "$BIN/tab-switches" "$SKILL_DIR/helpers/tab-switches.swift"
   [[ "$BIN/set-up" -nt "$SKILL_DIR/helpers/set-up.swift" ]] ||
     swiftc -swift-version 5 -O -o "$BIN/set-up" "$SKILL_DIR/helpers/set-up.swift"
+  [[ "$BIN/menu" -nt "$SKILL_DIR/helpers/menu.swift" ]] ||
+    swiftc -swift-version 5 -O -o "$BIN/menu" "$SKILL_DIR/helpers/menu.swift"
   if [[ ! "$PROBE_APP/Contents/MacOS/HyperpointProbe" -nt "$SKILL_DIR/helpers/probe.swift" ]]; then
     swiftc -swift-version 5 -O -framework IOKit -o "$BIN/HyperpointProbe" "$SKILL_DIR/helpers/probe.swift"
     mkdir -p "$PROBE_APP/Contents/MacOS"
@@ -84,6 +121,18 @@ probe() {
 }
 
 case ${1:-help} in
+  build|launch|quit|hyper-check|record|settings-shots|settings-switches) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
+esac
+
+case ${1:-help} in
+  lock)
+    acquire "${2:-1800}"
+    echo "verify lock held by $REPO"
+    ;;
+  unlock)
+    if [[ $(lock_owner) == "$REPO" ]]; then rm -rf "$LOCK"; echo "verify lock released"
+    else echo "verify lock not held by this worktree (owner: $(lock_owner))"; fi
+    ;;
   build)
     quit_app
     (cd "$REPO" && scripts/bundle.sh) 2>&1 | tee "$EVIDENCE/bundle.log"
@@ -101,6 +150,7 @@ case ${1:-help} in
       echo "repo HEAD: $(git -C "$REPO" rev-parse --short HEAD) $(git -C "$REPO" branch --show-current)"
       echo "app binary: $(stat -f '%Sm' "$APP/Contents/MacOS/Hyperpoint") (newest commit: $(git -C "$REPO" log -1 --format=%cd))"
       echo "pid: $(running_pid || true)"
+      echo "verify lock: $(lock_owner || true)${$(lock_owner):+ (idle $(lock_idle)s)}"
       codesign -d -r- "$APP" 2>&1 | grep designated
       codesign -d -r- "$APP" 2>&1 | grep -q cdhash && echo "BAD: designated requirement pins a cdhash; grants reset every build"
       echo "menu: $(menu_state 10m)"
@@ -128,8 +178,8 @@ case ${1:-help} in
     ;;
   record)
     build_helpers
-    mode=${2:?record posted|wheel|senders|hold}
-    echo "recording $mode; ask the user to act now (posted/wheel/hold: 40-45 s, senders: 90 s)"
+    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]}
+    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, senders: 90 s)"
     probe "$mode" "$EVIDENCE/record-$mode.txt" || exit $?
     python3 "$SKILL_DIR/helpers/analyze.py" "$mode" "$EVIDENCE/record-$mode.txt" | tee "$EVIDENCE/record-$mode-summary.txt"
     ;;
@@ -164,6 +214,10 @@ case ${1:-help} in
     build_helpers
     "$BIN/set-up" "${@:2}" | tee -a "$EVIDENCE/set-up.txt"
     ;;
+  menu)
+    build_helpers
+    "$BIN/menu" "${@:2}" | tee -a "$EVIDENCE/menu.txt"
+    ;;
   replay)
     # Runs the real scroll animator on recorded wheel steps. Needs no installed app, no device and no permissions.
     wheels=${2:-$(ls -t "$REPO"/.verify-evidence/*/record-wheel.txt 2>/dev/null | head -1)}
@@ -179,6 +233,8 @@ case ${1:-help} in
   help|*)
     cat <<EOF
 verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VERIFY_RUN)
+  lock [1800]        wait up to N s for the verify lock, which build/launch/quit/hyper-check/record/settings-* take
+  unlock             release it at the end of a run, with the build under test running
   doctor             build, signature, pid, last menu state, conflicting apps
   build              quit Hyperpoint, scripts/bundle.sh into ~/Applications/Hyperpoint.app
   launch [args]      open the app and wait for a settled menu state
@@ -186,12 +242,13 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
-  record <mode>      posted | wheel | senders | hold, needs the user to use the mouse
+  record <mode>      posted | wheel | senders | hold | keys[-seconds], needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]
                      the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
   settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
+  menu "<item>"      press an item of the menu bar menu by title, such as "Hyper Key"
   evidence           print this run's evidence directory
 EOF
     ;;

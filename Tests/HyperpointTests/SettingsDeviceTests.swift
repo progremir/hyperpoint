@@ -33,6 +33,20 @@ import Testing
         #expect(devices.map(\.isNew) == [false, false, false, false, true])
     }
 
+    @Test func aChosenKindWinsOverWhatTheDeviceSays() {
+        var config = Config.example
+        let connected24G = DeviceStatus(
+            name: "2.4G Mouse", match: mouse24G, kind: .keyboard, transport: "USB", connectedAt: at, hyper: nil)
+        func kind() -> DeviceKind? {
+            SettingsDevice.all(config: config, status: status(devices: [connected24G])).first { $0.match == mouse24G }?.kind
+        }
+        #expect(kind() == .mouse, "the preset chose mouse")
+        config.devices[1].kind = nil
+        #expect(kind() == .keyboard, "without a choice the connected device decides")
+        config.devices[3].kind = .mouse
+        #expect(SettingsDevice.all(config: config, status: nil).first { $0.match == magicKeyboard }?.kind == .mouse)
+    }
+
     @Test func aNewDeviceIsListedOnceAfterItGetsAProfile() {
         let config = SettingsEdit.addDevice(karabiner, name: "Virtual", .preset(.keyboard)).applied(to: .example)
         let devices = SettingsDevice.all(config: config, status: status(devices: [], newDevices: [virtualKeyboard]))

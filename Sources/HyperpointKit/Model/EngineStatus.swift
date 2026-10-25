@@ -104,7 +104,7 @@ public struct DeviceStatus: Equatable, Sendable {
     }
 }
 
-public enum DeviceKind: Equatable, Sendable {
+public enum DeviceKind: String, Codable, Equatable, Sendable {
     /// A keyboard that can host the hyper key.
     case keyboard
     /// Any other device, such as a mouse that also sends keys.
