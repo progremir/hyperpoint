@@ -187,62 +187,55 @@ struct ConnectionDot: View {
     }
 }
 
-/// A name shown as text. A click turns it into a field that saves on Return or when it loses focus, and Escape puts
-/// the name back.
+/// A name that reads as plain text and edits in place. A click puts the caret in it, as in any text field, so no
+/// focus has to be handed over. Return or clicking away saves, and Escape puts the name back.
 struct NameField: View {
     let name: String
     let save: (String) -> Void
+    /// Kept after a save until the file brings the new name back, so the old one does not flash in between.
     @State private var draft: String?
-    /// Shown until the saved file brings the new name back, so the old one does not flash in between.
-    @State private var saved: String?
     @State private var hovering = false
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        Group {
-            if let draft {
-                TextField("Name", text: Binding(get: { draft }, set: { self.draft = $0 }))
-                    .labelsHidden()
-                    .focused($focused)
-                    .onAppear { focused = true }
-                    .onSubmit(commit)
-                    .onExitCommand { self.draft = nil }
-                    .onChange(of: focused) { if !focused { commit() } }
-                    .accessibilityLabel("Name in Hyperpoint")
-            } else {
-                HStack(spacing: 4) {
-                    Text(saved ?? name).lineLimit(1)
-                    Image(systemName: "pencil")
-                        .foregroundStyle(.secondary)
-                        .opacity(hovering && isEnabled ? 1 : 0)
+        HStack(spacing: 4) {
+            TextField("Name", text: Binding(get: { draft ?? name }, set: { draft = $0 }))
+                .textFieldStyle(.plain)
+                .labelsHidden()
+                .focused($focused)
+                .onSubmit(commit)
+                .onExitCommand {
+                    draft = nil
+                    focused = false
                 }
-                .contentShape(Rectangle())
-                .onHover { hovering = $0 }
-                .onTapGesture(perform: edit)
-                .help("Click to rename")
-                .accessibilityElement(children: .ignore)
+                .onChange(of: focused) { if !focused { commit() } }
+                .onChange(of: name) { draft = nil }
                 .accessibilityLabel("Name in Hyperpoint")
-                .accessibilityValue(saved ?? name)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { edit() }
-            }
+            Image(systemName: "pencil")
+                .foregroundStyle(.secondary)
+                .opacity(hovering && !focused && isEnabled ? 1 : 0)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onChange(of: name) { saved = nil }
-    }
-
-    private func edit() {
-        if isEnabled { draft = saved ?? name }
+        .background {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .strokeBorder(Color.accentColor, lineWidth: 2)
+                .padding(-4)
+                .opacity(focused ? 1 : 0)
+        }
+        .onHover { hovering = $0 }
+        .help("Click to rename")
     }
 
     private func commit() {
         guard let draft else { return }
-        self.draft = nil
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != name else { return }
-        saved = trimmed
-        save(trimmed)
+        if trimmed.isEmpty || trimmed == name {
+            self.draft = nil
+        } else {
+            save(trimmed)
+        }
     }
 }
 
