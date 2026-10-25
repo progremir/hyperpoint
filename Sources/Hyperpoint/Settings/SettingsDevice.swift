@@ -1,18 +1,7 @@
 import Foundation
 import HyperpointKit
 
-enum SettingsPane: Hashable {
-    case general
-    case hyper
-    case device(DeviceMatch)
-}
-
-enum DeviceTab: Hashable {
-    case buttons
-    case scrolling
-}
-
-/// One device in the sidebar: a profile from the file, or a device connected now that has none.
+/// One device the window lists: a profile from the file, or a device connected now that has none.
 struct SettingsDevice: Identifiable, Equatable {
     var match: DeviceMatch
     var name: String
@@ -109,6 +98,14 @@ struct SettingsDevice: Identifiable, Equatable {
         }
         return StatusCard(title: title, detail: parts.joined(separator: " "), connected: true)
     }
+}
+
+/// A device in `ignored`. Hyperpoint leaves it as macOS has it and never lists it as new.
+struct IgnoredDevice: Identifiable, Equatable {
+    var match: DeviceMatch
+    var name: String
+
+    var id: DeviceMatch { match }
 }
 
 struct StatusCard: Equatable {

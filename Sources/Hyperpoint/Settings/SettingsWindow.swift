@@ -2,23 +2,18 @@ import AppKit
 import HyperpointKit
 import SwiftUI
 
-/// The one settings window. Closing it only hides it, so reopening keeps the pane the user was on.
+/// The one settings window: a toolbar of tabs with a page each. Closing it only hides it, so reopening keeps the tab.
 @MainActor
 final class SettingsWindow {
     private let model: SettingsModel
+    private lazy var tabs = SettingsTabs(model: model)
     private lazy var window: NSWindow = {
-        let controller = NSHostingController(rootView: SettingsView(model: model))
-        controller.sizingOptions = []
-        let window = NSWindow(contentViewController: controller)
-        window.title = "Hyperpoint Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
+        let window = NSWindow(contentViewController: tabs)
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 880, height: 680))
-        window.contentMinSize = NSSize(width: 780, height: 520)
         window.center()
-        window.setFrameAutosaveName("HyperpointSettings")
+        window.setFrameAutosaveName("HyperpointPreferences")
         return window
     }()
 
@@ -28,50 +23,47 @@ final class SettingsWindow {
     func show() {
         model.refreshLoginItem()
         NSApp.activate()
+        tabs.fitWindow(animated: false)
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Writes a PNG of every pane and tab to `directory`. The window draws itself, so this needs no Screen
-    /// Recording access, and the window grows to fit each pane so nothing is cut off. The sidebar is a glass
-    /// surface the window server composites, so it comes out blank.
+    /// Writes a PNG of every tab in light and then dark appearance, at the window's own size for that tab with the
+    /// toolbar, and Buttons and Scrolling once per mouse. The window draws itself, so this needs no Screen Recording
+    /// access. A page taller than the screen is drawn again scrolled to its end.
     func snapshot(to directory: URL) async {
         show()
         for _ in 0..<50 where model.snapshot == nil || model.status == nil {
             try? await Task.sleep(for: .milliseconds(100))
         }
         try? await Task.sleep(for: .seconds(2))
-        var pages: [(name: String, pane: SettingsPane, tab: DeviceTab)] = [
-            ("general", .general, .buttons), ("hyper-key", .hyper, .buttons),
-        ]
-        for device in model.devices {
-            let name = device.name.lowercased().replacingOccurrences(of: " ", with: "-")
-            if device.kind == .mouse {
-                pages.append((name + "-buttons", .device(device.match), .buttons))
-                pages.append((name + "-scrolling", .device(device.match), .scrolling))
-            } else {
-                pages.append((name, .device(device.match), .buttons))
+        let shown = (tab: model.tab, mouse: model.mouse)
+        var pages: [(name: String, tab: SettingsTab, mouse: DeviceMatch?)] = []
+        for tab in SettingsTab.allCases {
+            let mice = tab == .buttons || tab == .scrolling ? model.mice : []
+            if mice.isEmpty { pages.append((Self.slug(tab.title), tab, nil)) }
+            for mouse in mice { pages.append((Self.slug(tab.title) + "-" + Self.slug(mouse.name), tab, mouse.match)) }
+        }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for (suffix, appearance) in [("", NSAppearance.Name.aqua), ("-dark", .darkAqua)] {
+            window.appearance = NSAppearance(named: appearance)
+            for (index, page) in pages.enumerated() {
+                model.mouse = page.mouse ?? shown.mouse
+                tabs.tab = page.tab
+                try? await Task.sleep(for: .milliseconds(800))
+                let name = String(format: "%02d-%@%@", index + 1, page.name, suffix)
+                render(to: directory.appending(path: name + ".png"))
+                guard let scroller = window.contentView.flatMap(Self.tallestScrollView), let document = scroller.documentView,
+                    document.frame.height > scroller.contentView.bounds.height + 1
+                else { continue }
+                document.scroll(NSPoint(x: 0, y: document.isFlipped ? document.frame.height : 0))
+                try? await Task.sleep(for: .milliseconds(400))
+                render(to: directory.appending(path: name + "-end.png"))
+                document.scroll(NSPoint(x: 0, y: document.isFlipped ? 0 : document.frame.height))
             }
         }
-        let size = window.frame.size
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for (index, page) in pages.enumerated() {
-            model.pane = page.pane
-            model.tab = page.tab
-            window.setContentSize(NSSize(width: size.width, height: 1500))
-            try? await Task.sleep(for: .milliseconds(700))
-            let name = String(format: "%02d-%@", index + 1, page.name)
-            render(to: directory.appending(path: name + ".png"))
-            // The window cannot grow past the screen, so a page taller than it is drawn again scrolled to its end.
-            guard let scroller = window.contentView.flatMap(Self.tallestScrollView), let document = scroller.documentView,
-                document.frame.height > scroller.contentView.bounds.height + 1
-            else { continue }
-            document.scroll(NSPoint(x: 0, y: document.isFlipped ? document.frame.height : 0))
-            try? await Task.sleep(for: .milliseconds(400))
-            render(to: directory.appending(path: name + "-end.png"))
-        }
-        window.setContentSize(size)
-        model.pane = .general
-        model.tab = .buttons
+        window.appearance = nil
+        model.mouse = shown.mouse
+        tabs.tab = shown.tab
     }
 
     private func render(to file: URL) {
@@ -88,6 +80,8 @@ final class SettingsWindow {
         try? image.representation(using: .png, properties: [:])?.write(to: file)
     }
 
+    private static func slug(_ name: String) -> String { name.lowercased().replacingOccurrences(of: " ", with: "-") }
+
     private static func tallestScrollView(in view: NSView) -> NSScrollView? {
         let own = (view as? NSScrollView).map { [$0] } ?? []
         let nested = view.subviews.compactMap(tallestScrollView)
@@ -95,143 +89,83 @@ final class SettingsWindow {
     }
 }
 
-struct SettingsView: View {
-    @Bindable var model: SettingsModel
+/// One toolbar item and SwiftUI page per `SettingsTab`, and the window sized to the selected page. The pages report
+/// their own size, so the window animates to it both on a tab switch and when a page grows or shrinks.
+private final class SettingsTabs: NSTabViewController {
+    private let model: SettingsModel
+    /// A page reports its size once it has been laid out, which is the first time its tab is shown.
+    private var sizes: [SettingsTab: CGSize] = [:]
 
-    var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
-            List(selection: $model.pane) {
-                Label("General", systemImage: "gearshape").tag(SettingsPane.general)
-                Label("Hyper key", systemImage: "command").tag(SettingsPane.hyper)
-                Section("Devices") {
-                    ForEach(model.devices) { device in
-                        Label {
-                            Text(device.name).lineLimit(1)
-                        } icon: {
-                            ConnectionDot(connected: device.connected)
-                        }
-                        .badge(device.isNew ? Text("New") : nil)
-                        .tag(SettingsPane.device(device.match))
-                    }
-                }
-            }
-            .frame(minWidth: 200, idealWidth: 210)
-            .toolbar(removing: .sidebarToggle)
-        } detail: {
-            switch model.pane {
-            case .general, nil: GeneralPane(model: model)
-            case .hyper: HyperPane(model: model)
-            case .device(let match):
-                if let device = model.devices.first(where: { $0.match == match }) {
-                    DevicePane(model: model, device: device)
-                } else {
-                    ContentUnavailableView(
-                        "Device gone", systemImage: "cable.connector.slash",
-                        description: Text("It disconnected before it had a profile."))
-                }
-            }
+    init(model: SettingsModel) {
+        self.model = model
+        super.init(nibName: nil, bundle: nil)
+        tabStyle = .toolbar
+        // Adding the first item selects it, which would overwrite the remembered tab.
+        let remembered = model.tab
+        for tab in SettingsTab.allCases {
+            let fit = FitPage { [weak self] size in self?.measured(tab, size) }
+            let page = NSHostingController(rootView: SettingsTabPage(tab: tab, model: model).environment(\.fitPage, fit))
+            page.sizingOptions = []
+            page.title = tab.title
+            let item = NSTabViewItem(viewController: page)
+            item.label = tab.title
+            item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: nil)
+            addTabViewItem(item)
         }
-    }
-}
-
-/// A pane's title, an optional control beside it, and its grouped form. Every pane says when the file is invalid
-/// or a save failed, since any pane can be open when that happens.
-struct PaneScaffold<Accessory: View, Content: View>: View {
-    let title: String
-    let model: SettingsModel
-    @ViewBuilder var accessory: Accessory
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(title).font(.title2.weight(.semibold))
-                Spacer()
-                accessory
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 10)
-            Form {
-                if let error = model.snapshot?.error {
-                    Section {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("The config file has an error").fontWeight(.semibold)
-                                Text(
-                                    "\(error.description). Hyperpoint keeps using the last good settings. Fix the file to change settings here."
-                                )
-                                .foregroundStyle(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        }
-                        HStack {
-                            Spacer()
-                            Button("Open in Editor") { model.openConfigInEditor() }
-                        }
-                    }
-                }
-                if let saveError = model.saveError {
-                    Section {
-                        Label("Not saved: \(saveError)", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                    }
-                }
-                content
-            }
-            .formStyle(.grouped)
-        }
-    }
-}
-
-extension PaneScaffold where Accessory == EmptyView {
-    init(title: String, model: SettingsModel, @ViewBuilder content: () -> Content) {
-        self.init(title: title, model: model, accessory: { EmptyView() }, content: content)
-    }
-}
-
-struct ConnectionDot: View {
-    let connected: Bool
-
-    var body: some View {
-        Circle()
-            .fill(connected ? Color.green : Color.clear)
-            .strokeBorder(connected ? Color.clear : Color.secondary, lineWidth: 1.5)
-            .frame(width: 8, height: 8)
-            .accessibilityLabel(connected ? "Connected" : "Not connected")
-    }
-}
-
-/// A name field that saves on Return or when it loses focus, not on every keystroke.
-struct NameField: View {
-    let name: String
-    let save: (String) -> Void
-    @State private var draft: String?
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        TextField(text: Binding(get: { draft ?? name }, set: { draft = $0 })) {
-            Text("Name in Hyperpoint")
-            Text("Shown here and in the menu.")
-        }
-        .focused($focused)
-        .onSubmit(commit)
-        .onChange(of: focused) { if !focused { commit() } }
-        .onChange(of: name) { draft = nil }
+        self.tab = remembered
     }
 
-    private func commit() {
-        guard let draft, draft != name else { return }
-        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            self.draft = nil
+    required init?(coder: NSCoder) { fatalError("built in code") }
+
+    var tab: SettingsTab {
+        get { SettingsTab.allCases[selectedTabViewItemIndex] }
+        set { selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: newValue) ?? 0 }
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: item)
+        model.tab = tab
+        fitSoon()
+    }
+
+    private func measured(_ tab: SettingsTab, _ size: CGSize) {
+        sizes[tab] = size
+        if tab == self.tab { fitSoon() }
+    }
+
+    /// A tab switch and a SwiftUI update both apply a frame change at once instead of animating it, so the window
+    /// follows on the next turn of the run loop.
+    private func fitSoon() {
+        Task { @MainActor [weak self] in self?.fitWindow(animated: self?.view.window?.isVisible == true) }
+    }
+
+    /// Keeps the top edge in place, and stops at the bottom of the screen, where the page scrolls instead.
+    func fitWindow(animated: Bool) {
+        guard let window = view.window, let size = sizes[tab] else { return }
+        let screen = window.screen?.visibleFrame ?? .infinite
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        frame.size.height = min(frame.height, screen.height)
+        frame.origin = NSPoint(x: window.frame.minX, y: max(window.frame.maxY - frame.height, screen.minY))
+        guard frame != window.frame else { return }
+        if animated {
+            NSAnimationContext.runAnimationGroup { _ in window.animator().setFrame(frame, display: true) }
         } else {
-            save(draft)
+            window.setFrame(frame, display: true)
         }
     }
 }
 
-extension Rule {
-    var key: RuleKey { RuleKey(self) }
-}
+private struct SettingsTabPage: View {
+    let tab: SettingsTab
+    let model: SettingsModel
 
-func clockTime(_ date: Date) -> String { date.formatted(date: .omitted, time: .shortened) }
+    var body: some View {
+        switch tab {
+        case .general: GeneralTab(model: model)
+        case .hyperKey: HyperKeyTab(model: model)
+        case .buttons: ButtonsTab(model: model)
+        case .scrolling: ScrollingTab(model: model)
+        case .devices: DevicesTab(model: model)
+        }
+    }
+}

@@ -21,6 +21,19 @@ enum Labels {
         }
     }
 
+    /// A device by its ids, for one Hyperpoint has no name for.
+    static func match(_ match: DeviceMatch) -> String {
+        switch match {
+        case .builtIn: "Built-in keyboard"
+        case .device(let vendor, let product): "Vendor \(hex(vendor.rawValue)), product \(hex(product.rawValue))"
+        }
+    }
+
+    private static func hex(_ value: UInt16) -> String {
+        let digits = String(value, radix: 16, uppercase: true)
+        return "0x" + String(repeating: "0", count: max(0, 4 - digits.count)) + digits
+    }
+
     static func trigger(_ trigger: Trigger) -> String {
         switch trigger {
         case .click: "Click"

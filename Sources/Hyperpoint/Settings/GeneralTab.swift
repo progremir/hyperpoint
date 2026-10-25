@@ -3,70 +3,60 @@ import HyperpointKit
 import ServiceManagement
 import SwiftUI
 
-struct GeneralPane: View {
+struct GeneralTab: View {
     let model: SettingsModel
     @State private var showingLog = false
 
     var body: some View {
-        PaneScaffold(title: "General", model: model) {
-            Section("Startup") {
-                Toggle(isOn: Binding(get: { model.loginItem != .off }, set: { model.setLoginItem($0) })) {
-                    Text("Open Hyperpoint at login")
-                    Text(loginDetail)
-                }
+        SettingsPage(model: model) {
+            FormRow(label: "Startup", detail: loginDetail) {
+                Toggle("Open Hyperpoint at login", isOn: Binding(get: { model.loginItem != .off }, set: { model.setLoginItem($0) }))
                 if model.loginItem == .needsApproval {
-                    HStack {
-                        Spacer()
-                        Button("Open Login Items Settings") { SMAppService.openSystemSettingsLoginItems() }
-                    }
+                    Button("Open Login Items Settings") { SMAppService.openSystemSettingsLoginItems() }
                 }
             }
-
-            Section("Permissions") {
-                let permissions = model.status?.permissions ?? Permissions.current()
-                PermissionRow(
-                    title: "Accessibility",
-                    detail: "Lets the hyper key and smooth scrolling change keys and scrolls as they happen.",
-                    grant: permissions.accessibility
-                ) { model.requestPermission(.accessibility) }
-                PermissionRow(
-                    title: "Input Monitoring", detail: "Lets Hyperpoint set up the buttons on Logitech mice.",
-                    grant: permissions.inputMonitoring
-                ) { model.requestPermission(.inputMonitoring) }
+            Divider()
+            permissions
+            Divider()
+            FormRow(label: "Config file") {
+                Text((model.configURL.path as NSString).abbreviatingWithTildeInPath)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                Explanation("\(loadDetail) This window edits the same file.")
                 HStack {
-                    Spacer()
-                    Button("Open Privacy & Security") { model.openPrivacySettings() }
-                }
-            }
-
-            Section("Config file") {
-                LabeledContent {
-                    EmptyView()
-                } label: {
-                    Text((model.configURL.path as NSString).abbreviatingWithTildeInPath)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                    Text(loadDetail)
-                }
-                HStack {
-                    Text("This window edits the same file.").foregroundStyle(.secondary)
-                    Spacer()
                     Button("Show in Finder") { model.showConfigInFinder() }
                     Button("Open in Editor") { model.openConfigInEditor() }
                 }
+                .padding(.top, 3)
             }
-
-            Section("Log") {
-                LabeledContent {
-                    Button("Show Log") { showingLog = true }
-                } label: {
-                    Text("Every device connect, re-apply and settings change is logged.")
-                    Text("The log lists what Hyperpoint did since it started.")
-                }
+            Divider()
+            FormRow(
+                label: "Log",
+                detail: "Every device connect, re-apply and settings change is logged. The log lists what Hyperpoint did since it started."
+            ) {
+                Button("Show Log") { showingLog = true }
             }
         }
         .sheet(isPresented: $showingLog) { LogSheet() }
         .onAppear { model.refreshLoginItem() }
+    }
+
+    @ViewBuilder private var permissions: some View {
+        let permissions = model.status?.permissions ?? Permissions.current()
+        VStack(alignment: .leading, spacing: 8) {
+            GroupHeading("How to grant permissions")
+            Text("1. Go to System Settings › Privacy & Security")
+            Button("Open System Settings") { model.openPrivacySettings() }
+                .padding(.leading, 18)
+            Text("2. Switch on Hyperpoint under Accessibility and under Input Monitoring")
+            Text("3. Check that both say Granted below, or click Allow… to be asked")
+        }
+        FormRow(label: "Accessibility", detail: "Lets the hyper key and smooth scrolling change keys and scrolls as they happen.") {
+            PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) }
+        }
+        FormRow(label: "Input Monitoring", detail: "Lets Hyperpoint set up the buttons on Logitech mice.") {
+            PermissionStatus(grant: permissions.inputMonitoring) { model.requestPermission(.inputMonitoring) }
+        }
     }
 
     private var loginDetail: String {
@@ -87,25 +77,18 @@ struct GeneralPane: View {
     }
 }
 
-private struct PermissionRow: View {
-    let title: String
-    let detail: String
+private struct PermissionStatus: View {
     let grant: PermissionState.Grant
     let allow: () -> Void
 
     var body: some View {
-        LabeledContent {
-            if grant == .granted {
-                Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            } else {
-                HStack {
-                    Text(grant == .denied ? "Not allowed" : "Not asked yet").foregroundStyle(.orange)
-                    Button("Allow…", action: allow)
-                }
+        if grant == .granted {
+            Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+        } else {
+            HStack {
+                Text(grant == .denied ? "Not allowed" : "Not asked yet").foregroundStyle(.orange)
+                Button("Allow…", action: allow)
             }
-        } label: {
-            Text(title)
-            Text(detail)
         }
     }
 }
@@ -151,7 +134,7 @@ private struct LogSheet: View {
             }
             .padding(12)
         }
-        .frame(width: 820, height: 520)
+        .frame(width: 600, height: 440)
         .task { await load() }
     }
 
