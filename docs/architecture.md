@@ -110,6 +110,18 @@ The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-resu
 
 The 2.4G mouse uses the same mechanism. Its keyboard interface gets `UserKeyMapping` the same way. Escape maps straight to Right Option (0xE6) at the HID layer, a `.native` route, so holding it is a real held modifier and it works in password fields. Return maps to F13, a carrier whose meaning is `.press(⌥⇧S)`. The tap drops F13's key-down and has `ActionPerformer` post ⌥⇧S, and it drops the key's repeats and its key-up too. Without the Accessibility grant there is no tap, so Return is left as Return while Escape still becomes Right Option.
 
+### Call site 4. The user adds a rule by pressing a button
+
+1. Add Rule on the Buttons tab calls `engine.listen(for: match)`. The engine's `Listener` arms one listen with a new id and a 10 s timeout. It refuses at once, with the reason in `DeviceStatus.listen`, while paused, when the mouse is not connected, or when neither the tap nor HID++ can hear it.
+2. Listening is an input to `Intent.compile`, as a `ListenTarget`. For that device only, the HID++ plan becomes `HIDPPSetup.listening`, which diverts every divertable control but the left button without raw movement. Its key map is cleared, so its keys reach the tap as themselves, and `TapRules.listen` names its event services. A listen alone installs the tap. Paused and quitting still compile to neutral. The engine then calls `slot.invalidate(.listen)` on that device, so a listen is one more absolute write.
+3. The first press comes in through whichever route sees it. `HIDPPLink` reports a listened control as `HIDPPEvent.heard` and runs no gesture or action. In the tap, `LearnStage` runs before every other stage. It takes the first right or other button press, or key press, from the device's senders and reports it as `TapSignal.heard`. It then keeps that press's drags, repeats and release from apps and rules, also after new rules arrive. The left button is not among its events.
+4. The engine matches the press to the armed listen by its id or its device, so a late report changes nothing. `ListenPlan.heard` names the press as a `Control`, and a carrier key pressed before the clear landed is named as the key that sent it. The `LearnedPress` goes to the window once, in order, on `engine.heard`. The listen goes back to idle, the intent loses the overlay, and the same invalidate writes the real setup back.
+5. `SettingsModel.learned` turns the press into config through `RuleChoices.learned`. A plain button whose HID++ control the mouse can divert becomes that control. The rule takes the control's first free trigger and that trigger's first action, and reaches the file as `SettingsEdit.addRule`. A control with every trigger taken adds nothing. Add Rule's menu sends a picked control through the same function, for the thumb wheel, which no press makes, and for a mouse that is not connected.
+
+Every other exit is a transition on the same `Listener`. Cancel, Esc, a tab or mouse switch and closing the window end the listen silently. The timeout, a disconnect, pause, wake and losing every route end it with a reason the window shows. A config save keeps it and compiles the overlay over the new profile, unless the profile is gone. Quit ends it before writing neutral.
+
+A read-only HID++ profile writes nothing at launch, so a crash mid-listen would keep the listen's divert. `DivertLatch` records the match in `UserDefaults` before the first write. A slot for a latched mouse starts as if it had already written, so it writes native once. A clean quit clears the latch.
+
 ## Shape
 
 ### Base and grafts
@@ -131,7 +143,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `PresentDevice` | A connected device, grouped from its IOHIDDevice interfaces. Instance id, `DeviceKey`, name, transport, the ids of its HID event services, `Capabilities`. |
 | `DeviceRoster` | The registry ids of each present device's IOHIDDevice interfaces and HID event services. `DeviceHub` feeds it keyboard, mouse and HID++ interfaces from IOKit, and it decides which device a newly published event service belongs to. It never tracks a trackpad, and a device with a keyboard interface is described by that interface whichever interface enumerates first. |
 | `Capabilities` | What discovery found. HID++ controls with their flags (temporary divert, rawXY), thumb wheel, keyboard interface, pointer, keyboard. Never stored in config. |
-| `Intent` | `Intent.compile(config, paused, present)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
+| `Intent` | `Intent.compile(config, paused, tapAvailable, present, listening)`. A pure function that returns a `DeviceSetup` per present device and one `TapRules`, with the listened device's overlay and its `ListenPlan`. Paused compiles to `Intent.neutral`, so pause is the same reconcile as a config change. |
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
 | `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. HID++ controls and plain buttons build it from their rules with one initializer. |
 | `GesturePlan` | The distance, the click action, and `GestureMoves`, which is `.swipes([Direction: Action], fire)` or `.scroll(HoldScrollPlan)`. One control cannot do both. |
@@ -139,13 +151,15 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
 | `KeyRoute` | One remap, from a source usage to `.native(usage)` or `.carrier(Carrier, CarrierMeaning)`. The hidutil JSON and the tap's carrier rules both derive from the same `[KeyRoute]`. |
 | `Carrier` | A reserved F13 to F24 key. Hyper is F18. Each shortcut that a key rule clicks gets one carrier from the rest of the pool, in file order, so a device that connects or leaves never moves another device's carrier. A rule past the seventh shortcut is skipped. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
-| `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. |
-| `EngineStatus` | One immutable value the UI renders. Run state, permissions, per-device link, last apply and capabilities, new devices, learned control, last hyper chord. |
+| `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. While a listen is armed, its id and the listened device's senders. |
+| `Listener` | The engine's one listen, which is idle, armed with an id, a device and a deadline, or ended with its reason. Every exit is a transition, and a report for a listen that already ended names nothing armed. |
+| `ListenPlan` | The compiled side of a listen. It names a press as a `Control`, through the carrier routes the listen cleared for a key pressed before the clear landed. |
+| `EngineStatus` | One immutable value the UI renders. Run state, permissions, tap state, per-device link, last apply and capabilities, hyper and listen status, new devices, last reconnect. |
 
 The dominant access patterns, traced through these types:
 
 - **A HID++ notification** resolves to its slot in O(1) by device instance. `HIDPPLink` decodes it through the session's feature map and feeds the gesture machine. No allocation and no thread hop.
-- **A tap event** costs one carrier lookup by key code. Scroll events and right and other button presses also cost one lookup by sender id. Drags and releases cost none, because they only match the one button the stage holds. A sender with no entry passes untouched, so the trackpad is never smoothed.
+- **A tap event** costs one carrier lookup by key code. Scroll events and right and other button presses also cost one lookup by sender id. Drags and releases cost none, because they only match the one button the stage holds. A sender with no entry passes untouched, so the trackpad is never smoothed. While a listen is armed, a button or key press also costs one sender read.
 - **A config save** recompiles the intent once and invalidates every present slot. Each slot writes its whole setup. There is no diffing logic to get wrong.
 
 ### Module map
@@ -155,8 +169,8 @@ One SwiftPM library with three folders and a thin app target, built into a signe
 | Path | Access | Holds |
 | --- | --- | --- |
 | `Sources/HyperpointKit/Model` | public | `Config` and its parts, `DevicePreset`, `ConfigCodec`, `EngineStatus` |
-| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities` |
-| `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ActionPerformer`, `Journal` |
+| `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities`, `Listener` |
+| `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ActionPerformer`, `Journal`, `DivertLatch` |
 | `Sources/Hyperpoint` | app | `AppModel`, the menu, Welcome and settings views |
 
 Per-layer SwiftPM targets do not stop the app importing a lower layer (measured), but access control does hide internals across the library boundary (measured). `scripts/check-layers.sh` fails the build when Core imports IOKit or anything from Runtime.
@@ -176,13 +190,14 @@ State crosses only as immutable `Sendable` values.
 
 | From, to | Carrier | Policy |
 | --- | --- | --- |
-| Main to HID | `await engine.reapplyAll()`, `setPaused`, `learn`, `forget` | one hop per user action |
+| Main to HID | `await engine.reapplyAll()`, `setPaused`, `listen`, `stopListening` | one hop per user action |
 | HID to main | `engine.statuses` | latest wins |
 | HID to main | `engine.actions` | ordered, for `ActionPerformer` |
+| HID to main | `engine.heard` | ordered, each heard press once, for the settings window |
 | ConfigStore to HID and main | `store.events()` | each element is a full state |
 | HID to tap | `TapRules` | latest wins, applied between events |
 | HID to tap | `HoldScrollEvent` from a HID++ control | ordered, every event, because a lost end would leave the pointer frozen |
-| Tap to HID | `TapSignal` (re-enabled, invalidated, hyper chord) | ordered, rare |
+| Tap to HID | `TapSignal` (installed, install failed, removed, re-enabled, heard) | ordered, rare |
 | Tap to main | plain-button actions, into `engine.actions` | ordered |
 
 There is no lock and no shared mutable object. Config has one owner, `ConfigStore`. The engine and the UI each hold a copy of the latest value it published, and neither writes it back except through `ConfigStore.update`.
@@ -200,7 +215,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 - `KeyCode`, `HIDUsage`, `CID` and `SenderID` are distinct types (per type-system-discipline).
 - HID++ wire types stay internal to Core. The runtime sees report bytes in and out, nothing else.
 - Validation happens at five boundaries and nowhere else (per boundary-discipline). `ConfigCodec` for the file, the HID++ codec for device bytes, `KeyMapWriter` for `hidutil` output, `DeviceHub` for IOKit properties, and `TapHost` for CGEvents.
-- `TapPipeline.reset()` runs on tap timeout, on every keyboard removal and before new rules replace the pipeline, so a lost key-up cannot leave hyper held. It also returns a plain-button press the stage was holding back, which `TapHost` posts so that the button's real release pairs with it, and says whether a scroll ended.
+- `TapPipeline.reset()` runs on tap timeout, on every keyboard removal and before new rules replace the pipeline, so a lost key-up cannot leave hyper held. It also returns a plain-button press the stage was holding back, which `TapHost` posts so that the button's real release pairs with it, and says whether a scroll ended. The press a listen took stays taken through a reset and new rules, so its release is kept from apps too. A new press of the same button or key means that release was lost.
 - The pointer is frozen only while a hold scrolls, and for a plain button from its press. `TapHost` frees it on the release, on the scroll's end, on any pipeline reset, on tap timeout, on uninstall (pause, quit, a lost permission) and when no display can run frames. `Engine.shutdown` waits for the uninstall, so quitting mid-scroll frees it.
 - Every event Hyperpoint posts carries a marker in `eventSourceUserData`, and every stage passes marked events untouched. Hyperpoint's own ⇧⌘4, smooth-scroll, hold-scroll and replayed clicks are never rewritten.
 
@@ -331,6 +346,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 9. **Gesture distance.** 120 sensor counts is a guess. It is tuned by feel.
 10. **Carrier collisions.** A keyboard with physical F13 to F24 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
 11. **Smooth scrolling feel.** The default curve comes from the MX wheel's measured rates, and the glide's defaults are a starting point for tuning by feel. A free-spinning wheel may also send one step backwards as it stops. That step would end the glide and scroll back one step.
+12. **Listening through the tap.** Whether the 2.4G mouse's keys carry its keyboard service's sender id at the tap, and whether a diverted control held while a listen's restore write lands sends a native release, are unmeasured. The listening journey in the verify skill's settings window feature settles both.
 
 ## Next implementation step
 
