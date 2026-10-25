@@ -1,6 +1,6 @@
 # Hyperpoint
 
-Menu-bar app replacing BetterMouse + Karabiner-Elements for one MX Master 3, one 2.4G mouse and the built-in / Magic keyboards. Re-applies every setting on each device connect.
+Menu-bar app replacing BetterMouse + Karabiner-Elements. Any keyboard or mouse it sees can be set up with a profile, started from a preset or from another profile, and it re-applies every setting on each device connect. Presets live in `Sources/HyperpointKit/Model/Presets.swift`. Add a model preset only for a product id measured on a real device. The owner's own devices are listed below.
 
 Design doc (source of truth for scope, phases, risks): https://claude.ai/artifact/2Y5T5C7HWiWFDAEFZLWiKc
 

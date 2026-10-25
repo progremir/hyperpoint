@@ -16,7 +16,7 @@ Three things make the shape non-obvious.
 
 ### The config file
 
-`~/.config/hyperpoint/config.json` is the single source of truth. The settings window edits this file and nothing else. This is the default file, which reproduces today's BetterMouse and Karabiner setup.
+`~/.config/hyperpoint/config.json` is the single source of truth. The settings window edits this file and nothing else. A fresh install writes it with `devices` and `ignored` empty. This is the owner's file after setting up their four devices from presets, which reproduces their BetterMouse and Karabiner setup.
 
 ```json
 {
@@ -75,6 +75,7 @@ The rules for the file:
 - `"when": "holdMove"` with no direction is hold and move any way, and its only action is `"do": "scroll"`. A control with it may also have a click rule, but no hold-and-move swipes, because both would read the same movement.
 - An unknown key is an error with its path, so a typo cannot silently do nothing. An invalid file is rejected whole. The last good config keeps running, and the menu and settings window say what is wrong.
 - `ignored` lists devices the user chose to ignore. A device with no profile and not ignored shows as new in the settings window and is left untouched. The Devices tab adds a new device to `ignored` and removes it again.
+- A profile comes only from Set Up, which starts it from a preset, from a copy of another profile, or empty. The file never records which, so changing a preset later leaves every saved profile as it is.
 - Pause is runtime state, not config.
 
 ### Call site 1. The MX Master 3 connects
@@ -87,11 +88,12 @@ The rules for the file:
 
 A 0x1D4B notification with the reconfigure flag, a config save, a permission grant, wake, resume and "Re-apply Settings Now" all enter at step 3 through the same call, `slot.invalidate(reason)`.
 
-### Call site 2. The user adds a rule by pressing a button
+### Call site 2. The user sets up a new mouse
 
-1. The settings window calls `engine.learn(device)`. The device's intent gains a learning overlay. For HID++ devices it temporarily diverts every divertable control. For other devices the slot listens to the device's input values with `IOHIDDeviceRegisterInputValueCallback`, which needs no seize.
-2. The next press arrives as a `LearnedControl` (`.hidpp(0x56)`, `.key(.escape)` or `.button(4)`), and the engine publishes it in `EngineStatus`.
-3. The window appends a rule with that control to the profile and writes the file through `ConfigStore`. The reload removes the overlay and applies the new rule through the normal path.
+1. A connected device that no profile matches and `ignored` does not list goes into `EngineStatus.newDevices` with its match, name and kind. Hyperpoint writes nothing to it.
+2. The Devices, Buttons and Scrolling tabs show its Set Up control. `SetupChoices` decides what it offers: the presets `DevicePreset.offered(for:kind:)` returns (one made for this exact model first, then any for its kind), then an empty profile for a mouse, then copies of saved profiles of the same kind. The first is the button and the rest are its menu.
+3. The click sends `SettingsEdit.addDevice(match, name:, source)`, which `ConfigStore.update` applies to the file as it is on disk. It adds nothing when the device already has a profile or is ignored, when a model preset is for another device, or when the profile to copy is gone.
+4. The reload enters call site 1 at step 3. The MX preset has HID++ rules, so the slot opens its session and discovery runs. A profile without them never opens one, so an empty profile on a Logitech mouse offers only the thumb wheel until a rule needs the session.
 
 ### Call site 3. Caps Lock is held and R is pressed
 
@@ -116,6 +118,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | --- | --- |
 | `Config` | The parsed file. `ConfigCodec.decode` is the only way in. The unknown-key check walks the user's JSON against the encoded types, so no key list exists to drift. |
 | `DeviceProfile` | One device entry. `match`, `name`, `rules: [Rule]`, `gestures`, `scrolling`, `hyper`. |
+| `DevicePreset` | The closed list of starting profiles: one per measured model (the MX Master 3 and the 2.4G mouse) and one for any keyboard. `offered(for:kind:)` ranks them for a new device, its own model first. Set Up copies one into the file once. |
 | `DeviceMatch` | Vendor and product, or `builtIn`. One value classifies a `PresentDevice` and renders hidutil `--matching`. IOHIDManager ignores `Built-In` (measured), so Swift's `matches` is the authority and the manager is only a prefilter. |
 | `Rule` | `Control`, `Trigger`, `Action`. |
 | `Control` | `.hidpp(CID)`, `.thumbWheel`, `.key(HIDUsage)` for a key a mouse sends from a keyboard interface, `.button(Int)` for a plain mouse button in CGEvent numbering. |
@@ -147,7 +150,7 @@ One SwiftPM library with three folders and a thin app target, built into a signe
 
 | Path | Access | Holds |
 | --- | --- | --- |
-| `Sources/HyperpointKit/Model` | public | `Config` and its parts, `ConfigCodec`, `EngineStatus` |
+| `Sources/HyperpointKit/Model` | public | `Config` and its parts, `DevicePreset`, `ConfigCodec`, `EngineStatus` |
 | `Sources/HyperpointKit/Core` | internal, pure | `Intent`, `KeyRoute`, `Carrier`, HID++ codec, `HIDPPLink`, `GestureMachine`, `TapPipeline` and its stages, `ScrollAnimator`, `DeviceRoster`, `ApplyScheduler`, `RetryPolicy`, `Capabilities` |
 | `Sources/HyperpointKit/Runtime` | internal, except `Engine`, `ConfigStore`, `Permissions` | executors, `DeviceHub`, `Slot`, `HIDPPSession`, `KeyMapWriter`, `TapHost`, `ActionPerformer`, `Journal` |
 | `Sources/Hyperpoint` | app | `AppModel`, the menu, Welcome and settings views |
@@ -186,7 +189,7 @@ There is no lock and no shared mutable object. Config has one owner, `ConfigStor
 2. **The HID++ conversation is a value.** `HIDPPLink` takes bytes and time and returns bytes, events and a deadline. Discovery, writes, read-back, retries, notifications, button edges and gesture recognition are all transitions on it. Tests drive it against a firmware model seeded with the measured BetterMouse state, and they assert the model's end state, not the request order (per test-behavior-not-implementation).
 3. **Device identity is decided at the HID layer for keys.** `hidutil` maps keys per service, and the tap only sees carrier key codes. The tap never has to work out which keyboard sent a key. No device is seized.
 4. **Pointer events are attributed by sender id.** Per-device scrolling, click-through and plain-button rules need to know which mouse sent a scroll or click. The tap reads the sender id with `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, as LinearMouse does, and looks it up in `TapRules`. This is private API. The prototype measured it on this Mac. The sender id is the registry id of the device's HID event service (for the MX, `AppleUserHIDEventService`), not of its `IOHIDDevice`, so `DeviceHub` records the event service ids under each `PresentDevice`. Over BLE the event service is published after the IOHIDDevice matches (measured on an MX reconnect), so `DeviceHub` also watches for new `IOHIDEventService` entries. `DeviceRoster` gives each one to the device that owns one of its registry ancestors, and the engine recompiles `TapRules`.
-5. **Profiles are data, capabilities are discovered.** No device is a constant in code. The MX and 2.4G defaults are initial profile data in `Config.default`. A HID++ device's controls come from `getCidInfo`, so a different Logitech mouse works without code changes.
+5. **Profiles are data, presets start them, capabilities are discovered.** The file holds every setting of every device. A preset is code that writes a whole profile once, on Set Up, and nothing in the file refers back to it. So a fresh install starts with no devices, and a preset change never moves a saved device. A HID++ device's controls come from `getCidInfo`, so a different Logitech mouse works without code changes.
 
 ### Invariants and boundaries
 
@@ -242,7 +245,7 @@ The settings window's Scrolling tab draws `curve` as a graph on the same log-log
 
 ### Hold to scroll
 
-The user asked to generalize right-button pan into an action any button can have. So it is one action, `"do": "scroll"`, on the non-directional trigger `"when": "holdMove"`, and the right-button pan of the earlier design is that rule on button 1. The default gives it to the right button only, because holding the top button to scroll felt wrong in the user's live test. A file that still has `scrolling.rightButtonPan` decodes to the rule plus `holdToScroll` with its momentum, and the next save writes the new form.
+The user asked to generalize right-button pan into an action any button can have. So it is one action, `"do": "scroll"`, on the non-directional trigger `"when": "holdMove"`, and the right-button pan of the earlier design is that rule on button 1. The MX Master 3 preset gives it to the right button only, because holding the top button to scroll felt wrong in the user's live test. A file that still has `scrolling.rightButtonPan` decodes to the rule plus `holdToScroll` with its momentum, and the next save writes the new form.
 
 A press does nothing yet. A release before the movement passes the profile's `gestures.distance` is the click. That is the control's click rule, or for a plain button with none, the original click replayed. Movement past the distance starts scrolling. From then on each movement scrolls the page by movement × speed on both axes, and the pointer stays where it is. On release the page keeps the hand's speed and glides to a stop if `momentum` is on.
 
