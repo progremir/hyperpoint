@@ -1,0 +1,39 @@
+{
+  "brand": "Ratchet",
+  "tagline": "Your mouse, your keys, every time it reconnects",
+  "brief": "A menu-bar app for macOS that replaces BetterMouse and Karabiner for one person's setup: MX Master buttons over HID++, a hyper key on Caps Lock, smooth scrolling with a tuned curve, and every setting re-applied the moment a device reconnects. It should feel precise, quiet and a little cheeky, not like another blue system-utility gear.",
+  "adjectives": ["precise", "quiet", "cheeky", "tactile"],
+  "criteria": "Success: reads as a rat (the mouse pun) at a glance, survives as an 18 pt menu-bar template icon, works in one colour, and stays clear of Mickey-style round-ear mascots.",
+  "industry": "software",
+  "mockups": ["app-icon", "readme", "terminal", "website", "favicon-tab", "sticker"],
+  "nav": ["Features", "Devices", "Download"],
+  "brand_color": "#18181D",
+  "tile_color": "#18181D",
+  "greyscale": false,
+  "designer": "Claude for Emir",
+  "round": 4,
+  "concepts": [
+    {
+      "name": "Ratchet rat",
+      "symbol": "svg/ratchet-symbol-color.svg",
+      "lockup": "svg/ratchet-horizontal-color.svg",
+      "symbol_on_tile": "svg/ratchet-symbol-color-on-dark.svg",
+      "symbol_on_dark": "svg/ratchet-symbol-color-on-dark.svg",
+      "lockup_on_dark": "svg/ratchet-horizontal-color-on-dark.svg",
+      "stacked_on_dark": "svg/ratchet-stacked-color-on-dark.svg",
+      "idea": "Ratchet, rat, mouse: a rat's face built from one long wedge, two ears and two eyes.",
+      "rationale": [
+        "The pun does the explaining: a mouse utility named after a rat",
+        "Long snout and small ears keep it rat, not Mickey",
+        "Pink ears are the one colour accent; everything else is ink",
+        "Small cut with bigger eyes holds up in the 18 pt menu bar"
+      ]
+    }
+  ],
+  "recommendation": "Ratchet rat as the symbol, menu-bar icon and app icon, with the Inter Display wordmark.",
+  "next_steps": [
+    "Trademark and App Store name search for Ratchet",
+    "Drop AppIcon.icns and the menu-bar template into the app",
+    "Optional: custom-draw one letter of the wordmark for ownership"
+  ]
+}

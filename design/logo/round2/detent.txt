@@ -1,0 +1,1 @@
+Detent: a ball clicking into its notch; settings snap back into place on every connect.

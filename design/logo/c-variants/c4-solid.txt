@@ -1,0 +1,1 @@
+Solid cursor sitting on the Caps Lock bar: bolder, reads at menu-bar size.
