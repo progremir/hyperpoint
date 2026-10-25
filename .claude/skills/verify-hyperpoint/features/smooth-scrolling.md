@@ -25,6 +25,7 @@ Preconditions:
 - **Attribution.** Run `verify.sh record senders`, and ask the user to scroll the MX, then the trackpad. The MX's scrolls carry its event service id (see `verify.sh log`, `services=[0x…]`). The trackpad's carry a different id.
 - **Posted frames.** Run `verify.sh record posted`, and ask the user: five single steps 2 s apart, then a 5 s slow roll, then a 5 s medium roll. In the summary: `leaked-line-events=0`; frame gaps at the display period (8.33 ms built-in, 16.67 ms external) with no alternating 13/4 ms; glides starting near zero (`0 0 1 1 …`); zero runs of 2+ empty frames between moves.
 - **Input rates.** Run `verify.sh record wheel` with the same sequence plus one flick. The bursts give the user's real spin rates; compare them with the curve points.
+- **Settings without the app.** Record wheel input once, then run `verify.sh replay <record-wheel.txt> "duration=2 duration=3"`. It plays the steps through the real animator for the configured settings and each change, and prints stops, swing and lag. Swing is the median ratio of the fastest to the slowest frame between two notches. Lag is the median time to half a notch. Use it to compare settings before asking the user to feel one.
 - **Pass-through.** During `record posted`, ask for a two-finger trackpad scroll. Its events appear as continuous events that are not ours, with the user's own deltas.
 - **Feel.** Ask the user how single steps, slow rolls and flicks feel, and record their words. Feel is the user's verdict; the numbers only explain it.
 
