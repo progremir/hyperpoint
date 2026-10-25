@@ -55,4 +55,9 @@ import Testing
         #expect(Labels.recordedChord(keyCode: 21, flags: [.shift, .command, .capsLock]) == (try chord("shift+cmd+4")))
         #expect(Labels.recordedChord(keyCode: 105, flags: [.command]) == nil, "F13 has no name in the file")
     }
+
+    @Test func aCopyIsNamedAfterTheProfileItCopies() {
+        let renamed = SettingsEdit.rename(mx, "My MX").applied(to: .example)
+        #expect(Labels.setUpItem(.copy(of: mx), in: renamed) == "Same as My MX")
+    }
 }

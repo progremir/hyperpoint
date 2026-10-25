@@ -142,6 +142,30 @@ struct MousePopup: View {
     }
 }
 
+struct SetUpButton: View {
+    let model: SettingsModel
+    let device: SettingsDevice
+
+    var body: some View {
+        if let config = model.config {
+            let choices = SetupChoices(for: device, in: config)
+            Menu(Labels.setUp(choices.suggested)) {
+                ForEach(choices.others, id: \.self) { source in
+                    Button(Labels.setUpItem(source, in: config)) { setUp(source) }
+                        .help(Labels.setUpHelp(source, in: config))
+                }
+            } primaryAction: {
+                setUp(choices.suggested)
+            }
+            .menuIndicator(choices.others.isEmpty ? .hidden : .visible)
+            .help(Labels.setUpHelp(choices.suggested, in: config))
+            .fixedSize()
+        }
+    }
+
+    private func setUp(_ source: ProfileSource) { model.apply(.addDevice(device.match, name: device.name, source)) }
+}
+
 /// What the Buttons and Scrolling tabs show before any mouse has been seen.
 struct NoMouseRow: View {
     var body: some View {

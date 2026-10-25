@@ -2,11 +2,11 @@
 import Testing
 
 @Suite struct DeviceMatchTests {
-    @Test func defaultProfilesClassifyThisMacsKeyboards() {
+    @Test func theExampleProfilesClassifyThisMacsKeyboards() {
         let names = [
             Bags.builtInKeyboard, Bags.builtInKeyboardAsListed, Bags.magicKeyboard, Bags.mxMaster3,
             Bags.karabinerVirtualKeyboard,
-        ].map { Config.default.profile(for: HIDProperties(bag: $0))?.name }
+        ].map { Config.example.profile(for: HIDProperties(bag: $0))?.name }
         #expect(names == ["Built-in Keyboard", "Built-in Keyboard", "Magic Keyboard", "MX Master 3", nil])
     }
 
@@ -17,7 +17,7 @@ import Testing
     }
 
     @Test func ignoredDeviceHasNoProfile() {
-        var config = Config.default
+        var config = Config.example
         config.ignored = [.device(vendor: VendorID(rawValue: 0x4C), product: ProductID(rawValue: 0x321))]
         #expect(config.profile(for: HIDProperties(bag: Bags.magicKeyboard)) == nil)
     }
@@ -102,25 +102,25 @@ import Testing
     let hyperMap = KeyMapSetup(routes: [.hyper(from: capsLock)])
 
     @Test func hyperKeyboardsMapCapsLockToTheHyperCarrier() {
-        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac)
+        let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac)
         #expect(thisMac.map { intent.setup(for: $0.id).keyMap } == [hyperMap, hyperMap, .neutral, .neutral])
         #expect(intent.tap == TapRules(carriers: [Carrier.hyper.keyCode: .holdModifiers(.hyper)], smoothScroll: [:]))
     }
 
     @Test func pausedIsNeutralEverywhere() {
-        let intent = Intent.compile(.default, paused: true, tapAvailable: true, present: thisMac)
+        let intent = Intent.compile(.example, paused: true, tapAvailable: true, present: thisMac)
         #expect(thisMac.allSatisfy { intent.setup(for: $0.id) == .neutral })
         #expect(intent.tap.isEmpty)
     }
 
     @Test func withoutTheTapNoKeyBecomesACarrier() {
-        let intent = Intent.compile(.default, paused: false, tapAvailable: false, present: thisMac)
+        let intent = Intent.compile(.example, paused: false, tapAvailable: false, present: thisMac)
         #expect(thisMac.allSatisfy { intent.setup(for: $0.id).keyMap == .neutral })
         #expect(intent.tap.isEmpty)
     }
 
     @Test func hyperOffLeavesTheKeyboardNeutral() {
-        var config = Config.default
+        var config = Config.example
         config.devices[3].hyper = false
         config.devices[2].hyper = nil
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
@@ -129,7 +129,7 @@ import Testing
     }
 
     @Test func theMXIsNotAHyperKeyboard() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].hyper = true
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
         #expect(intent.setup(for: thisMac[2].id).keyMap == .neutral, "its keyboard collection does not make it one")
@@ -137,16 +137,16 @@ import Testing
     }
 
     @Test func theConfiguredKeyIsTheSource() {
-        var config = Config.default
+        var config = Config.example
         config.hyper.key = HIDUsage(name: "grave")!
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
         #expect(intent.setup(for: thisMac[1].id).keyMap.pairs == [.init(source: 0x7_0000_0035, destination: 0x7_0000_006D)])
     }
 
     @Test func carrierAssignmentDoesNotDependOnDeviceOrder() {
-        let forward = Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac)
-        let reversed = Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac.reversed())
-        let onlyMagic = Intent.compile(.default, paused: false, tapAvailable: true, present: [thisMac[1]])
+        let forward = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac)
+        let reversed = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac.reversed())
+        let onlyMagic = Intent.compile(.example, paused: false, tapAvailable: true, present: [thisMac[1]])
         #expect(forward == reversed)
         #expect(onlyMagic.setup(for: thisMac[1].id) == forward.setup(for: thisMac[1].id))
         #expect(onlyMagic.tap == forward.tap)
@@ -165,12 +165,12 @@ import Testing
     }
 
     @Test func theMXScrollsSmoothlyByItsEventService() {
-        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: present)
-        #expect(intent.tap.smoothScroll == [mxService: Config.default.devices[0].scrolling!.smooth!])
+        let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: present)
+        #expect(intent.tap.smoothScroll == [mxService: Config.example.devices[0].scrolling!.smooth!])
     }
 
     @Test func aProfileWithoutSmoothScrollingAddsNoSender() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].scrolling?.smooth = nil
         #expect(Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.smoothScroll.isEmpty)
         config.devices[0].scrolling = nil
@@ -179,15 +179,15 @@ import Testing
 
     @Test func aDeviceWhoseServiceIsNotPublishedYetHasNoSender() {
         let reconnected = HyperpointKitTests.present(5, Bags.mxMaster3)
-        #expect(Intent.compile(.default, paused: false, tapAvailable: true, present: [reconnected]).tap.smoothScroll.isEmpty)
+        #expect(Intent.compile(.example, paused: false, tapAvailable: true, present: [reconnected]).tap.smoothScroll.isEmpty)
     }
 
     @Test func pauseStopsSmoothScrolling() {
-        #expect(Intent.compile(.default, paused: true, tapAvailable: true, present: present).tap.isEmpty)
+        #expect(Intent.compile(.example, paused: true, tapAvailable: true, present: present).tap.isEmpty)
     }
 
     @Test func smoothScrollingAloneInstallsTheTap() {
-        var config = Config.default
+        var config = Config.example
         config.devices = [config.devices[0]]
         #expect(!Intent.compile(config, paused: false, tapAvailable: true, present: present).tap.isEmpty)
     }
@@ -197,7 +197,7 @@ import Testing
     let mx = discovered(thisMac[2])
     let shot = Action.shortcut(Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command]))
 
-    var defaultMX: HIDPPSetup {
+    var presetMX: HIDPPSetup {
         HIDPPSetup(
             controls: [
                 gestureButton: .gesture(
@@ -211,9 +211,9 @@ import Testing
             thumbWheelInverted: true)
     }
 
-    @Test func theDefaultConfigReproducesBetterMouse() {
-        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: [thisMac[0], thisMac[1], mx])
-        #expect(intent.setup(for: mx.id).hidpp == defaultMX)
+    @Test func theMXPresetReproducesBetterMouse() {
+        let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: [thisMac[0], thisMac[1], mx])
+        #expect(intent.setup(for: mx.id).hidpp == presetMX)
         #expect(intent.skipped.isEmpty)
         #expect(intent.setup(for: thisMac[0].id).hidpp == nil, "keyboards do not speak HID++")
         #expect(intent.setup(for: thisMac[1].id).hidpp == nil)
@@ -221,20 +221,20 @@ import Testing
 
     @Test func theFirmwareFlagsFollowTheBehavior() {
         let control = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: true)
-        #expect(defaultMX.behavior(of: gestureButton).reporting(for: control).writeFlags == 0x33)
-        #expect(defaultMX.behavior(of: topButton).reporting(for: control).writeFlags == 0x23)
-        #expect(defaultMX.behavior(of: CID(rawValue: 0x52)).reporting(for: control).writeFlags == 0x22, "no rule is native")
+        #expect(presetMX.behavior(of: gestureButton).reporting(for: control).writeFlags == 0x33)
+        #expect(presetMX.behavior(of: topButton).reporting(for: control).writeFlags == 0x23)
+        #expect(presetMX.behavior(of: CID(rawValue: 0x52)).reporting(for: control).writeFlags == 0x22, "no rule is native")
         let noRawXY = HIDPPCapabilities.Control(cid: gestureButton, divertable: true, rawXY: false)
-        #expect(defaultMX.behavior(of: gestureButton).reporting(for: noRawXY).writeFlags == 0x23)
+        #expect(presetMX.behavior(of: gestureButton).reporting(for: noRawXY).writeFlags == 0x23)
     }
 
     @Test func beforeDiscoveryTheRulesCompileUnfiltered() {
-        let intent = Intent.compile(.default, paused: false, tapAvailable: true, present: [thisMac[2]])
-        #expect(intent.setup(for: mx.id).hidpp == defaultMX)
+        let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: [thisMac[2]])
+        #expect(intent.setup(for: mx.id).hidpp == presetMX)
     }
 
     @Test func rulesOnControlsTheDeviceLacksAreSkipped() throws {
-        var config = Config.default
+        var config = Config.example
         let absent = Rule(control: .hidpp(CID(rawValue: 0x1A0)), trigger: .click, action: .system(.spaceLeft))
         let leftButton = Rule(control: .hidpp(CID(rawValue: 0x50)), trigger: .click, action: .system(.spaceRight))
         config.devices[0].rules = [absent, leftButton] + (config.devices[0].rules ?? [])
@@ -244,13 +244,13 @@ import Testing
 
         let wheel = try #require(config.devices[0].rules?.first { $0.control == .thumbWheel })
         #expect(intent.skipped[mx.id] == [absent, leftButton, wheel])
-        var expected = defaultMX
+        var expected = presetMX
         expected.thumbWheelInverted = false
         #expect(intent.setup(for: mx.id).hidpp == expected, "the rules the device can carry out still apply")
     }
 
     @Test func aClickWithoutHoldMoveIsAPress() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = config.devices[0].rules?.filter { $0.trigger == .click }
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
         #expect(
@@ -259,7 +259,7 @@ import Testing
     }
 
     @Test func gestureSettingsComeFromTheProfile() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].gestures = GestureSettings(fire: .onRelease, distance: 300)
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
         guard case .gesture(let plan) = intent.setup(for: mx.id).hidpp?.behavior(of: gestureButton),
@@ -272,14 +272,14 @@ import Testing
     }
 
     @Test func aProfileWithoutButtonRulesLeavesTheDeviceAlone() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = nil
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
         #expect(intent.setup(for: mx.id).hidpp == nil)
     }
 
     @Test func aScrollRuleDivertsWithRawMovementAndKeepsTheClick() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [
             Rule(control: .hidpp(topButton), trigger: .click, action: shot),
             Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll),
@@ -298,7 +298,7 @@ import Testing
     }
 
     @Test func theGlideAfterAScrollIsTheWheelsGlide() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll)]
         config.devices[0].scrolling?.smooth?.duration = 8
         config.devices[0].scrolling?.smooth?.brake = 3
@@ -311,7 +311,7 @@ import Testing
     }
 
     @Test func aScrollRuleOnAControlWithoutRawMovementIsSkipped() {
-        var config = Config.default
+        var config = Config.example
         let scroll = Rule(control: .hidpp(topButton), trigger: .holdMove(nil), action: .scroll)
         config.devices[0].rules = [scroll]
         let noRawXY = HIDPPCapabilities(
@@ -321,10 +321,10 @@ import Testing
     }
 
     @Test func pauseTurnsAnOpenedDeviceNative() {
-        let paused = Intent.compile(.default, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
+        let paused = Intent.compile(.example, paused: true, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
         #expect(HIDPPSetup.pendingWrite(desired: paused, opened: true) == .native)
         #expect(HIDPPSetup.pendingWrite(desired: paused, opened: false) == nil, "a device never opened stays untouched")
-        #expect(HIDPPSetup.pendingWrite(desired: defaultMX, opened: false) == defaultMX)
+        #expect(HIDPPSetup.pendingWrite(desired: presetMX, opened: false) == presetMX)
     }
 }
 
@@ -333,7 +333,7 @@ import Testing
     let otherService = SenderID(rawValue: 0x1_0003_7099)
     var mx: PresentDevice { present(3, Bags.mxMaster3, services: [mxService.rawValue, otherService.rawValue]) }
     var rightScroll: Config {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll)]
         return config
     }
@@ -349,8 +349,8 @@ import Testing
         ])
     }
 
-    @Test func theDefaultMXScrollsWithItsRightButton() {
-        let tap = Intent.compile(.default, paused: false, tapAvailable: true, present: [mx]).tap
+    @Test func theMXPresetScrollsWithItsRightButton() {
+        let tap = Intent.compile(.example, paused: false, tapAvailable: true, present: [mx]).tap
         guard case .gesture(let plan) = tap.buttons[ButtonKey(sender: mxService, button: 1)], case .scroll = plan.moves else {
             Issue.record("the right button scrolls")
             return
@@ -359,7 +359,7 @@ import Testing
     }
 
     @Test func aPlainButtonClickRuleIsAPress() {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft))]
         let tap = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).tap
         #expect(tap.buttons[ButtonKey(sender: mxService, button: 3)] == .press(.system(.spaceLeft)))

@@ -17,7 +17,7 @@ struct SettingsDevice: Identifiable, Equatable {
     /// Logitech devices are the ones that speak HID++.
     var speaksHIDPP: Bool {
         if status?.hidpp != nil { return true }
-        if case .device(let vendor, _) = match, vendor.rawValue == 0x046D { return true }
+        if case .device(.logitech, _) = match { return true }
         return profile?.rules?.contains { rule in
             switch rule.control {
             case .hidpp, .thumbWheel: true
@@ -43,7 +43,7 @@ struct SettingsDevice: Identifiable, Equatable {
     }
 
     /// A profile for a device that is not connected says what it is by what it sets.
-    private static func kind(of profile: DeviceProfile) -> DeviceKind {
+    static func kind(of profile: DeviceProfile) -> DeviceKind {
         profile.match == .builtIn || profile.hyper != nil ? .keyboard : .mouse
     }
 
@@ -64,10 +64,9 @@ struct SettingsDevice: Identifiable, Equatable {
                 "Connected"
             }
         guard profile != nil else {
-            let next = kind == .keyboard ? "you turn on the hyper key for it" : "you add a rule"
             return StatusCard(
                 title: title,
-                detail: "First seen at \(time(connectedAt)). Hyperpoint changes nothing on it until \(next).",
+                detail: "First seen at \(time(connectedAt)). Hyperpoint changes nothing on it until you set it up.",
                 connected: true)
         }
         var parts = ["Connected at \(time(connectedAt))."]

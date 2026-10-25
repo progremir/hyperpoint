@@ -4,10 +4,8 @@ import Testing
 
 @testable import Hyperpoint
 
-let mx = DeviceMatch.device(vendor: VendorID(rawValue: 0x046D), product: ProductID(rawValue: 0xB023))
-let mouse24G = DeviceMatch.device(vendor: VendorID(rawValue: 0x1EA7), product: ProductID(rawValue: 0x0002))
-let magicKeyboard = DeviceMatch.device(vendor: VendorID(rawValue: 0x004C), product: ProductID(rawValue: 0x0321))
 let karabiner = DeviceMatch.device(vendor: VendorID(rawValue: 0x05AC), product: ProductID(rawValue: 0x024F))
+let usbMouse = DeviceMatch.device(vendor: VendorID(rawValue: 0x1234), product: ProductID(rawValue: 0x1))
 let gestureButton = Control.hidpp(CID(rawValue: 0xC3))
 let topButton = Control.hidpp(CID(rawValue: 0xC4))
 
@@ -16,17 +14,73 @@ func profile(_ config: Config, _ match: DeviceMatch) -> DeviceProfile? { config.
 func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.encode(config))) == config }
 
 @Suite struct SettingsEditTests {
-    let base = Config.default
+    let base = Config.example
 
-    @Test func hyperOnTurnsAProfileOffAndCreatesOneForANewKeyboard() {
-        let off = SettingsEdit.hyperOn(magicKeyboard, name: "Magic Keyboard", false).applied(to: base)
+    @Test func addDeviceAppendsAProfileFromAPreset() {
+        let forgotten = SettingsEdit.forget(mx).applied(to: base)
+        let added = SettingsEdit.addDevice(mx, name: " MX Master 3  ", .preset(.mxMaster3)).applied(to: forgotten)
+        #expect(added.devices == forgotten.devices + [profile(base, mx)!], "the name is trimmed")
+
+        let keyboard = SettingsEdit.addDevice(karabiner, name: "Virtual Keyboard", .preset(.keyboard)).applied(to: base)
+        #expect(keyboard.devices == base.devices + [DeviceProfile(match: karabiner, name: "Virtual Keyboard", hyper: true)])
+    }
+
+    @Test func addDeviceCopiesAnotherProfileAsItIsInTheFile() {
+        let edited = SettingsEdit.smooth(mx, nil).applied(to: base)
+        let copied = SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).applied(to: edited)
+        let source = profile(edited, mx)!
+        #expect(
+            copied.devices
+                == edited.devices + [
+                    DeviceProfile(
+                        match: usbMouse, name: "USB Mouse", rules: source.rules, gestures: source.gestures,
+                        scrolling: source.scrolling, hyper: source.hyper)
+                ])
+        #expect(profile(copied, usbMouse)?.scrolling?.smooth == nil, "the copy has the edit made before it")
+    }
+
+    @Test func addDeviceCanStartBlank() {
+        let added = SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .blank).applied(to: base)
+        #expect(added.devices == base.devices + [DeviceProfile(match: usbMouse, name: "USB Mouse")])
+    }
+
+    static let refusedAdds: [SettingsEdit] = [
+        .addDevice(mx, name: "Another MX", .blank),
+        .addDevice(mouse24G, name: "2.4G Mouse", .preset(.mouse24G)),
+        .addDevice(usbMouse, name: "  ", .blank),
+        .addDevice(usbMouse, name: "USB Mouse", .preset(.mxMaster3)),
+        .addDevice(usbMouse, name: "USB Mouse", .preset(.mouse24G)),
+        .addDevice(usbMouse, name: "USB Mouse", .copy(of: karabiner)),
+        .addDevice(usbMouse, name: "USB Mouse", .copy(of: usbMouse)),
+    ]
+
+    @Test(arguments: refusedAdds)
+    func addDeviceChangesNothingWhenItCannotApply(_ edit: SettingsEdit) {
+        #expect(edit.applied(to: base) == base)
+    }
+
+    @Test func addDeviceRefusesAnIgnoredDevice() {
+        let ignored = SettingsEdit.ignore(usbMouse, true).applied(to: base)
+        #expect(SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .blank).applied(to: ignored) == ignored)
+    }
+
+    @Test func addingADeviceTwiceAddsItOnce() {
+        let once = SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).applied(to: base)
+        #expect(SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).applied(to: once) == once)
+        #expect(SettingsEdit.addDevice(usbMouse, name: "Other", .blank).applied(to: once) == once)
+    }
+
+    @Test func hyperOnTurnsAProfileOffAndOn() {
+        let off = SettingsEdit.hyperOn(magicKeyboard, false).applied(to: base)
         #expect(profile(off, magicKeyboard)?.hyper == false)
         #expect(off.devices.count == base.devices.count)
+        #expect(SettingsEdit.hyperOn(magicKeyboard, true).applied(to: off) == base)
+    }
 
-        let added = SettingsEdit.hyperOn(karabiner, name: "Virtual Keyboard", true).applied(to: base)
-        #expect(added.devices.last == DeviceProfile(match: karabiner, name: "Virtual Keyboard", hyper: true))
-
-        #expect(SettingsEdit.hyperOn(karabiner, name: "Virtual Keyboard", false).applied(to: base) == base)
+    @Test func hyperOnAndAddRuleChangeNothingWithoutAProfile() {
+        let rule = Rule(control: .button(1), trigger: .click, action: .system(.missionControl))
+        #expect(SettingsEdit.hyperOn(karabiner, true).applied(to: base) == base)
+        #expect(SettingsEdit.addRule(usbMouse, rule).applied(to: base) == base)
     }
 
     @Test func renameTrimsAndIgnoresAnEmptyName() {
@@ -34,15 +88,10 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(SettingsEdit.rename(mx, "  ").applied(to: base) == base)
     }
 
-    @Test func addRuleAppendsOrCreatesTheProfile() {
+    @Test func addRuleAppendsToTheProfile() {
         let rule = Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.missionControl))
-        let added = SettingsEdit.addRule(mx, name: "MX Master 3", rule).applied(to: base)
-        #expect(profile(added, mx)?.rules?.last == rule)
-        #expect(profile(added, mx)?.rules?.count == (profile(base, mx)?.rules?.count ?? 0) + 1)
-
-        let newMouse = DeviceMatch.device(vendor: VendorID(rawValue: 0x1234), product: ProductID(rawValue: 0x1))
-        let created = SettingsEdit.addRule(newMouse, name: "USB Mouse", rule).applied(to: base)
-        #expect(created.devices.last == DeviceProfile(match: newMouse, name: "USB Mouse", rules: [rule]))
+        let added = SettingsEdit.addRule(mx, rule).applied(to: base)
+        #expect(profile(added, mx)?.rules == (profile(base, mx)?.rules ?? []) + [rule])
     }
 
     @Test func replaceAndRemoveFindTheRuleByControlAndTrigger() {
@@ -90,11 +139,13 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
 
     static let everyEdit: [SettingsEdit] = [
         .hyperKey(HIDUsage(name: "f5")!),
-        .hyperOn(magicKeyboard, name: "Magic Keyboard", false),
-        .hyperOn(karabiner, name: "Virtual Keyboard", true),
+        .addDevice(karabiner, name: "Virtual Keyboard", .preset(.keyboard)),
+        .addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)),
+        .addDevice(usbMouse, name: "USB Mouse", .blank),
+        .hyperOn(magicKeyboard, false),
         .rename(mx, "My MX"),
-        .addRule(mx, name: "MX Master 3", Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.appExpose))),
-        .addRule(karabiner, name: "Virtual Keyboard", Rule(control: .key(HIDUsage(name: "f1")!), trigger: .hold, action: .modifier(.leftCommand))),
+        .addRule(mx, Rule(control: gestureButton, trigger: .holdMove(.up), action: .system(.appExpose))),
+        .addRule(mouse24G, Rule(control: .key(HIDUsage(name: "f1")!), trigger: .hold, action: .modifier(.leftCommand))),
         .replaceRule(
             mx, RuleKey(Rule(control: topButton, trigger: .click, action: .system(.appExpose))),
             Rule(
@@ -117,6 +168,17 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         let edited = edit.applied(to: base)
         #expect(edited != base)
         #expect(try ConfigCodec.decode(ConfigCodec.encode(edited)) == edited)
+    }
+
+    @Test(arguments: everyEdit)
+    func onlyAddDeviceAddsAProfileAndOnlyForgetRemovesOne(_ edit: SettingsEdit) {
+        let before = Set(base.devices.map(\.match))
+        let after = Set(edit.applied(to: base).devices.map(\.match))
+        switch edit {
+        case .addDevice(let match, _, _): #expect(after == before.union([match]))
+        case .forget(let match): #expect(after == before.subtracting([match]))
+        default: #expect(after == before)
+        }
     }
 
     @Test func holdToScrollEditsCreateTheScrollingSection() {
@@ -147,6 +209,15 @@ func saves(_ config: Config) -> Bool { (try? ConfigCodec.decode(ConfigCodec.enco
         #expect(
             SettingsEdit.smoothKnob(mx, .brake, 2.5).logDescription
                 == #"devices[{"product":"0xB023","vendor":"0x046D"}].scrolling.smooth.brake = 2.5"#)
+        #expect(
+            SettingsEdit.addDevice(mx, name: "MX Master 3", .preset(.mxMaster3)).logDescription
+                == #"devices += {"product":"0xB023","vendor":"0x046D"} from preset mxMaster3"#)
+        #expect(
+            SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .copy(of: mx)).logDescription
+                == #"devices += {"product":"0x0001","vendor":"0x1234"} from copy of {"product":"0xB023","vendor":"0x046D"}"#)
+        #expect(
+            SettingsEdit.addDevice(usbMouse, name: "USB Mouse", .blank).logDescription
+                == #"devices += {"product":"0x0001","vendor":"0x1234"} blank"#)
     }
 }
 

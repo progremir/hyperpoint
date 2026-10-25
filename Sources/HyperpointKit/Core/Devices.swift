@@ -25,8 +25,6 @@ struct HIDProperties: Equatable, Sendable {
         "DeviceUsagePairs",
     ]
 
-    static let logitech = VendorID(rawValue: 0x046D)
-
     /// The built-in keyboard has no VendorID or ProductID at all (measured).
     init(bag: [String: Any]) {
         func number(_ key: String) -> Int { (bag[key] as? Int) ?? 0 }
@@ -44,7 +42,7 @@ struct HIDProperties: Equatable, Sendable {
         usagePairs = pairs.isEmpty ? [UsagePair(page: primaryUsagePage, usage: primaryUsage)] : pairs
     }
 
-    var speaksHIDPP: Bool { vendor == Self.logitech && usagePairs.contains { $0.page == UsagePair.hidppPage } }
+    var speaksHIDPP: Bool { vendor == .logitech && usagePairs.contains { $0.page == UsagePair.hidppPage } }
 
     /// A keyboard that is not also an external mouse. The built-in keyboard shares its device with the trackpad, so
     /// built-in devices always count.

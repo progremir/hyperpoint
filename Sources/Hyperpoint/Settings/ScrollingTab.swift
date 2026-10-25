@@ -36,8 +36,9 @@ private struct ScrollingSettings: View {
             .labelsHidden()
             .disabled(device.profile == nil)
             Explanation("The wheel glides like a trackpad instead of jumping a few lines per step.")
-            if device.profile == nil {
-                Explanation("Add a rule on the Buttons tab first, which gives this mouse a profile.")
+            if device.isNew {
+                SetUpButton(model: model, device: device)
+                Explanation("Set this mouse up first.")
             }
         }
         .disabled(!model.editable)

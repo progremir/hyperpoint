@@ -86,7 +86,10 @@ private struct Rules: View {
                 Spacer()
                 Text(rules.count == 1 ? "1 rule" : "\(rules.count) rules").foregroundStyle(.secondary)
             }
-            if rules.isEmpty {
+            if device.isNew {
+                SetUpButton(model: model, device: device)
+                Explanation("Set this mouse up to give it rules.")
+            } else if rules.isEmpty {
                 Text("No rules yet, so every button works as usual.").foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 10) {
@@ -112,12 +115,14 @@ private struct Rules: View {
                     }
                 }
             }
-            Button {
-                if let rule = choices.newRule { model.apply(.addRule(device.match, name: device.name, rule)) }
-            } label: {
-                Label("Add Rule", systemImage: "plus")
+            if !device.isNew {
+                Button {
+                    if let rule = choices.newRule { model.apply(.addRule(device.match, rule)) }
+                } label: {
+                    Label("Add Rule", systemImage: "plus")
+                }
+                .disabled(choices.newRule == nil)
             }
-            .disabled(choices.newRule == nil)
             Explanation(footer)
         }
         .disabled(!model.editable)

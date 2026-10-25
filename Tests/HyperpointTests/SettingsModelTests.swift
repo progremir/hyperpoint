@@ -11,7 +11,7 @@ import Testing
     let defaults = UserDefaults(suiteName: suite)!
     let store = ConfigStore(url: FileManager.default.temporaryDirectory.appending(path: "hyperpoint-\(UUID().uuidString)/config.json"))
 
-    func model(_ config: Config = .default, newDevices: [DeviceStatus] = []) -> SettingsModel {
+    func model(_ config: Config = .example, newDevices: [DeviceStatus] = []) -> SettingsModel {
         let model = SettingsModel(store: store, engine: Engine(), defaults: defaults)
         model.show(ConfigSnapshot(config: config, error: nil))
         model.show(
@@ -40,21 +40,21 @@ import Testing
         #expect(model.selectedMouse?.match == mx, "the first mouse until one is picked")
         model.mouse = mouse24G
         #expect(model.selectedMouse?.match == mouse24G)
-        model.show(ConfigSnapshot(config: SettingsEdit.forget(mouse24G).applied(to: .default), error: nil))
+        model.show(ConfigSnapshot(config: SettingsEdit.forget(mouse24G).applied(to: .example), error: nil))
         #expect(model.selectedMouse?.match == mx, "a forgotten mouse that is not connected falls back to the first")
     }
 
     @Test func anIgnoredDeviceLeavesThePickersButStaysListedAsIgnored() {
         let model = model(newDevices: [usbMouse])
         #expect(model.mice.last?.isNew == true)
-        model.show(ConfigSnapshot(config: SettingsEdit.ignore(usbMouse.match, true).applied(to: .default), error: nil))
+        model.show(ConfigSnapshot(config: SettingsEdit.ignore(usbMouse.match, true).applied(to: .example), error: nil))
         #expect(!model.devices.contains { $0.match == usbMouse.match })
         #expect(!model.mice.contains { $0.match == usbMouse.match })
         #expect(model.ignoredDevices == [IgnoredDevice(match: usbMouse.match, name: "USB Optical Mouse")])
     }
 
     @Test func anIgnoredDeviceNeverSeenIsNamedByItsIds() {
-        var config = Config.default
+        var config = Config.example
         config.ignored = [karabiner]
         #expect(model(config).ignoredDevices.map(\.name) == ["Vendor 0x05AC, product 0x024F"])
     }

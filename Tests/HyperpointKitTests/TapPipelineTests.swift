@@ -16,7 +16,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
 @Suite struct TapPipelineTests {
     var pipeline = TapPipeline(
-        rules: Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap, origin: { _ in nil })
+        rules: Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap, origin: { _ in nil })
 
     @Test mutating func hyperHeldIsAModifierChangeAndKeysCarryIt() {
         let down = key(f18, down: true)
@@ -117,7 +117,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
     @Test mutating func newRulesForgetHeldHyper() {
         _ = pipeline.process(.keyDown, key(f18, down: true))
-        pipeline.replaceRulesAndForgetHeldKeys(Intent.compile(.default, paused: false, tapAvailable: true, present: thisMac).tap)
+        pipeline.replaceRulesAndForgetHeldKeys(Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap)
         let rDown = key(r, down: true)
         _ = pipeline.process(.keyDown, rDown)
         #expect(rDown.flags.isDisjoint(with: hyperFlags))
@@ -140,7 +140,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
 
 private let mxSender = SenderID(rawValue: 0x1_0003_7032)
 private let trackpadSender = SenderID(rawValue: 0x1_0000_0D10)
-private let smooth = Config.default.devices[0].scrolling!.smooth!
+private let smooth = Config.example.devices[0].scrolling!.smooth!
 
 private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) -> CGEvent {
     let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2, wheel1: lines, wheel2: horizontal, wheel3: 0)!
@@ -150,7 +150,7 @@ private func wheel(_ lines: Int32, horizontal: Int32 = 0, marked: Bool = false) 
 
 @Suite struct ScrollStageTests {
     let rules = Intent.compile(
-        .default, paused: false, tapAvailable: true,
+        .example, paused: false, tapAvailable: true,
         present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue])]
     ).tap
 
@@ -242,7 +242,7 @@ private func isMarked(_ event: CGEvent) -> Bool {
 @Suite struct ButtonStageTests {
     let rightScroll = HoldScrollPlan(.default, glide: .default, pointsPerUnit: 1)
     var rules: TapRules {
-        var config = Config.default
+        var config = Config.example
         config.devices[0].rules = [
             Rule(control: .button(1), trigger: .holdMove(nil), action: .scroll),
             Rule(control: .button(3), trigger: .click, action: .system(.spaceLeft)),

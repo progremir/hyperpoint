@@ -7,10 +7,10 @@
 
 <p align="center">A macOS menu-bar app for your mouse and keys, re-applied every time a device reconnects.</p>
 
-Hyperpoint replaces BetterMouse and Karabiner-Elements for one setup: an MX Master 3, a 2.4G mouse, and the built-in
-and Magic keyboards. Devices forget their settings often (HID++ diverts are lost on sleep and reconnect, a key mapping
-dies with its HID service), so Hyperpoint computes the state each device should be in from one config file and writes
-all of it back whenever a device appears.
+Hyperpoint replaces BetterMouse and Karabiner-Elements. Each keyboard and mouse you set up gets a profile in one config
+file, started from a preset for that device or from another device's profile. Devices forget their settings often (HID++
+diverts are lost on sleep and reconnect, a key mapping dies with its HID service), so Hyperpoint computes the state each
+device should be in from that file and writes all of it back whenever a device appears.
 
 ## Features
 
@@ -18,8 +18,8 @@ all of it back whenever a device appears.
 - **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission
   Control, App Exposé, Space switching or any shortcut. The thumb wheel can be reversed.
 - **Smooth scrolling.** Each wheel step glides as an eased pulse sized by a speed curve you edit as a graph.
-- **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX right button does it by
-  default, and any button can be given the rule.
+- **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset gives it to the
+  right button, and any button can be given the rule.
 - **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
   modifiers or shortcuts.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
@@ -48,9 +48,31 @@ Accessibility and Input Monitoring grants to the signature, and an ad-hoc one wo
 On first launch, grant Hyperpoint **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
 Until then the menu shows *Needs attention* and nothing is applied.
 
+## Set up your devices
+
+A fresh install has no devices in its config and changes nothing, Caps Lock included. Open Settings, and the
+**Devices** tab lists every connected keyboard and mouse as new. Click **Set Up** to give a device a profile, or
+**Ignore** to leave it as macOS has it and stop listing it.
+
+The button applies the best choice for that device, and its menu holds the others:
+
+| Choice | Offered for | What it sets |
+|---|---|---|
+| MX Master 3 preset | The MX Master 3 (`0x046D:0xB023`) | The gesture button opens Mission Control, App Exposé and the Spaces left and right. The top button sends ⇧⌘4. The thumb wheel is reversed, the wheel scrolls smoothly, and holding the right button scrolls. |
+| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Escape becomes Right Option while held, and Return sends ⌥⇧S. |
+| Hyper key | Any keyboard | The hyper key. |
+| Nothing yet | Any mouse | No rules. Add them on the **Buttons** tab. |
+| Same as *a profile* | A device of the same kind as that profile | A copy of that profile's rules, gestures, scrolling and hyper key. |
+
+A preset only starts the profile. After Set Up the config file holds every setting, and a later change to a preset does
+not touch a saved profile. To start a device again from a preset, click **Forget…** and set it up again.
+
+Hyperpoint sees keyboards, Logitech HID++ devices, and mice that also send keys. A plain mouse with only a pointer
+interface does not show up yet.
+
 ## Configuration
 
-Everything lives in `~/.config/hyperpoint/config.json`, created from the defaults on first launch. The settings window
+Everything lives in `~/.config/hyperpoint/config.json`, created with no devices on first launch. The settings window
 edits this file and nothing else. An invalid file is rejected whole with the path of the error, and the last good config
 keeps running. The format and the reasoning behind it are in [docs/architecture.md](docs/architecture.md).
 

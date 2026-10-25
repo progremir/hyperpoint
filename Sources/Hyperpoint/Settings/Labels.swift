@@ -34,6 +34,46 @@ enum Labels {
         return "0x" + String(repeating: "0", count: max(0, 4 - digits.count)) + digits
     }
 
+    static func setUp(_ source: ProfileSource) -> String {
+        switch source {
+        case .preset(let preset): Self.preset(preset).button
+        case .copy, .blank: "Set Up"
+        }
+    }
+
+    static func setUpItem(_ source: ProfileSource, in config: Config) -> String {
+        switch source {
+        case .preset(let preset): Self.preset(preset).item
+        case .copy(let other): "Same as \(name(other, in: config))"
+        case .blank: "Nothing yet"
+        }
+    }
+
+    static func setUpHelp(_ source: ProfileSource, in config: Config) -> String {
+        switch source {
+        case .preset(let preset): Self.preset(preset).help
+        case .copy(let other): "Starts with the same settings as \(name(other, in: config))."
+        case .blank: "Adds the mouse with no rules, so you can add them on the Buttons tab."
+        }
+    }
+
+    private static func preset(_ preset: DevicePreset) -> (button: String, item: String, help: String) {
+        switch preset {
+        case .mxMaster3:
+            (
+                "Set Up as MX Master 3", "MX Master 3 preset",
+                "Gesture and top buttons, reversed thumb wheel, smooth scrolling, and hold the right button to scroll."
+            )
+        case .mouse24G:
+            ("Set Up as 2.4G Mouse", "2.4G mouse preset", "Escape becomes Right Option while held, and Return sends ⌥⇧S.")
+        case .keyboard: ("Set Up with Hyper Key", "Hyper key", "Turns on the hyper key for this keyboard.")
+        }
+    }
+
+    private static func name(_ match: DeviceMatch, in config: Config) -> String {
+        config.devices.first { $0.match == match }?.name ?? Self.match(match)
+    }
+
     static func trigger(_ trigger: Trigger) -> String {
         switch trigger {
         case .click: "Click"

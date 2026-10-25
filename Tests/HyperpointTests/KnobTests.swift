@@ -32,7 +32,7 @@ import Testing
     func everySliderPositionSaves(_ knob: SmoothKnob) {
         for position in stride(from: 0.0, through: 1.0, by: 0.05) {
             let value = knob.scale.value(at: position)
-            let edited = SettingsEdit.smoothKnob(mx, knob, value).applied(to: .default)
+            let edited = SettingsEdit.smoothKnob(mx, knob, value).applied(to: .example)
             #expect(saves(edited), "\(knob) at \(position) is \(value)")
             #expect(profile(edited, mx)?.scrolling?.smooth.map(knob.value) == value)
         }
@@ -58,7 +58,7 @@ import Testing
     @Test func gestureDistanceSaves() {
         let scale = GestureKnob.scale
         for position in [0.0, 0.5, 1.0] {
-            let edited = SettingsEdit.gestureDistance(mx, Int(scale.value(at: position))).applied(to: .default)
+            let edited = SettingsEdit.gestureDistance(mx, Int(scale.value(at: position))).applied(to: .example)
             #expect(saves(edited))
         }
     }
