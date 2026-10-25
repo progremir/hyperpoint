@@ -187,29 +187,54 @@ struct ConnectionDot: View {
     }
 }
 
-/// A name field that saves on Return or when it loses focus, not on every keystroke.
+/// A name that reads as plain text and edits in place. A click puts the caret in it, as in any text field, so no
+/// focus has to be handed over. Return or clicking away saves, and Escape puts the name back.
 struct NameField: View {
     let name: String
     let save: (String) -> Void
+    /// Kept after a save until the file brings the new name back, so the old one does not flash in between.
     @State private var draft: String?
+    @State private var hovering = false
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        TextField("Name", text: Binding(get: { draft ?? name }, set: { draft = $0 }))
-            .labelsHidden()
-            .focused($focused)
-            .onSubmit(commit)
-            .onChange(of: focused) { if !focused { commit() } }
-            .onChange(of: name) { draft = nil }
-            .accessibilityLabel("Name in Hyperpoint")
+        HStack(spacing: 4) {
+            TextField("Name", text: Binding(get: { draft ?? name }, set: { draft = $0 }))
+                .textFieldStyle(.plain)
+                .labelsHidden()
+                .focused($focused)
+                .onSubmit(commit)
+                .onExitCommand {
+                    draft = nil
+                    focused = false
+                }
+                .onChange(of: focused) { if !focused { commit() } }
+                .onChange(of: name) { draft = nil }
+                .accessibilityLabel("Name in Hyperpoint")
+            Image(systemName: "pencil")
+                .foregroundStyle(.secondary)
+                .opacity(hovering && !focused && isEnabled ? 1 : 0)
+                .accessibilityHidden(true)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .strokeBorder(Color.accentColor, lineWidth: 2)
+                .padding(-4)
+                .opacity(focused ? 1 : 0)
+        }
+        .onHover { hovering = $0 }
+        .help("Click to rename")
     }
 
     private func commit() {
-        guard let draft, draft != name else { return }
-        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        guard let draft else { return }
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == name {
             self.draft = nil
         } else {
-            save(draft)
+            save(trimmed)
         }
     }
 }
