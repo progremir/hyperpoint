@@ -55,11 +55,11 @@ def main():
 
     heading = ""
     widest = 0.0
-    for i, line in enumerate(["Your mouse setup,", "still there after", "every reconnect"]):
+    for i, line in enumerate(["Replace", "Logi Options+.", "Hyper key included."]):
         d, width = bold.path(line, 80, 268 + i * 80, 72, tracking=-0.03)
         heading += d
         widest = max(widest, width)
-    sub, _ = regular.path("Mouse buttons, smooth scrolling and a hyper key for macOS", 80, 548, 28)
+    sub, _ = regular.path("Mouse buttons, gestures, smooth scrolling and a hyper key for macOS", 80, 548, 28)
 
     lockup = inner((LOGO / "hyperpoint-horizontal-color-on-dark.svg").read_text())
     icon = inner((LOGO / "hyperpoint-app-icon.svg").read_text())

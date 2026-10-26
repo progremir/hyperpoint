@@ -5,32 +5,31 @@
   </picture>
 </p>
 
-<p align="center">Your mouse buttons, scroll wheel and Caps Lock, working the way you want and staying that way.</p>
+<p align="center">Replace Logi Options+. Hyper key included.</p>
 
-Hyperpoint is a macOS menu-bar app that does the job of BetterMouse and Karabiner-Elements in one place. Give your
-mouse's buttons and gestures new actions, make the scroll wheel glide like a trackpad, and turn Caps Lock into a hyper
-key for app shortcuts.
-
-Setting it up takes a click and a press. A mouse or keyboard you plug in shows up in Settings, where you set it up from
-a preset for its model, from another device's settings, or empty. Then click Add Rule and press the button you want to
-change. Your setup survives sleep and reconnects, even on mice that forget their settings, like the MX Master 3.
+Hyperpoint is a small macOS menu-bar app that remaps mouse buttons, gestures and the scroll wheel, and turns Caps Lock
+into a hyper key. It's one app instead of a mouse app plus a keyboard remapper, so nothing fights over your keys, and
+it puts your setup back every time a device wakes or reconnects.
 
 ## Features
 
-- **Rules by pressing.** Click Add Rule and press a button, a key or the thumb wheel on the mouse, and the rule is made
-  for that control. Click a rule's button to change it the same way.
-- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard. One switch, on the Hyper Key tab or in the menu
-  bar, turns it off on every keyboard and back on again.
-- **MX Master buttons and gestures.** The gesture and top buttons are diverted over HID++ and mapped to Mission
-  Control, App Exposé, Space switching or any shortcut. The thumb wheel can be reversed.
+- **A profile per device.** Each mouse and keyboard keeps its own rules and scrolling. Start one from a preset for its
+  model, from another device's profile, or empty.
+- **Rules by pressing.** Click Add Rule and press a button, a key or a thumb wheel, and the rule is made for that
+  control. Click a rule's button to change it the same way.
+- **Hyper key.** Caps Lock becomes ⌘⌃⌥⇧ while held, per keyboard, so it can be hyper on your desk keyboard and stay
+  Caps Lock on your laptop. One switch, on the Hyper Key tab or in the menu bar, turns it off on every keyboard and
+  back on again.
+- **Logitech buttons and gestures.** Buttons macOS never sees, like a gesture button, are taken over HID++. Click one,
+  or hold it and move, to open Mission Control or App Exposé, switch Spaces or send any shortcut. A thumb wheel can be
+  reversed.
 - **Smooth scrolling.** Each wheel step glides as an eased pulse sized by a speed curve you edit as a graph.
-- **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset gives it to the
-  right button, and any button can be given the rule.
+- **Hold to scroll.** Hold any button and move the mouse to scroll, with momentum.
 - **Hold a button, hold keys.** Any mouse button can hold a modifier or a shortcut down for as long as you hold it.
   Hold Back as ⌘ and click to ⌘-click, or hold a button as Right Option for push-to-talk dictation. Pick **Hold** under
   **When** on the Buttons tab. **Keyboard Shortcut…** records a combination, or one modifier pressed alone.
-- **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
-  modifiers or shortcuts. A modifier is mapped at the HID layer, so it holds in password fields too.
+- **Mice that send keys.** Some mice send keystrokes from their extra buttons. Those keys can become modifiers or
+  shortcuts for that mouse alone. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
   to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
 
@@ -58,31 +57,23 @@ Accessibility and Input Monitoring grants to the signature, and an ad-hoc one wo
 On first launch, grant Hyperpoint **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
 Until then the menu shows *Needs attention* and nothing is applied.
 
-## Set up your devices
+## Set up a device
 
-A fresh install has no devices in its config and changes nothing, Caps Lock included. Open Settings, and the
-**Devices** tab lists every connected keyboard and mouse as new. Click **Set Up** to give a device a profile, or
-**Ignore** to leave it as macOS has it and stop listing it.
+A fresh install changes nothing, Caps Lock included. Open Settings, and the **Devices** tab lists every connected
+mouse and keyboard. **Set Up** gives a device a profile, and its menu offers a preset for that model when there is one,
+a copy of another device's profile, or an empty one. **Ignore** leaves the device as macOS has it. Trackpads are never
+listed or changed.
 
-The button applies the best choice for that device, and its menu holds the others:
+A preset only fills in the first version of a profile. After that the profile is yours, and a newer preset never
+changes it. To start over from a preset, click **Forget…** and set the device up again. If Hyperpoint takes a mouse
+for a keyboard, as it can when the mouse's buttons send keys, switch it with the menu next to the profile's name.
 
-| Choice | Offered for | What it sets |
-|---|---|---|
-| MX Master 3 preset | The MX Master 3 (`0x046D:0xB023`) | The gesture button opens Mission Control, App Exposé and the Spaces left and right. The top button sends ⇧⌘4. The thumb wheel is reversed, the wheel scrolls smoothly, and holding the right button scrolls. |
-| 2.4G mouse preset | The 2.4G mouse (`0x1EA7:0x0002`) | Lists it with the mice. Escape becomes Right Option while held, and Return sends ⌥⇧S. |
-| Hyper key | Any keyboard | The hyper key. |
-| Nothing yet | Any mouse | No rules. Add them on the **Buttons** tab. |
-| Same as *a profile* | A device of the same kind as that profile | A copy of that profile's rules, gestures, scrolling and hyper key. |
+### Coming from Logi Options+ or a keyboard remapper
 
-Next to each profile's name, a menu says whether the device is a **Mouse** or a **Keyboard**. A mouse gets the
-**Buttons** and **Scrolling** tabs, and a keyboard can have the hyper key. Hyperpoint guesses from the device until you
-choose. A mouse that sends keys from an interface of its own, like the 2.4G mouse, looks like a keyboard to it.
-
-A preset only starts the profile. After Set Up the config file holds every setting, and a later change to a preset does
-not touch a saved profile. To start a device again from a preset, click **Forget…** and set it up again.
-
-Hyperpoint lists keyboards and mice, Logitech HID++ mice included. Trackpads, the built-in one too, stay as macOS has
-them and are not listed.
+Hyperpoint covers the buttons, gestures, thumb wheel and scrolling. It leaves out firmware updates, battery levels,
+pointer speed and Flow, so keep Logi Options+ if you need those, but quit it while Hyperpoint runs: two apps setting up
+the same mouse overwrite each other. The same goes for Caps Lock. If Karabiner-Elements or another remapper also maps
+it, leave it to one app.
 
 ## Configuration
 
@@ -101,9 +92,9 @@ git clone --depth 1 https://github.com/progremir/hyperpoint.git /tmp/hyperpoint
 mkdir -p ~/.claude/skills && cp -r /tmp/hyperpoint/skills/hyperpoint-config ~/.claude/skills/
 ```
 
-Then ask in plain words, such as "make the gesture button on my MX Master open App Exposé". The checker works on its
-own too: `python3 skills/hyperpoint-config/scripts/check_config.py` prints the first problem in your config with its
-path, or the devices it sets up.
+Then ask in plain words, such as "make my mouse's back button hold ⌘". The checker works on its own too:
+`python3 skills/hyperpoint-config/scripts/check_config.py` prints the first problem in your config with its path, or
+the devices it sets up.
 
 ## Development
 

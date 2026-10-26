@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hyperpoint · Mouse buttons, smooth scrolling and a hyper key for macOS</title>
-<meta name="description" content="Hyperpoint is a macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key. It puts every setting back when a device wakes or reconnects.">
+<title>Hyperpoint · The Logi Options+ alternative with a hyper key, for macOS</title>
+<meta name="description" content="Hyperpoint is a small macOS menu bar app that replaces Logi Options+ and adds a hyper key. Remap mouse buttons and gestures, make the scroll wheel glide and turn Caps Lock into ⌘⌃⌥⇧, with no second remapper to conflict with. Every setting goes back on when a device wakes or reconnects.">
 <link rel="canonical" href="https://hyperpoint.progremir.dev/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://hyperpoint.progremir.dev/">
 <meta property="og:site_name" content="Hyperpoint">
-<meta property="og:title" content="Hyperpoint: your mouse setup, still there after every reconnect">
-<meta property="og:description" content="Mouse buttons, smooth scrolling and a hyper key for macOS, put back the moment a device wakes or reconnects.">
+<meta property="og:title" content="Hyperpoint: replace Logi Options+, hyper key included">
+<meta property="og:description" content="Mouse buttons, gestures, smooth scrolling and a hyper key in one macOS app, so nothing conflicts, put back the moment a device wakes or reconnects.">
 <meta property="og:image" content="https://hyperpoint.progremir.dev/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Hyperpoint logo with the line: your mouse setup, still there after every reconnect.">
+<meta property="og:image:alt" content="Hyperpoint logo with the line: replace Logi Options+, hyper key included.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -37,7 +37,7 @@
   "softwareVersion": "0.1.1",
   "fileSize": "1.2 MB",
   "downloadUrl": "https://hyperpoint.progremir.dev/download",
-  "description": "A macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key, and puts every setting back when a device reconnects."
+  "description": "A macOS menu bar app that replaces Logi Options+ and adds a hyper key: it remaps mouse buttons and gestures, makes the scroll wheel glide and turns Caps Lock into a hyper key, and puts every setting back when a device reconnects."
 }
 </script>
 <script type="application/ld+json">
@@ -63,15 +63,15 @@
     },
     {
       "@type": "Question",
-      "name": "Does it work with mice other than the MX Master 3?",
+      "name": "Which mice and keyboards does it work with?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. Every keyboard and mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture and top buttons and the thumb wheel. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them."
+        "text": "Any keyboard or mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture button, extra buttons and thumb wheel too. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them."
       }
     },
     {
       "@type": "Question",
-      "name": "My MX Master 3 forgets its buttons after sleep. Does this fix it?",
+      "name": "My Logitech mouse forgets its buttons after sleep. Does this fix it?",
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again."
@@ -79,10 +79,18 @@
     },
     {
       "@type": "Question",
-      "name": "Do I still need BetterMouse or Karabiner?",
+      "name": "Do I still need Logi Options+?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not for what Hyperpoint covers: button rules and gestures, smooth scrolling, hold to scroll, the hyper key and remapping keys a mouse sends. Karabiner can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it for them."
+        "text": "Not for buttons, gestures, the thumb wheel or scrolling. Options+ also updates firmware, shows battery levels and runs Flow, which Hyperpoint does not. If you keep it for those, quit it while Hyperpoint runs: two apps setting up the same mouse overwrite each other."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I still need a keyboard remapper?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Not for the hyper key or for keys a mouse sends. Karabiner-Elements can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it, and leave Caps Lock to one app."
       }
     },
     {
@@ -185,8 +193,8 @@
   <header class="hero" id="top">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <h1 class="reveal">Your mouse setup,<br>still there after<br>every reconnect</h1>
-        <p class="sub reveal" style="--rd: 80ms">Hyperpoint is a macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key. Every setting goes back on the moment a device wakes or reconnects.</p>
+        <h1 class="reveal">Replace Logi&nbsp;Options+.<br>Hyper key included.</h1>
+        <p class="sub reveal" style="--rd: 80ms">Hyperpoint remaps your mouse's buttons, gestures and wheel and turns Caps Lock into ⌘⌃⌥⇧, in one small menu bar app. No second remapper to clash with, no account, and every setting goes back on the moment a device wakes or reconnects.</p>
         <a class="btn btn-primary btn-lg reveal" style="--rd: 160ms" href="/download">
           <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
         </a>
@@ -239,21 +247,21 @@
     <div class="wrap">
       <div class="head">
         <p class="eyebrow reveal">Why it exists</p>
-        <h2 class="h2 reveal" id="why-title">Two apps for one desk, and a mouse that forgets</h2>
+        <h2 class="h2 reveal" id="why-title">Two apps fighting over one desk, and a mouse that forgets</h2>
       </div>
       <div class="versus">
         <div class="vs-col before reveal">
           <h3><i class="led" aria-hidden="true"></i>Before</h3>
           <ul>
-            <li><svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg><span>BetterMouse for the buttons and the wheel, Karabiner for the hyper key. Two apps, two settings, two sets of permissions.</span></li>
-            <li><svg class="icon" aria-hidden="true"><use href="#i-plugs-connected"/></svg><span>The MX Master 3 drops its button setup when it sleeps or reconnects, which can happen many times a day.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg><span>Logi Options+ for the mouse, a remapper for Caps Lock. Both grab your input, each with its own settings and permissions, and they can step on each other's keys.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-plugs-connected"/></svg><span>A mouse's custom buttons last only until it sleeps or reconnects. Miss the reconnect, and they go back to doing nothing.</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><span>A typo in a settings file can quietly turn a rule off, and nothing tells you.</span></li>
           </ul>
         </div>
         <div class="vs-col after reveal" style="--rd: 100ms">
           <h3><i class="led" aria-hidden="true"></i>With Hyperpoint</h3>
           <ul>
-            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>One menu bar app and one file, <code>~/.config/hyperpoint/config.json</code>, for every mouse and keyboard you use.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>One menu bar app and one file, <code>~/.config/hyperpoint/config.json</code>, for every mouse and keyboard you use. Nothing else to conflict with.</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>On every connect Hyperpoint writes the whole setup back to the device, and the menu shows when it did.</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>A file with a mistake is rejected whole, with the path of the error, and the last good settings keep running.</span></li>
           </ul>
@@ -275,7 +283,7 @@
       <div class="head">
         <p class="eyebrow reveal">What it does</p>
         <h2 class="h2 reveal" id="features-title">Buttons, Caps Lock and the wheel, in one app</h2>
-        <p class="lead reveal">The mouse and Caps Lock setup you had in BetterMouse and Karabiner, made by pressing buttons instead of looking up key codes.</p>
+        <p class="lead reveal">What used to take Logi Options+ and a keyboard remapper, in one app, set up by pressing buttons instead of looking up key codes.</p>
       </div>
 
       <div class="bento" data-intro>
@@ -300,7 +308,7 @@
           </div>
           <div class="copy">
             <h3 class="up" style="--i: 7">Settings that survive sleep</h3>
-            <p class="up" style="--i: 8">When a mouse wakes or reconnects, Hyperpoint writes every setting back: the gesture and top buttons, the thumb wheel, smooth scrolling and the hyper key. The menu shows when it last did.</p>
+            <p class="up" style="--i: 8">When a mouse wakes or reconnects, Hyperpoint writes every setting back: its buttons and gestures, the thumb wheel, smooth scrolling and the hyper key. The menu shows when it last did.</p>
           </div>
         </article>
 
@@ -395,7 +403,7 @@
         <li class="reveal">
           <svg class="icon" aria-hidden="true"><use href="#i-hand-grabbing"/></svg>
           <h3>Hold to scroll</h3>
-          <p>Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset puts it on the right button, and a quick press still clicks.</p>
+          <p>Hold a button and move the mouse to scroll, with momentum. Put it on the right button, and a quick press still clicks.</p>
         </li>
         <li class="reveal" style="--rd: 100ms">
           <svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg>
@@ -444,7 +452,7 @@
       <div class="head">
         <p class="eyebrow reveal">Proof</p>
         <h2 class="h2 reveal" id="proof-title">One Mac, four devices, one file</h2>
-        <p class="lead reveal">This is the config from the Mac Hyperpoint was built on. Two mice and two keyboards, each set up from a preset, replacing a BetterMouse and Karabiner setup. The settings window edits this file and nothing else, so every setting can be read, diffed and backed up.</p>
+        <p class="lead reveal">This is the config from the Mac Hyperpoint was built on. Two mice and two keyboards, each set up from a preset, replacing a separate mouse app and keyboard remapper. The settings window edits this file and nothing else, so every setting can be read, diffed and backed up.</p>
       </div>
       <figure class="code reveal">
         <figcaption class="code-bar"><code>~/.config/hyperpoint/config.json</code><span>Excerpt, scrolling settings left out</span></figcaption>
@@ -507,16 +515,20 @@
           <div class="a"><p>The download is 1.2 MB, and the app takes 3.3 MB once installed. It is one native Apple silicon binary with no bundled frameworks or runtime.</p></div>
         </details>
         <details class="reveal">
-          <summary>Does it work with mice other than the MX Master 3?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
-          <div class="a"><p>Yes. Every keyboard and mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture and top buttons and the thumb wheel. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them.</p></div>
+          <summary>Which mice and keyboards does it work with?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Any keyboard or mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture button, extra buttons and thumb wheel too. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them.</p></div>
         </details>
         <details class="reveal">
-          <summary>My MX Master 3 forgets its buttons after sleep. Does this fix it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <summary>My Logitech mouse forgets its buttons after sleep. Does this fix it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
           <div class="a"><p>That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again.</p></div>
         </details>
         <details class="reveal">
-          <summary>Do I still need BetterMouse or Karabiner?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
-          <div class="a"><p>Not for what Hyperpoint covers: button rules and gestures, smooth scrolling, hold to scroll, the hyper key and remapping keys a mouse sends. Karabiner can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it for them.</p></div>
+          <summary>Do I still need Logi Options+?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Not for buttons, gestures, the thumb wheel or scrolling. Options+ also updates firmware, shows battery levels and runs Flow, which Hyperpoint does not. If you keep it for those, quit it while Hyperpoint runs: two apps setting up the same mouse overwrite each other.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Do I still need a keyboard remapper?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Not for the hyper key or for keys a mouse sends. Karabiner-Elements can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it, and leave Caps Lock to one app.</p></div>
         </details>
         <details class="reveal">
           <summary>Can an AI agent change my settings?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
@@ -588,7 +600,7 @@
         </ul>
       </nav>
     </div>
-    <small>© 2026 Hyperpoint. BetterMouse, Karabiner, Logitech, MX Master, Razer and Naga are trademarks of their owners.</small>
+    <small>© 2026 Hyperpoint. Logitech, Logi Options+, MX Master, Karabiner, Razer and Naga are trademarks of their owners.</small>
   </div>
 </footer>
 

@@ -54,17 +54,19 @@ npx cf r2 objects put latest --bucket-name hyperpoint-releases --body Hyperpoint
 
 ## The brief
 
-**One offer, one audience, one action.** Hyperpoint for Mac users who set up a mouse and Caps Lock with BetterMouse
-and Karabiner, often with an MX Master 3 that forgets its buttons on reconnect. The one action is *Download for Mac*.
+**One offer, one audience, one action.** Hyperpoint for Mac users who run Logi Options+ for the mouse and a separate
+remapper for Caps Lock, and want one app that nothing conflicts with and that keeps the setup through every reconnect.
+The one action is *Download for Mac*.
 
 **Layout: A, classic hero plus sections.** The product reads at a glance from its menu bar menu, so the hero shows
 that menu with real device rows and the reconnect note.
 
-**Hero.** *Your mouse setup, still there after every reconnect.* The subheadline says what it is and does, the CTA
-downloads, and the proof line says it is notarized, its version and what it runs on.
+**Hero.** *Replace Logi Options+. Hyper key included.* The subheadline says what it does and why one app beats two:
+nothing to clash with, no account, and every setting back on after a reconnect. The CTA downloads, and the proof line
+says it is notarized, its size and what it runs on.
 
 **Order.** Hero, problem to solution (before and after), tagline reveal, four benefit cards with stories, three
-smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (12 questions with
+smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (13 questions with
 FAQ schema), final CTA with risk reversal, footer.
 
 **Benefits.** Settings that survive sleep. A hyper key on Caps Lock. A wheel that glides. Change a button by pressing
