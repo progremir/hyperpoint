@@ -527,9 +527,8 @@ main { padding-top: calc(80px + env(safe-area-inset-top, 0px)); }
 
 /* Proof ---------------------------------------------------------------------- */
 
-.proof-grid { display: grid; gap: 48px; margin-bottom: 48px; }
-.proof-grid .head { margin-bottom: 0; }
-.facts { display: grid; gap: 24px; align-content: start; }
+.proof .code { margin-bottom: 48px; }
+.facts { display: grid; gap: 32px 24px; }
 .facts li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
 .facts .icon { margin-top: 2px; color: var(--accent); }
 .facts b { display: block; color: var(--fg); font-weight: 600; }
@@ -550,10 +549,8 @@ main { padding-top: calc(80px + env(safe-area-inset-top, 0px)); }
 .code .n { color: var(--fg-2); }
 .code .p { color: var(--faint); }
 @media (min-width: 560px) { .code pre { font-size: 14px; line-height: 20px; } }
-@media (min-width: 600px) { .facts { grid-template-columns: 1fr 1fr; gap: 32px 24px; } }
-@media (min-width: 1024px) {
-  .proof-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 64px; align-items: end; }
-}
+@media (min-width: 600px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px; } }
 
 /* FAQ ------------------------------------------------------------------------ */
 

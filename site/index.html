@@ -429,22 +429,12 @@
   </section>
 
   <!-- Proof -->
-  <section class="section" id="proof" aria-labelledby="proof-title">
+  <section class="section proof" id="proof" aria-labelledby="proof-title">
     <div class="wrap">
-      <div class="proof-grid">
-        <div class="head">
-          <p class="eyebrow reveal">Proof</p>
-          <h2 class="h2 reveal" id="proof-title">One Mac, four devices, one file</h2>
-          <p class="lead reveal">This is the config from the Mac Hyperpoint was built on. Two mice and two keyboards, each set up from a preset, replacing a BetterMouse and Karabiner setup. The settings window edits this file and nothing else, so every setting can be read, diffed and backed up.</p>
-        </div>
-        <ul class="facts">
-          <li class="reveal"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg><div><b>Notarized by Apple</b>Releases are signed with Developer ID and notarized, so the download opens without a warning.</div></li>
-          <li class="reveal" style="--rd: 80ms"><svg class="icon" aria-hidden="true"><use href="#i-lock-key"/></svg><div><b>No network code</b>The app reads your devices and one file. It never connects to the internet.</div></li>
-          <li class="reveal" style="--rd: 160ms"><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><div><b>Mistakes are caught</b>An invalid file is rejected whole with the path of the error. The last good settings keep running.</div></li>
-          <li class="reveal" style="--rd: 240ms"><svg class="icon" aria-hidden="true"><use href="#i-power"/></svg><div><b>Quit, and it is gone</b>Quitting clears the key mappings Hyperpoint made, so Caps Lock types as Caps Lock again.</div></li>
-          <li class="reveal" style="--rd: 320ms"><svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg><div><b>1.2 MB to download</b>One native Apple silicon app, 3.3 MB once installed, with no bundled frameworks or runtime.</div></li>
-          <li class="reveal" style="--rd: 400ms"><svg class="icon" aria-hidden="true"><use href="#i-cursor-click"/></svg><div><b>Out of your Dock</b>Hyperpoint lives in the menu bar. It has no Dock icon and opens a window only when you ask for Settings.</div></li>
-        </ul>
+      <div class="head">
+        <p class="eyebrow reveal">Proof</p>
+        <h2 class="h2 reveal" id="proof-title">One Mac, four devices, one file</h2>
+        <p class="lead reveal">This is the config from the Mac Hyperpoint was built on. Two mice and two keyboards, each set up from a preset, replacing a BetterMouse and Karabiner setup. The settings window edits this file and nothing else, so every setting can be read, diffed and backed up.</p>
       </div>
       <figure class="code reveal">
         <figcaption class="code-bar"><code>~/.config/hyperpoint/config.json</code><span>Excerpt, scrolling settings left out</span></figcaption>
@@ -478,6 +468,14 @@
   <span class="k">&quot;ignored&quot;</span><span class="p">:</span> <span class="p">[</span><span class="p">]</span>
 <span class="p">}</span></code></pre>
       </figure>
+      <ul class="facts">
+        <li class="reveal"><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><div><b>Agents can edit it</b>It is plain JSON, so you or a coding agent like Claude Code can change any rule. Hyperpoint applies the file the moment it is saved.</div></li>
+        <li class="reveal" style="--rd: 80ms"><svg class="icon" aria-hidden="true"><use href="#i-lock-key"/></svg><div><b>No network code</b>The app reads your devices and one file. It never connects to the internet.</div></li>
+        <li class="reveal" style="--rd: 160ms"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg><div><b>Mistakes are caught</b>An invalid file is rejected whole with the path of the error. The last good settings keep running.</div></li>
+        <li class="reveal" style="--rd: 240ms"><svg class="icon" aria-hidden="true"><use href="#i-power"/></svg><div><b>Quit, and it is gone</b>Quitting clears the key mappings Hyperpoint made, so Caps Lock types as Caps Lock again.</div></li>
+        <li class="reveal" style="--rd: 320ms"><svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg><div><b>1.2 MB to download</b>One native Apple silicon app, 3.3 MB once installed, with no bundled frameworks or runtime.</div></li>
+        <li class="reveal" style="--rd: 400ms"><svg class="icon" aria-hidden="true"><use href="#i-cursor-click"/></svg><div><b>Out of your Dock</b>Hyperpoint lives in the menu bar. It has no Dock icon and opens a window only when you ask for Settings.</div></li>
+      </ul>
     </div>
   </section>
 
