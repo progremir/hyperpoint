@@ -31,6 +31,7 @@ final class TapHost {
     /// The tap that adds held modifiers to every other event. It is newer than the main tap, so it runs first and the
     /// stages see the modifiers, and it is enabled only while modifiers are held.
     private var overlay: (port: CFMachPort, source: CFRunLoopSource)?
+    private var overlaySwitch = OverlaySwitch()
     /// Between a hold scroll's began and ended, from either recognizer.
     private var handScrolling = false
     private var port: CFMachPort?
@@ -187,17 +188,21 @@ final class TapHost {
         updateCursor(force: endingEverything)
         release.press?.post(tap: .cghidEventTap)
         if endingEverything {
-            post(heldKeys.releaseAll(flags: CGEventSource.flagsState(.combinedSessionState)))
+            let keys = heldKeys.releaseAll(flags: CGEventSource.flagsState(.combinedSessionState))
             updateOverlay()
+            post(keys)
         } else if let holder = release.letsGo {
             holdKeys(.release(holder))
         }
     }
 
-    /// At the HID tap, so apps see the keys go down and up as a keyboard's would.
+    /// At the HID tap, so apps see the keys go down and up as a keyboard's would. The overlay changes first: a tap
+    /// turned off while the keys it was passing waited for this thread let a key's release out after its modifiers'
+    /// (measured).
     private func holdKeys(_ event: KeyHoldEvent) {
-        post(heldKeys.receive(event, flags: CGEventSource.flagsState(.combinedSessionState)))
+        let keys = heldKeys.receive(event, flags: CGEventSource.flagsState(.combinedSessionState))
         updateOverlay()
+        post(keys)
     }
 
     /// A tap that fails to install leaves held modifiers to the posted modifier changes alone.
@@ -212,26 +217,33 @@ final class TapHost {
             if let source = CFMachPortCreateRunLoopSource(nil, port, 0) {
                 CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
                 overlay = (port, source)
+                overlaySwitch.created()
             } else {
                 CFMachPortInvalidate(port)
             }
         }
-        if let overlay { CGEvent.tapEnable(tap: overlay.port, enable: holding) }
+        if let overlay, let enable = overlaySwitch.set(holding) { CGEvent.tapEnable(tap: overlay.port, enable: enable) }
     }
 
     private func removeOverlay() {
         guard let overlay else { return }
-        CGEvent.tapEnable(tap: overlay.port, enable: false)
         CFRunLoopRemoveSource(CFRunLoopGetCurrent(), overlay.source, .commonModes)
         CFMachPortInvalidate(overlay.port)
         self.overlay = nil
+        overlaySwitch = OverlaySwitch()
     }
 
-    /// macOS disables a tap that answers slowly, and this one is wanted again while modifiers are held.
+    /// Turning the tap off sends it a notice too, which needs no answer. macOS also turns off a tap that answers
+    /// slowly, and this one is wanted back while modifiers are held.
     fileprivate func overlaid(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
-        case .tapDisabledByTimeout, .tapDisabledByUserInput: updateOverlay()
-        default: heldKeys.overlay(event)
+        case .tapDisabledByUserInput:
+            break
+        case .tapDisabledByTimeout:
+            overlaySwitch.timedOut()
+            updateOverlay()
+        default:
+            heldKeys.overlay(event)
         }
         return Unmanaged.passUnretained(event)
     }

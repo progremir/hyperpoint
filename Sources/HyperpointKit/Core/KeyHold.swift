@@ -137,6 +137,26 @@ struct HeldKeys {
     }
 }
 
+/// Whether the overlay tap is on, and the calls that change it. Turning a tap off sends it a notice that it was turned
+/// off, so only a change of state calls macOS. Answering the notice with another call made the two chase each other,
+/// and the tap thread spun on them while keys and clicks waited seconds for it (measured).
+struct OverlaySwitch {
+    private(set) var on = false
+
+    /// A new tap starts on.
+    mutating func created() { on = true }
+
+    /// The state to give the tap, or nil when it has it already.
+    mutating func set(_ wanted: Bool) -> Bool? {
+        guard wanted != on else { return nil }
+        on = wanted
+        return wanted
+    }
+
+    /// macOS turned the tap off because it answered slowly.
+    mutating func timedOut() { on = false }
+}
+
 extension HeldModifier {
     var keyCode: KeyCode { KeyCode(rawValue: virtualKeyCode) }
 

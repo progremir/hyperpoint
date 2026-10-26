@@ -698,6 +698,18 @@ private let leftShift: UInt64 = 0x02
                 .isSubset(of: Set(HeldKeys.overlayInterests)), "clicks, drags, moves, scrolls and keys from any device")
     }
 
+    @Test func theOverlayTapIsCalledOnlyWhenItsStateChanges() {
+        var overlay = OverlaySwitch()
+        #expect(overlay.set(false) == nil, "off already")
+        overlay.created()
+        #expect(overlay.set(true) == nil, "a new tap starts on")
+        #expect(overlay.set(false) == false)
+        #expect(overlay.set(false) == nil, "the notice that it went off asks for nothing more")
+        #expect(overlay.set(true) == true)
+        overlay.timedOut()
+        #expect(overlay.set(true) == true, "macOS turned it off, so it goes back on while held")
+    }
+
     @Test func releaseAllLetsGoOfEveryHoldWithoutPuttingAnyBack() {
         var keys = HeldKeys()
         _ = keys.receive(.press(.button(3), command), flags: [])
