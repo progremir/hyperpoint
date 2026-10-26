@@ -3,7 +3,7 @@
 # with the hardened runtime notarization needs, and SIGN_TIMESTAMP=1 adds the secure timestamp it also needs.
 # TCC keys the Accessibility and Input Monitoring grants to the app's designated requirement. An ad-hoc signature
 # makes that a cdhash, which changes on every build and silently revokes both grants, so this refuses one unless
-# ALLOW_ADHOC=1 (CI builds that only check the pipeline).
+# ALLOW_ADHOC=1, for a build that only checks the pipeline.
 set -euo pipefail
 cd "${0:A:h}/.."
 

@@ -144,9 +144,19 @@ This builds `dist/Hyperpoint-0.2.0.dmg`, signs the app and the DMG with Develope
 tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release and to the
 `hyperpoint-releases` R2 bucket, where the site's `/download` serves it to anyone. A prerelease is uploaded but
 `/download` stays on the last release. It refuses to publish without Developer ID, with uncommitted changes, with an
-unpushed HEAD or without access to the bucket. Drop `--publish` to only build the DMG. Pull requests
-that touch the pipeline run `.github/workflows/release.yml`, which builds an ad-hoc DMG on CI as an artifact. The
-installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+unpushed HEAD or without access to the bucket. Drop `--publish` to build and notarize the DMG without publishing
+it. The installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+
+To check a change to the pipeline (`build-app.sh`, `release.sh`, `dmg-settings.py` or `design/installer/`) before
+merging it, build an ad-hoc DMG. This needs no certificate and skips notarization:
+
+```bash
+SIGN_IDENTITY=- ALLOW_ADHOC=1 scripts/release.sh 0.2.0-check
+```
+
+It builds, signs, checks and packs the app the same way, then verifies `dist/Hyperpoint-0.2.0-check.dmg` and writes
+its SHA-256. An ad-hoc signature changes on every build, which drops the Accessibility and Input Monitoring grants,
+so open this DMG to look at the installer, not to install.
 
 The release's Developer ID signature differs from a `bundle.sh` build's Apple Development one, so switching between
 the two asks for the Accessibility and Input Monitoring grants again.

@@ -43,7 +43,7 @@ VENV=.build/dmgbuild-venv
 
 mkdir -p "$DIST"
 rm -f "$DMG"
-# hdiutil create now and then fails with "Bad file descriptor" on CI runners, so it is retried.
+# hdiutil create now and then fails with "Bad file descriptor" (seen on GitHub's macOS runners), so it is retried.
 for attempt in 1 2 3; do
   $VENV/bin/dmgbuild -s scripts/dmg-settings.py \
     -D app="$STAGE/Hyperpoint.app" \
