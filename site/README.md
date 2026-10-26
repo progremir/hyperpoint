@@ -10,11 +10,13 @@ Live at https://hyperpoint.progremir.dev, served by the `hyperpoint-site` Worker
 python3 -m http.server 4319 --directory site/public
 ```
 
-**Deploying.** Cloudflare's Workers Builds deploys `site/` to the `hyperpoint-site` Worker on every push to `main`
-that touches it. It runs `npx cf deploy` in `site/` on Node 24 (`.node-version`), with its own API token, so the
-repository holds no Cloudflare secret. `.github/workflows/site.yml` only checks that pull requests still build. To
-deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in `site/`.
-`cloudflare.config.ts` holds the Worker's name, account, domain and 404 handling, and `wrangler.config.ts` names
+**Deploying.** Cloudflare's Workers Builds builds `site/` on every push that touches it. A push to `main` runs
+`npx cf deploy` and updates the live site. A push to any other branch runs `npx cf previews deploy`, which publishes
+that branch at `https://<branch>-hyperpoint-site.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
+noindex`). Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
+holds no Cloudflare secret. To deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in
+`site/`, or `npx cf previews deploy` for a preview of the current branch.
+`cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs and 404 handling, and `wrangler.config.ts` names
 `public/` as the assets, so only that folder is uploaded.
 
 `404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth. The download buttons link to

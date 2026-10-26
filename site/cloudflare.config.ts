@@ -7,6 +7,9 @@ export default defineConfig({
     name: "hyperpoint-site",
     compatibilityDate: "2026-10-19",
     domains: ["hyperpoint.progremir.dev"],
+    // Production is served only on the domain. Previews get noindexed workers.dev URLs.
+    workersDev: false,
+    previewUrls: true,
     assets: { htmlHandling: "auto-trailing-slash", notFoundHandling: "404-page" },
     observability: { enabled: true },
   },
