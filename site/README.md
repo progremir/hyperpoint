@@ -4,22 +4,30 @@ A static landing page: plain HTML, CSS and JavaScript with no build step. It was
 [`landing-page-design`](https://github.com/elayadesign/ai-design-skills/tree/main/skills/landing-page-design) and
 [`design-to-motion`](https://github.com/elayadesign/ai-design-skills/tree/main/skills/design-to-motion) skills.
 
+Live at https://hyperpoint.progremir.dev, served by the `hyperpoint-site` Worker as static assets on Cloudflare.
+
 ```bash
-python3 -m http.server 4319 --directory site
+python3 -m http.server 4319 --directory site/public
 ```
 
-Serve `site/` from the root of a domain. `404.html` and `privacy.html` use root paths (`/styles.css`), so they work
-at any depth. Once the site has a domain, make `og:image` in `index.html` an absolute URL. The download buttons link
-to the latest GitHub release, which only people with access to the repository can open while it is private.
+**Deploying.** `.github/workflows/site.yml` checks the build on pull requests that touch `site/` and deploys it on
+pushes to `main`, which needs a `CLOUDFLARE_API_TOKEN` repository secret that can deploy Workers and their custom
+domains. To deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in `site/`.
+`cloudflare.config.ts` holds the Worker's name, account, domain and 404 handling, and `wrangler.config.ts` names
+`public/` as the assets, so only that folder is uploaded.
+
+`404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth. The download buttons link to
+the latest GitHub release, which only people with access to the repository can open while it is private.
 
 | File | What it is |
 |---|---|
-| `index.html` | The page. The icon sprite (Phosphor, MIT), the config excerpt and the FAQ schema are written inline |
-| `styles.css` | Tokens and every section's styles |
-| `main.js` | Island nav, scroll reveals, card intros and stories, the tagline reveal |
-| `404.html`, `privacy.html` | The branded 404 and the privacy page |
-| `og.png` | Social preview, drawn by `og.py` from the logo kit and Geist |
-| `favicon.*`, `icon-*.png`, `site.webmanifest`, `assets/` | Copied from `design/logo/` |
+| `public/index.html` | The page. The icon sprite (Phosphor, MIT), the config excerpt and the FAQ schema are written inline |
+| `public/styles.css` | Tokens and every section's styles |
+| `public/main.js` | Island nav, scroll reveals, card intros and stories, the tagline reveal |
+| `public/404.html`, `public/privacy.html` | The branded 404 and the privacy page |
+| `public/og.png` | Social preview, drawn by `og.py` from the logo kit and Geist |
+| `public/favicon.*`, `icon-*.png`, `site.webmanifest`, `assets/` | Copied from `design/logo/` |
+| `cloudflare.config.ts`, `wrangler.config.ts`, `package.json` | The Cloudflare project; `cf` and Wrangler are pinned in `package-lock.json` |
 
 ## The brief
 

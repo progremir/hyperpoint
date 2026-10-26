@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws site/og.png, the 1200 x 630 social preview, from the logo kit and Geist.
+"""Draws site/public/og.png, the 1200 x 630 social preview, from the logo kit and Geist.
 
 The text is converted to outlines so rsvg-convert needs no installed fonts. Needs fonttools
 (pip3 install --user fonttools), rsvg-convert (brew install librsvg) and the Geist variable font:
@@ -73,7 +73,7 @@ def main():
 <path d="{sub}" fill="#9B9B9B"/>
 <g transform="translate(828 176) scale(0.3125)">{icon}</g>
 </svg>"""
-    out = HERE / "og.png"
+    out = HERE / "public/og.png"
     subprocess.run(["rsvg-convert", "-w", str(W), "-h", str(H), "-o", str(out)], input=svg.encode(), check=True)
     print(f"wrote {out}")
 
