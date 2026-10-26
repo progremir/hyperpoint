@@ -14,7 +14,8 @@ python3 -m http.server 4319 --directory site/public
 `npx cf deploy` and updates the live site. A push to any other branch runs `npx cf previews deploy`, which publishes
 that branch at `https://<branch>-hyperpoint-site.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
 noindex`). Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
-holds no Cloudflare secret. To deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in
+holds no Cloudflare secret. The connection lives on the Worker in the Cloudflare dashboard, under Settings ›
+Builds, and Cloudflare posts each branch's preview link on its pull request. To deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in
 `site/`, or `npx cf previews deploy` for a preview of the current branch.
 `cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs and 404 handling, and `wrangler.config.ts` names
 `public/` as the assets, so only that folder is uploaded.
