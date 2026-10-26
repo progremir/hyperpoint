@@ -1,6 +1,7 @@
-// For `npx wrangler preview`, which Workers Builds runs on branch pushes. Plain Wrangler reads this file, not
-// cloudflare.config.ts, and refuses to publish a preview without a `previews` block. `npx cf deploy` still deploys
-// from cloudflare.config.ts, so keep the name, date, entry, assets and bindings here in step with it.
+// For Workers Builds, which runs `npx wrangler deploy` on pushes to main and `npx wrangler preview` on other
+// branches. Plain Wrangler reads this file, not cloudflare.config.ts, and refuses to publish a preview without a
+// `previews` block. `npx cf deploy` from a Mac reads cloudflare.config.ts, so keep the name, date, entry, assets and
+// bindings here in step with it.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hyperpoint",
@@ -16,5 +17,9 @@
   "r2_buckets": [{ "binding": "RELEASES", "bucket_name": "hyperpoint-releases" }],
   "workers_dev": false,
   "preview_urls": true,
-  "previews": {}
+  // Previews inherit no bindings. They read the same bucket, since the Worker only reads it and a preview should
+  // serve the real releases.
+  "previews": {
+    "r2_buckets": [{ "binding": "RELEASES", "bucket_name": "hyperpoint-releases" }]
+  }
 }

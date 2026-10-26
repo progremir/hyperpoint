@@ -19,13 +19,15 @@ site/node_modules/.bin/wrangler dev -c site/wrangler.jsonc --port 8787 --persist
 ```
 
 **Deploying.** Cloudflare's Workers Builds builds `site/` on every push that touches it. A push to `main` runs
-`npx cf deploy` and updates the live site. A push to any other branch runs `npx cf previews deploy`, which publishes
-that branch at `https://<branch>-hyperpoint.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
-noindex`). Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
+`npx wrangler deploy` and updates the live site. A push to any other branch runs `npx wrangler preview`, which
+publishes that branch at `https://<branch>-hyperpoint.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
+noindex`). Both read `wrangler.jsonc`, so a change to the Worker's entry, assets or bindings goes there as well as in
+`cloudflare.config.ts`, and a binding goes in its `previews` block too, since previews inherit none. Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
 holds no Cloudflare secret. The connection lives on the Worker in the Cloudflare dashboard, under Settings ›
 Builds, and Cloudflare posts each branch's preview link on its pull request.
-`cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs, 404 handling, entry and bindings, and
-`wrangler.config.ts` names `public/` as the assets, so only that folder and the Worker are uploaded.
+`cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs, 404 handling, entry and bindings for
+`npx cf deploy` and `npx cf previews deploy` from a Mac, and `wrangler.config.ts` names `public/` as the assets, so
+only that folder and the Worker are uploaded.
 
 `404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth.
 
