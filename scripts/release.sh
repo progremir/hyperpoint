@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Builds dist/Hyperpoint-<version>.dmg, the drag-to-Applications installer, and with --publish uploads it to a
-# GitHub release, tagging the pushed HEAD v<version>.
+# GitHub release, tagging the pushed HEAD v<version>, and to the hyperpoint-releases R2 bucket, which the site serves
+# at /download to anyone, with or without access to the repository.
 #
 # With a Developer ID identity (the default) the app and DMG are signed, notarized with the notarytool keychain
 # profile $NOTARY_PROFILE and stapled, so a download opens without a Gatekeeper warning. Any other $SIGN_IDENTITY
@@ -21,6 +22,9 @@ if [[ "$PUBLISH" == --publish ]]; then
   (( NOTARIZE )) || { print -u2 "only a Developer ID build can be published: $SIGN_IDENTITY"; exit 1 }
   git diff --quiet HEAD || { print -u2 "commit or stash local changes before publishing"; exit 1 }
   [[ -n "$(git branch -r --contains HEAD)" ]] || { print -u2 "push HEAD before publishing"; exit 1 }
+  [[ -x site/node_modules/.bin/cf ]] || { print -u2 "run npm ci in site/ before publishing"; exit 1 }
+  (cd site && node_modules/.bin/cf r2 objects get latest --bucket-name hyperpoint-releases --text >/dev/null) ||
+    { print -u2 "cannot read the hyperpoint-releases bucket: run npx cf auth login in site/"; exit 1 }
 fi
 if (( NOTARIZE )); then
   xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null ||
@@ -68,4 +72,10 @@ if [[ "$PUBLISH" == --publish ]]; then
   [[ "$VERSION" == *-* ]] && PRERELEASE=(--prerelease)
   gh release create "v$VERSION" "$DMG" "$DMG.sha256" --title "Hyperpoint $VERSION" --generate-notes \
     --target "$(git rev-parse HEAD)" "${PRERELEASE[@]}"
+  r2put() { (cd site && node_modules/.bin/cf r2 objects put "$1" --bucket-name hyperpoint-releases "${@:2}" >/dev/null) }
+  r2put "${DMG:t}" --file "$DMG" --content-type application/x-apple-diskimage
+  r2put "${DMG:t}.sha256" --file "$DMG.sha256" --content-type "text/plain; charset=utf-8"
+  # `latest` goes last, so /download never names a file that is not uploaded yet. A prerelease leaves it alone.
+  (( ${#PRERELEASE} )) || r2put latest --body "${DMG:t}" --content-type "text/plain; charset=utf-8"
+  print "published https://hyperpoint.progremir.dev/download/${DMG:t}"
 fi
