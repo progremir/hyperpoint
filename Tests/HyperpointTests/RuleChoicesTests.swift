@@ -70,6 +70,13 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(fresh.actions(for: .button(1), on: .hold) == held)
     }
 
+    @Test func aClickListsNoModifiersButSavesARecordedOne() {
+        let top = mxRules.first { $0.control == topButton }!
+        #expect(!mxChoices.actions(for: topButton, on: .click).contains { if case .modifier = $0 { true } else { false } })
+        let tapped = Rule(control: topButton, trigger: .click, action: .modifier(.rightOption))
+        #expect(saves(SettingsEdit.replaceRule(mx, RuleKey(top), tapped).applied(to: .example)), "the recorder sets it")
+    }
+
     @Test func aHoldRulesOutAClickAndMoves() {
         let back = Control.hidpp(CID(rawValue: 0x53))
         let hold = Rule(control: back, trigger: .hold, action: .modifier(.leftCommand))
@@ -189,7 +196,9 @@ let mxCapabilities = HIDPPCapabilities(
 
         let escapeHold = rules24G.first { $0.trigger == .hold }!
         let moved = choices24G.rule(escapeHold, withTrigger: .click)
-        #expect(moved == Rule(control: escapeHold.control, trigger: .click, action: .shortcut(RuleChoices.placeholderChord)))
+        #expect(moved == Rule(control: escapeHold.control, trigger: .click, action: escapeHold.action), "a click taps it")
+        let mission = Rule(control: .button(3), trigger: .click, action: .system(.missionControl))
+        #expect(choices24G.rule(mission, withTrigger: .hold).action == .modifier(.leftControl), "a hold starts with a modifier")
     }
 
     /// Whatever the user picks in a row's three pickers, the file still parses.

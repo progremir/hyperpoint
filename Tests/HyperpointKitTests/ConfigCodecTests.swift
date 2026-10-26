@@ -177,6 +177,17 @@ func rejection(_ json: String) -> ConfigError? {
             ])
     }
 
+    @Test func aClickOrASwipeTapsAModifierAlone() throws {
+        let json = documentedExampleJSON
+            .replacingOccurrences(of: #""when": "click", "do": "missionControl""#, with: #""when": "click", "do": { "modifier": "rightOption" }"#)
+            .replacingOccurrences(of: #""when": "holdMoveDown", "do": "appExpose""#, with: #""when": "holdMoveDown", "do": { "modifier": "leftCommand" }"#)
+            .replacingOccurrences(of: #""when": "click", "do": { "shortcut": "opt+shift+s" }"#, with: #""when": "click", "do": { "modifier": "rightShift" }"#)
+        let config = try decode(json)
+        #expect(config.devices[0].rules?[0].action == .modifier(.rightOption))
+        #expect(config.devices[0].rules?[1].action == .modifier(.leftCommand))
+        #expect(config.devices[1].rules?[1].action == .modifier(.rightShift))
+    }
+
     @Test func aHoldCannotShareItsControlWithAClickOrAMove() throws {
         let click = documentedExampleJSON.replacingOccurrences(
             of: #""when": "holdMoveDown", "do": "appExpose""#, with: #""when": "hold", "do": { "modifier": "leftCommand" }"#)
@@ -256,9 +267,6 @@ func rejection(_ json: String) -> ConfigError? {
             find: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"hold\"",
             replace: "{ \"control\": { \"key\": \"escape\" }, \"when\": \"holdMoveDown\"",
             path: "devices[1].rules[0].when"),
-        Mutation(
-            find: "\"when\": \"click\", \"do\": { \"shortcut\": \"opt+shift+s\" }",
-            replace: "\"when\": \"click\", \"do\": { \"modifier\": \"rightOption\" }", path: "devices[1].rules[1].do"),
         Mutation(find: "{ \"key\": \"escape\" }", replace: "{ \"key\": \"escap\" }", path: "devices[1].rules[0].control.key"),
         Mutation(
             find: "{ \"control\": { \"key\": \"return\" }, \"when\": \"click\"",

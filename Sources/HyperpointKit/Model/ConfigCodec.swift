@@ -148,15 +148,16 @@ enum RuleShape {
     enum TriggerKind: Hashable { case click, hold, swipe, holdMove, scroll }
     enum ActionKind { case system, shortcut, modifier, reverse, scroll }
 
-    /// A button held holds a modifier or a shortcut's keys down until it is released.
+    /// A click or a swipe taps a modifier alone, and a hold holds a modifier or a shortcut's keys down until it is
+    /// released.
     static let table: [ControlKind: [TriggerKind: Set<ActionKind>]] = [
         .hidpp: [
-            .click: [.system, .shortcut], .hold: [.modifier, .shortcut], .swipe: [.system, .shortcut],
-            .holdMove: [.scroll],
+            .click: [.system, .shortcut, .modifier], .hold: [.modifier, .shortcut],
+            .swipe: [.system, .shortcut, .modifier], .holdMove: [.scroll],
         ],
         .thumbWheel: [.scroll: [.reverse]],
-        .key: [.click: [.shortcut], .hold: [.modifier]],
-        .button: [.click: [.system, .shortcut], .hold: [.modifier, .shortcut], .holdMove: [.scroll]],
+        .key: [.click: [.shortcut, .modifier], .hold: [.modifier]],
+        .button: [.click: [.system, .shortcut, .modifier], .hold: [.modifier, .shortcut], .holdMove: [.scroll]],
     ]
 
     static func problem(with rule: Rule) -> (key: String, message: String)? {

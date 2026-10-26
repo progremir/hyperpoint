@@ -65,8 +65,14 @@ struct RuleChoices {
         }
     }
 
+    /// A click or a swipe can tap a modifier alone, which the shortcut recorder sets, so the eight are listed for a
+    /// hold only.
     func actions(for control: Control, on trigger: Trigger) -> [Action] {
-        Self.actions.filter { control.accepts($0, on: trigger) }
+        Self.actions.filter { action in
+            guard control.accepts(action, on: trigger) else { return false }
+            if case .modifier = action { return trigger == .hold }
+            return true
+        }
     }
 
     /// What Add Rule adds for a pressed button or one picked from its menu: the control as the pickers name it, on

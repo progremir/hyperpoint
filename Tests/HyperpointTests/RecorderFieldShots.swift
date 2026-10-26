@@ -37,6 +37,8 @@ import Testing
                 trailing: "9 s")
         ),
         ("recording-shortcut", 337, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),
+        ("recording-shortcut-empty", 337, .recording(chips: [], hint: .prompt("Type a shortcut, or one modifier"), trailing: nil)),
+        ("recording-lone-modifier", 337, .recording(chips: ["⌥"], hint: .prompt("Let go to use Right Option"), trailing: nil)),
         (
             "shortcut-problem", 337,
             .recording(
