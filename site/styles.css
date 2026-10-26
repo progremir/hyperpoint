@@ -124,7 +124,7 @@ code, kbd, pre { font-family: var(--mono); }
   backdrop-filter: blur(24px) saturate(140%);
 }
 .nav-logo { display: flex; align-items: center; margin-right: 16px; border-radius: 4px; }
-.nav-logo img { height: 20px; width: auto; }
+.nav-logo img { height: 28px; width: auto; }
 .nav-links { display: none; gap: 4px; }
 .nav-links a {
   padding: 8px 12px; border-radius: 9999px;
