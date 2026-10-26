@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hyperpoint · Mouse buttons, smooth scrolling and a hyper key for macOS</title>
+<meta name="description" content="Hyperpoint is a macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key. It puts every setting back when a device wakes or reconnects.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hyperpoint">
+<meta property="og:title" content="Hyperpoint: your mouse setup, still there after every reconnect">
+<meta property="og:description" content="Mouse buttons, smooth scrolling and a hyper key for macOS, put back the moment a device wakes or reconnects.">
+<!-- Crawlers want an absolute og:image URL: prefix og.png with the site's address once it has a domain. -->
+<meta property="og:image" content="og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Hyperpoint logo with the line: your mouse setup, still there after every reconnect.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#181818">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches){document.documentElement.classList.add("motion");setTimeout(function(){if(!window.hpReady)document.documentElement.classList.remove("motion")},3000)}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Hyperpoint",
+  "operatingSystem": "macOS 27",
+  "applicationCategory": "UtilitiesApplication",
+  "softwareVersion": "0.1.1",
+  "downloadUrl": "https://github.com/progremir/hyperpoint/releases/latest",
+  "description": "A macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key, and puts every setting back when a device reconnects."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Which Macs does Hyperpoint run on?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "macOS 27 on Apple silicon. Download the DMG from the latest release, open it and drag Hyperpoint into Applications."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work with mice other than the MX Master 3?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Every keyboard and mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture and top buttons and the thumb wheel. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "My MX Master 3 forgets its buttons after sleep. Does this fix it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I still need BetterMouse or Karabiner?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Not for what Hyperpoint covers: button rules and gestures, smooth scrolling, hold to scroll, the hyper key and remapping keys a mouse sends. Karabiner can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it for them."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does it need Accessibility and Input Monitoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Accessibility lets the hyper key and smooth scrolling change keys and scrolls as they happen. Input Monitoring lets Hyperpoint set up the buttons on Logitech mice. Until both are on, the menu says Needs attention and nothing is applied."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does Hyperpoint collect any data?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. The app has no network code at all. Your settings live in one file on your Mac, and the log of what it did stays on your Mac too."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where are my settings stored?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "In ~/.config/hyperpoint/config.json. The settings window edits that file and nothing else, so you can edit it by hand too. A file with an error is rejected whole, with the path of the mistake, and the last good settings keep running."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What happens when I quit?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Hyperpoint clears the key mappings it made, so Caps Lock and your mouse keys go back to how macOS had them. To stop it for a while without quitting, choose Pause Hyperpoint from the menu."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I uninstall it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Choose Quit Hyperpoint from the menu and drag the app to the Trash. To remove your settings as well, delete the ~/.config/hyperpoint folder."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "macOS says the app cannot be opened. What now?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Version 0.1.0 came out before releases were notarized. Download 0.1.1 or later, or allow 0.1.0 under System Settings › Privacy & Security › Open Anyway."
+      }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" class="sr-only" aria-hidden="true" focusable="false"><symbol id="i-mouse-simple" viewBox="0 0 256 256"><path d="M144,16H112A64.07,64.07,0,0,0,48,80v96a64.07,64.07,0,0,0,64,64h32a64.07,64.07,0,0,0,64-64V80A64.07,64.07,0,0,0,144,16Zm48,160a48.05,48.05,0,0,1-48,48H112a48.05,48.05,0,0,1-48-48V80a48.05,48.05,0,0,1,48-48h32a48.05,48.05,0,0,1,48,48ZM136,64v48a8,8,0,0,1-16,0V64a8,8,0,0,1,16,0Z"/></symbol><symbol id="i-command" viewBox="0 0 256 256"><path d="M180,144H160V112h20a36,36,0,1,0-36-36V96H112V76a36,36,0,1,0-36,36H96v32H76a36,36,0,1,0,36,36V160h32v20a36,36,0,1,0,36-36ZM160,76a20,20,0,1,1,20,20H160ZM56,76a20,20,0,0,1,40,0V96H76A20,20,0,0,1,56,76ZM96,180a20,20,0,1,1-20-20H96Zm16-68h32v32H112Zm68,88a20,20,0,0,1-20-20V160h20a20,20,0,0,1,0,40Z"/></symbol><symbol id="i-arrows-down-up" viewBox="0 0 256 256"><path d="M117.66,170.34a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L72,188.69V48a8,8,0,0,1,16,0V188.69l18.34-18.35A8,8,0,0,1,117.66,170.34Zm96-96-32-32a8,8,0,0,0-11.32,0l-32,32a8,8,0,0,0,11.32,11.32L168,67.31V208a8,8,0,0,0,16,0V67.31l18.34,18.35a8,8,0,0,0,11.32-11.32Z"/></symbol><symbol id="i-plugs-connected" viewBox="0 0 256 256"><path d="M237.66,18.34a8,8,0,0,0-11.32,0l-52.4,52.41-5.37-5.38a32.05,32.05,0,0,0-45.26,0L100,88.69l-6.34-6.35A8,8,0,0,0,82.34,93.66L88.69,100,65.37,123.31a32,32,0,0,0,0,45.26l5.38,5.37-52.41,52.4a8,8,0,0,0,11.32,11.32l52.4-52.41,5.37,5.38a32,32,0,0,0,45.26,0L156,167.31l6.34,6.35a8,8,0,0,0,11.32-11.32L167.31,156l23.32-23.31a32,32,0,0,0,0-45.26l-5.38-5.37,52.41-52.4A8,8,0,0,0,237.66,18.34Zm-116.29,161a16,16,0,0,1-22.62,0L76.69,157.25a16,16,0,0,1,0-22.62L100,111.31,144.69,156Zm57.94-57.94L156,144.69,111.31,100l23.32-23.31a16,16,0,0,1,22.62,0l22.06,22A16,16,0,0,1,179.31,121.37ZM88.57,35A8,8,0,0,1,103.43,29l8,20A8,8,0,0,1,96.57,55ZM24.57,93A8,8,0,0,1,35,88.57l20,8A8,8,0,0,1,49,111.43l-20-8A8,8,0,0,1,24.57,93ZM231.43,163a8,8,0,0,1-10.4,4.46l-20-8A8,8,0,1,1,207,144.57l20,8A8,8,0,0,1,231.43,163Zm-64,58.06A8,8,0,0,1,152.57,227l-8-20A8,8,0,0,1,159.43,201Z"/></symbol><symbol id="i-download-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></symbol><symbol id="i-shield-check" viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></symbol><symbol id="i-file-code" viewBox="0 0 256 256"><path d="M181.66,146.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L164.69,152l-18.35-18.34a8,8,0,0,1,11.32-11.32Zm-72-24a8,8,0,0,0-11.32,0l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L91.31,152l18.35-18.34A8,8,0,0,0,109.66,122.34ZM216,88V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31Zm40,136V96H152a8,8,0,0,1-8-8V40H56V216H200Z"/></symbol><symbol id="i-arrow-clockwise" viewBox="0 0 256 256"><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/></symbol><symbol id="i-hand-grabbing" viewBox="0 0 256 256"><path d="M188,80a27.79,27.79,0,0,0-13.36,3.4,28,28,0,0,0-46.64-11A28,28,0,0,0,80,92v20H68a28,28,0,0,0-28,28v12a88,88,0,0,0,176,0V108A28,28,0,0,0,188,80Zm12,72a72,72,0,0,1-144,0V140a12,12,0,0,1,12-12H80v24a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V108a12,12,0,0,1,24,0Z"/></symbol><symbol id="i-keyboard" viewBox="0 0 256 256"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224V192Zm-16-64a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,128Zm0-32a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,96ZM72,160a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16h8A8,8,0,0,1,72,160Zm96,0a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,160Zm40,0a8,8,0,0,1-8,8h-8a8,8,0,0,1,0-16h8A8,8,0,0,1,208,160Z"/></symbol><symbol id="i-pause" viewBox="0 0 256 256"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol><symbol id="i-lock-key" viewBox="0 0 256 256"><path d="M128,112a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Zm80-72H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></symbol><symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol><symbol id="i-check" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></symbol><symbol id="i-github-logo" viewBox="0 0 256 256"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></symbol><symbol id="i-power" viewBox="0 0 256 256"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></symbol><symbol id="i-cursor-click" viewBox="0 0 256 256"><path d="M88,24V16a8,8,0,0,1,16,0v8a8,8,0,0,1-16,0ZM16,104h8a8,8,0,0,0,0-16H16a8,8,0,0,0,0,16ZM124.42,39.16a8,8,0,0,0,10.74-3.58l8-16a8,8,0,0,0-14.31-7.16l-8,16A8,8,0,0,0,124.42,39.16Zm-96,81.69-16,8a8,8,0,0,0,7.16,14.31l16-8a8,8,0,1,0-7.16-14.31ZM219.31,184a16,16,0,0,1,0,22.63l-12.68,12.68a16,16,0,0,1-22.63,0L132.7,168,115,214.09c0,.1-.08.21-.13.32a15.83,15.83,0,0,1-14.6,9.59l-.79,0a15.83,15.83,0,0,1-14.41-11L32.8,52.92A16,16,0,0,1,52.92,32.8L213,85.07a16,16,0,0,1,1.41,29.8l-.32.13L168,132.69ZM208,195.31,156.69,144h0a16,16,0,0,1,4.93-26l.32-.14,45.95-17.64L48,48l52.2,159.86,17.65-46c0-.11.08-.22.13-.33a16,16,0,0,1,11.69-9.34,16.72,16.72,0,0,1,3-.28,16,16,0,0,1,11.3,4.69L195.31,208Z"/></symbol></svg>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="nav" aria-label="Main">
+  <a class="nav-logo" href="#top" aria-label="Hyperpoint, back to top">
+    <img src="assets/hyperpoint-horizontal-color-on-dark.svg" alt="Hyperpoint" width="72" height="20">
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#proof">Proof</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <a class="btn btn-primary btn-sm" href="https://github.com/progremir/hyperpoint/releases/latest">
+    <svg class="icon icon-sm" aria-hidden="true"><use href="#i-download-simple"/></svg>Download
+  </a>
+  <button class="burger" type="button" aria-expanded="false" aria-controls="sheet" aria-label="Open menu">
+    <span></span><span></span>
+  </button>
+</nav>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <ul>
+    <li class="stagger"><a href="#features">Features</a></li>
+    <li class="stagger"><a href="#how">How it works</a></li>
+    <li class="stagger"><a href="#proof">Proof</a></li>
+    <li class="stagger"><a href="#faq">FAQ</a></li>
+  </ul>
+  <a class="btn btn-primary stagger sheet-cta" href="https://github.com/progremir/hyperpoint/releases/latest">
+    <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
+  </a>
+</div>
+
+<main id="main">
+
+  <!-- Hero -->
+  <header class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <h1 class="reveal">Your mouse setup,<br>still there after<br>every reconnect</h1>
+        <p class="sub reveal" style="--rd: 80ms">Hyperpoint is a macOS menu bar app that remaps mouse buttons, makes the scroll wheel glide and turns Caps Lock into a hyper key. Every setting goes back on the moment a device wakes or reconnects.</p>
+        <a class="btn btn-primary btn-lg reveal" style="--rd: 160ms" href="https://github.com/progremir/hyperpoint/releases/latest">
+          <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
+        </a>
+        <p class="proof-line reveal" style="--rd: 240ms">
+          <span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-shield-check"/></svg>Signed and notarized by Apple</span>
+          <i class="dotsep" aria-hidden="true"></i>
+          <span>Version 0.1.1</span>
+          <i class="dotsep" aria-hidden="true"></i>
+          <span>macOS 27 on Apple silicon</span>
+        </p>
+      </div>
+
+      <figure class="desk" data-intro role="img" aria-label="The Hyperpoint menu open in the macOS menu bar. It reads Active, lists MX Master 3 and 2.4G Mouse as connected, Built-in Keyboard and Magic Keyboard with the hyper key on, and notes that MX Master 3 reconnected at 9:41 and its settings were applied again.">
+        <div class="menubar" aria-hidden="true">
+          <div class="menubar-apps"><b class="mi">Finder</b><span class="mi">File</span><span class="mi">Edit</span><span class="mi">View</span><span class="mi">Go</span></div>
+          <div class="menubar-right">
+            <span class="status-item mi pop">
+              <svg viewBox="28 28 200 200"><path fill-rule="evenodd" d="M83.97 40.3A9 9 0 0 1 95.9 35.47L208.61 84.85A9 9 0 0 1 208.37 101.44L170.35 116.8L181.22 143.69A9 9 0 0 1 176.24 155.4L109.48 182.37A9 9 0 0 1 97.77 177.4L86.91 150.51L48.89 165.87A9 9 0 0 1 37.19 154.11ZM97.12 55.66L181.8 92.76L155.26 103.48A9 9 0 0 0 150.29 115.2L161.15 142.08L111.09 162.31L100.22 135.43A9 9 0 0 0 88.51 130.45L61.97 141.17Z"/><path d="M113.82 201.11L186.14 171.9A7 7 0 0 1 195.25 175.76L197.5 181.33A7 7 0 0 1 193.63 190.44L121.31 219.66A7 7 0 0 1 112.2 215.79L109.95 210.23A7 7 0 0 1 113.82 201.11Z"/></svg>
+            </span>
+            <span class="mi">Mon 26 Oct 9:41</span>
+          </div>
+        </div>
+        <div class="desk-body" aria-hidden="true">
+          <div class="menu">
+            <div class="m-row title mi"><span></span><span class="l">Hyperpoint</span><span class="r">Active</span></div>
+            <div class="m-sep mi"></div>
+            <div class="m-head mi">Devices</div>
+            <div class="m-row mi"><span></span><span class="l">MX Master 3</span><span class="r">Connected</span></div>
+            <div class="m-row mi"><span></span><span class="l">2.4G Mouse</span><span class="r">Connected</span></div>
+            <div class="m-row mi"><span></span><span class="l">Built-in Keyboard</span><span class="r">Hyper key on</span></div>
+            <div class="m-row mi"><span></span><span class="l">Magic Keyboard</span><span class="r">Hyper key on</span></div>
+            <div class="m-note mi">MX Master 3 reconnected at 9:41. Settings re‑applied.</div>
+            <div class="m-sep mi"></div>
+            <div class="m-row hl mi"><span></span><span class="l">Re‑apply Settings Now</span><span class="k">⌘R</span></div>
+            <div class="m-row mi"><span class="m-check">✓</span><span class="l">Hyper Key</span><span></span></div>
+            <div class="m-row mi"><span></span><span class="l">Pause Hyperpoint</span><span></span></div>
+            <div class="m-sep mi"></div>
+            <div class="m-row mi"><span></span><span class="l">Settings…</span><span class="k">⌘,</span></div>
+            <div class="m-row mi"><span></span><span class="l">Open Config File</span><span></span></div>
+            <div class="m-sep mi"></div>
+            <div class="m-row mi"><span></span><span class="l">Quit Hyperpoint</span><span class="k">⌘Q</span></div>
+          </div>
+        </div>
+      </figure>
+    </div>
+  </header>
+
+  <!-- Problem to solution -->
+  <section class="section" id="why" aria-labelledby="why-title">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow reveal">Why it exists</p>
+        <h2 class="h2 reveal" id="why-title">Two apps for one desk, and a mouse that forgets</h2>
+      </div>
+      <div class="versus">
+        <div class="vs-col before reveal">
+          <h3><i class="led" aria-hidden="true"></i>Before</h3>
+          <ul>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg><span>BetterMouse for the buttons and the wheel, Karabiner for Caps Lock. Two apps, two settings, two sets of permissions.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-plugs-connected"/></svg><span>The MX Master 3 drops its button setup when it sleeps or reconnects, which can happen many times a day.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><span>A typo in a settings file can quietly turn a rule off, and nothing tells you.</span></li>
+          </ul>
+        </div>
+        <div class="vs-col after reveal" style="--rd: 100ms">
+          <h3><i class="led" aria-hidden="true"></i>With Hyperpoint</h3>
+          <ul>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>One menu bar app and one file, <code>~/.config/hyperpoint/config.json</code>, for every mouse and keyboard you use.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>On every connect Hyperpoint writes the whole setup back to the device, and the menu shows when it did.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>A file with a mistake is rejected whole, with the path of the error, and the last good settings keep running.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tagline reveal -->
+  <section class="section tagline" aria-label="What Hyperpoint does">
+    <div class="wrap">
+      <p data-words>Press the button<br>you want to change.<br>Hyperpoint makes the rule<br>and keeps it through<br><span class="g">every sleep and reconnect.</span></p>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow reveal">What it does</p>
+        <h2 class="h2 reveal" id="features-title">Buttons, Caps Lock and the wheel, in one app</h2>
+        <p class="lead reveal">The mouse and Caps Lock setup you had in BetterMouse and Karabiner, made by pressing buttons instead of looking up key codes.</p>
+      </div>
+
+      <div class="bento" data-intro>
+        <article class="card span-7" data-story="reconnect">
+          <div class="vis">
+            <div class="panel">
+              <div class="dev-head up" style="--i: 0">
+                <svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg>
+                <span class="name">MX Master 3</span>
+                <span class="state" data-s="on"><i class="dot"></i><span class="state-text">Connected</span></span>
+              </div>
+              <ul class="applied">
+                <li class="up" style="--i: 1"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Gesture button</span><span class="det">Mission Control</span></li>
+                <li class="up" style="--i: 2"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Top button</span><span class="det">⇧⌘4</span></li>
+                <li class="up" style="--i: 3"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Thumb wheel</span><span class="det">Reversed</span></li>
+                <li class="up" style="--i: 4"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Smooth scrolling</span><span class="det">On</span></li>
+                <li class="up" style="--i: 5"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Right button</span><span class="det">Hold to scroll</span></li>
+              </ul>
+              <div class="rule up" style="--i: 6"></div>
+              <p class="foot up" style="--i: 6">Reconnected at <time>9:41</time>. Every setting written back.</p>
+            </div>
+          </div>
+          <div class="copy">
+            <h3 class="up" style="--i: 7">Settings that survive sleep</h3>
+            <p class="up" style="--i: 8">When a mouse wakes or reconnects, Hyperpoint writes every setting back: the gesture and top buttons, the thumb wheel, smooth scrolling and the hyper key. The menu shows when it last did.</p>
+          </div>
+        </article>
+
+        <article class="card span-5" data-story="hyper">
+          <div class="vis">
+            <div class="hyper">
+              <div class="keycap caps up" style="--i: 0"><i class="cap-led"></i><span class="cap-text">caps lock</span></div>
+              <span class="holds up" style="--i: 1">holds</span>
+              <div class="mods up" style="--i: 2">
+                <span class="keycap mod">⌃</span><span class="keycap mod">⌥</span><span class="keycap mod">⇧</span><span class="keycap mod">⌘</span>
+              </div>
+              <div class="chord up" style="--i: 3"><span class="keycap t">T</span>sends<span class="chip">⌃⌥⇧⌘T</span></div>
+            </div>
+          </div>
+          <div class="copy">
+            <h3 class="up" style="--i: 4">A hyper key on Caps Lock</h3>
+            <p class="up" style="--i: 5">Hold Caps Lock and every key you press gets Control, Option, Shift and Command, ready for app shortcuts. Pick the keyboards it works on, or switch it off everywhere from the menu bar.</p>
+          </div>
+        </article>
+
+        <article class="card span-5" data-story="curve">
+          <div class="vis">
+            <figure class="curve up" style="--i: 0">
+              <svg viewBox="0 0 360 196" role="img" aria-label="Speed curve on log scales. 1 step per second scrolls 40 points per second, 5 scrolls 250, 15 scrolls 900, 40 scrolls 2,800 and 120 scrolls 9,000. Shaded bands mark measured wheel speeds: slow 4 to 12, medium 15 to 17, fast about 36 and flick about 120 steps per second.">
+                <rect class="band" x="122.3" y="24" width="68.4" height="144"/>
+                <rect class="band" x="204.6" y="24" width="7.8" height="144"/>
+                <rect class="band" x="253.7" y="24" width="12.0" height="144"/>
+                <rect class="band" x="328.7" y="24" width="19.3" height="144"/>
+                <text class="band-l" x="156.5" y="16" text-anchor="middle">slow</text>
+                <text class="band-l" x="208.5" y="16" text-anchor="middle">medium</text>
+                <text class="band-l" x="259.7" y="16" text-anchor="middle">fast</text>
+                <text class="band-l" x="338.3" y="16" text-anchor="middle">flick</text>
+                <line class="grid" x1="36" x2="348" y1="168" y2="168"/><text class="tick" x="28" y="172" text-anchor="end">10</text>
+                <line class="grid" x1="36" x2="348" y1="126.6" y2="126.6"/><text class="tick" x="28" y="130.6" text-anchor="end">100</text>
+                <line class="grid" x1="36" x2="348" y1="85.2" y2="85.2"/><text class="tick" x="28" y="89.2" text-anchor="end">1k</text>
+                <line class="grid" x1="36" x2="348" y1="43.8" y2="43.8"/><text class="tick" x="28" y="47.8" text-anchor="end">10k</text>
+                <text class="tick" x="36" y="188" text-anchor="middle">1</text>
+                <text class="tick" x="79.2" y="188" text-anchor="middle">2</text>
+                <text class="tick" x="136.2" y="188" text-anchor="middle">5</text>
+                <text class="tick" x="179.4" y="188" text-anchor="middle">10</text>
+                <text class="tick" x="222.5" y="188" text-anchor="middle">20</text>
+                <text class="tick" x="279.6" y="188" text-anchor="middle">50</text>
+                <text class="tick" x="322.8" y="188" text-anchor="middle">100</text>
+                <polygon class="area" points="36,168 36,143.1 136.2,110.1 204.6,87.1 265.7,66.7 334.1,45.7 334.1,168"/>
+                <polyline class="line" points="36,143.1 136.2,110.1 204.6,87.1 265.7,66.7 334.1,45.7"/>
+                <circle class="pt" cx="36" cy="143.1" r="4"/>
+                <circle class="pt" cx="136.2" cy="110.1" r="4"/>
+                <circle class="pt" cx="204.6" cy="87.1" r="4"/>
+                <circle class="pt" cx="265.7" cy="66.7" r="4"/>
+                <circle class="pt" cx="334.1" cy="45.7" r="4"/>
+                <g class="rider" aria-hidden="true">
+                  <line class="scrub" x1="0" x2="0" y1="24" y2="168"/>
+                  <circle class="halo" r="10"/>
+                  <circle class="knob" r="5"/>
+                </g>
+              </svg>
+              <figcaption class="readout"><output>15 steps/s: 900 pt/s</output><span>Wheel steps against points scrolled, log scales</span></figcaption>
+            </figure>
+          </div>
+          <div class="copy">
+            <h3 class="up" style="--i: 1">A wheel that glides</h3>
+            <p class="up" style="--i: 2">Each wheel step becomes an eased pulse. How far it goes depends on how fast you spin, on a speed curve you drag into shape. The shaded bands are an MX wheel's real speeds, measured.</p>
+          </div>
+        </article>
+
+        <article class="card span-7" data-story="rules">
+          <div class="vis">
+            <div class="panel rules-panel">
+              <div class="rp-head up" style="--i: 0">
+                <div><h4>Rules</h4><small>MX Master 3</small></div>
+                <span class="fake-btn"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"/></svg>Add Rule</span>
+              </div>
+              <div class="rp-slot up" style="--i: 1">
+                <div class="rp-cols"><span>Button</span><span>When</span><span>Do</span></div>
+                <div class="rp-listen" aria-hidden="true"><i class="dot"></i><span>Press a button or turn the thumb wheel</span></div>
+              </div>
+              <ol class="rp-list up" style="--i: 2">
+                <li style="--slot: 0"><span>Gesture button</span><span>Click</span><span>Mission Control</span></li>
+                <li style="--slot: 1"><span>Top button</span><span>Click</span><span>Shortcut ⇧⌘4</span></li>
+                <li style="--slot: 2"><span>Thumb wheel</span><span>Scroll</span><span>Horizontal scroll, reversed</span></li>
+              </ol>
+            </div>
+          </div>
+          <div class="copy">
+            <h3 class="up" style="--i: 3">Change a button by pressing it</h3>
+            <p class="up" style="--i: 4">Click Add Rule and press the button, key or thumb wheel. Hyperpoint makes the rule for that control, then you pick what it does: Mission Control, App Exposé, a Space, any shortcut or a held modifier.</p>
+          </div>
+        </article>
+      </div>
+
+      <ul class="trio">
+        <li class="reveal">
+          <svg class="icon" aria-hidden="true"><use href="#i-hand-grabbing"/></svg>
+          <h3>Hold to scroll</h3>
+          <p>Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset puts it on the right button, and a quick press still clicks.</p>
+        </li>
+        <li class="reveal" style="--rd: 100ms">
+          <svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg>
+          <h3>Keys from any mouse</h3>
+          <p>Keys a mouse sends, like Escape and Return on a 2.4G mouse, can become modifiers or shortcuts. A modifier is mapped below apps, so it holds in password fields too.</p>
+        </li>
+        <li class="reveal" style="--rd: 200ms">
+          <svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg>
+          <h3>Pause from the menu bar</h3>
+          <p>See each device's state, apply settings again, pause everything or open the config file, all from one menu.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow reveal">How it works</p>
+        <h2 class="h2 reveal" id="how-title">From download to done in three steps</h2>
+      </div>
+      <ol class="steps">
+        <li class="step reveal">
+          <span class="step-n" aria-hidden="true">1</span>
+          <h3>Install and allow two permissions</h3>
+          <p>Drag Hyperpoint into Applications and open it. Turn on <strong>Accessibility</strong> and <strong>Input Monitoring</strong> in System Settings. Until you do, the menu says Needs attention and nothing changes.</p>
+        </li>
+        <li class="step reveal" style="--rd: 100ms">
+          <span class="step-n" aria-hidden="true">2</span>
+          <h3>Set up each device</h3>
+          <p>Every keyboard and mouse you plug in shows up under <strong>Devices</strong>. Start it from a preset for its model, copy another device's settings or start empty. Click <strong>Ignore</strong> and Hyperpoint leaves it alone.</p>
+        </li>
+        <li class="step reveal" style="--rd: 200ms">
+          <span class="step-n" aria-hidden="true">3</span>
+          <h3>Press a button to add a rule</h3>
+          <p>Click <strong>Add Rule</strong>, press the button on your mouse and choose what it does. From then on, Hyperpoint keeps it in place through every sleep, wake and reconnect.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Proof -->
+  <section class="section" id="proof" aria-labelledby="proof-title">
+    <div class="wrap">
+      <div class="proof-grid">
+        <div class="head">
+          <p class="eyebrow reveal">Proof</p>
+          <h2 class="h2 reveal" id="proof-title">One Mac, four devices, one file</h2>
+          <p class="lead reveal">This is the config from the Mac Hyperpoint was built on. Two mice and two keyboards, each set up from a preset, replacing a BetterMouse and Karabiner setup. The settings window edits this file and nothing else, so every setting can be read, diffed and backed up.</p>
+        </div>
+        <ul class="facts">
+          <li class="reveal"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg><div><b>Notarized by Apple</b>Releases are signed with Developer ID and notarized, so the download opens without a warning.</div></li>
+          <li class="reveal" style="--rd: 80ms"><svg class="icon" aria-hidden="true"><use href="#i-lock-key"/></svg><div><b>No network code</b>The app reads your devices and one file. It never connects to the internet.</div></li>
+          <li class="reveal" style="--rd: 160ms"><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><div><b>Mistakes are caught</b>An invalid file is rejected whole with the path of the error. The last good settings keep running.</div></li>
+          <li class="reveal" style="--rd: 240ms"><svg class="icon" aria-hidden="true"><use href="#i-power"/></svg><div><b>Quit, and it is gone</b>Quitting clears the key mappings Hyperpoint made, so Caps Lock types as Caps Lock again.</div></li>
+        </ul>
+      </div>
+      <figure class="code reveal">
+        <figcaption class="code-bar"><code>~/.config/hyperpoint/config.json</code><span>Excerpt, scrolling settings left out</span></figcaption>
+        <pre tabindex="0" aria-label="Excerpt of the config file"><code><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;hyper&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;key&quot;</span><span class="p">:</span> <span class="s">&quot;capsLock&quot;</span><span class="p">,</span> <span class="k">&quot;onTap&quot;</span><span class="p">:</span> <span class="s">&quot;nothing&quot;</span> <span class="p">}</span><span class="p">,</span>
+  <span class="k">&quot;devices&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;match&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;vendor&quot;</span><span class="p">:</span> <span class="s">&quot;0x046D&quot;</span><span class="p">,</span> <span class="k">&quot;product&quot;</span><span class="p">:</span> <span class="s">&quot;0xB023&quot;</span> <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;MX Master 3&quot;</span><span class="p">,</span>
+      <span class="k">&quot;rules&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;hidpp&quot;</span><span class="p">:</span> <span class="s">&quot;0xC3&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;click&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="s">&quot;missionControl&quot;</span> <span class="p">}</span><span class="p">,</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;hidpp&quot;</span><span class="p">:</span> <span class="s">&quot;0xC3&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;holdMoveDown&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="s">&quot;appExpose&quot;</span> <span class="p">}</span><span class="p">,</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;hidpp&quot;</span><span class="p">:</span> <span class="s">&quot;0xC4&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;click&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;shortcut&quot;</span><span class="p">:</span> <span class="s">&quot;shift+cmd+4&quot;</span> <span class="p">}</span> <span class="p">}</span><span class="p">,</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="s">&quot;thumbWheel&quot;</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;scroll&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="s">&quot;reverse&quot;</span> <span class="p">}</span><span class="p">,</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;button&quot;</span><span class="p">:</span> <span class="n">1</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;holdMove&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="s">&quot;scroll&quot;</span> <span class="p">}</span>
+      <span class="p">]</span>
+    <span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span>
+      <span class="k">&quot;match&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;vendor&quot;</span><span class="p">:</span> <span class="s">&quot;0x1EA7&quot;</span><span class="p">,</span> <span class="k">&quot;product&quot;</span><span class="p">:</span> <span class="s">&quot;0x0002&quot;</span> <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;2.4G Mouse&quot;</span><span class="p">,</span>
+      <span class="k">&quot;kind&quot;</span><span class="p">:</span> <span class="s">&quot;mouse&quot;</span><span class="p">,</span>
+      <span class="k">&quot;rules&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;key&quot;</span><span class="p">:</span> <span class="s">&quot;escape&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;hold&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;modifier&quot;</span><span class="p">:</span> <span class="s">&quot;rightOption&quot;</span> <span class="p">}</span> <span class="p">}</span><span class="p">,</span>
+        <span class="p">{</span> <span class="k">&quot;control&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;key&quot;</span><span class="p">:</span> <span class="s">&quot;return&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;when&quot;</span><span class="p">:</span> <span class="s">&quot;click&quot;</span><span class="p">,</span> <span class="k">&quot;do&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;shortcut&quot;</span><span class="p">:</span> <span class="s">&quot;opt+shift+s&quot;</span> <span class="p">}</span> <span class="p">}</span>
+      <span class="p">]</span>
+    <span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span> <span class="k">&quot;match&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;builtIn&quot;</span><span class="p">:</span> <span class="n">true</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;Built-in Keyboard&quot;</span><span class="p">,</span> <span class="k">&quot;hyper&quot;</span><span class="p">:</span> <span class="n">true</span> <span class="p">}</span><span class="p">,</span>
+    <span class="p">{</span> <span class="k">&quot;match&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="k">&quot;vendor&quot;</span><span class="p">:</span> <span class="s">&quot;0x004C&quot;</span><span class="p">,</span> <span class="k">&quot;product&quot;</span><span class="p">:</span> <span class="s">&quot;0x0321&quot;</span> <span class="p">}</span><span class="p">,</span> <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;Magic Keyboard&quot;</span><span class="p">,</span> <span class="k">&quot;hyper&quot;</span><span class="p">:</span> <span class="n">true</span> <span class="p">}</span>
+  <span class="p">]</span><span class="p">,</span>
+  <span class="k">&quot;ignored&quot;</span><span class="p">:</span> <span class="p">[</span><span class="p">]</span>
+<span class="p">}</span></code></pre>
+      </figure>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap faq-grid">
+      <div class="head">
+        <p class="eyebrow reveal">FAQ</p>
+        <h2 class="h2 reveal" id="faq-title">Questions before you download</h2>
+        <p class="lead reveal">The short answers. The README on GitHub has the long ones.</p>
+      </div>
+      <div class="faq-list" data-faq>
+        <details class="reveal">
+          <summary>Which Macs does Hyperpoint run on?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>macOS 27 on Apple silicon. Download the DMG from the latest release, open it and drag Hyperpoint into Applications.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Does it work with mice other than the MX Master 3?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Yes. Every keyboard and mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture and top buttons and the thumb wheel. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>My MX Master 3 forgets its buttons after sleep. Does this fix it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Do I still need BetterMouse or Karabiner?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Not for what Hyperpoint covers: button rules and gestures, smooth scrolling, hold to scroll, the hyper key and remapping keys a mouse sends. Karabiner can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it for them.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Why does it need Accessibility and Input Monitoring?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Accessibility lets the hyper key and smooth scrolling change keys and scrolls as they happen. Input Monitoring lets Hyperpoint set up the buttons on Logitech mice. Until both are on, the menu says Needs attention and nothing is applied.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Does Hyperpoint collect any data?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>No. The app has no network code at all. Your settings live in one file on your Mac, and the log of what it did stays on your Mac too.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Where are my settings stored?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>In <code>~/.config/hyperpoint/config.json</code>. The settings window edits that file and nothing else, so you can edit it by hand too. A file with an error is rejected whole, with the path of the mistake, and the last good settings keep running.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>What happens when I quit?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Hyperpoint clears the key mappings it made, so Caps Lock and your mouse keys go back to how macOS had them. To stop it for a while without quitting, choose Pause Hyperpoint from the menu.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>How do I uninstall it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Choose Quit Hyperpoint from the menu and drag the app to the Trash. To remove your settings as well, delete the <code>~/.config/hyperpoint</code> folder.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>macOS says the app cannot be opened. What now?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Version 0.1.0 came out before releases were notarized. Download 0.1.1 or later, or allow 0.1.0 under System Settings › Privacy &amp; Security › Open Anyway.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="section" aria-labelledby="cta-title">
+    <div class="wrap">
+      <div class="cta reveal">
+        <div class="cta-copy">
+          <h2 id="cta-title">Set it up once.<br>Keep it through<br>every reconnect.</h2>
+          <p class="lead">A fresh install changes nothing until you set up a device, and quitting puts your keys back. Try it on the mouse you already have.</p>
+          <a class="btn btn-primary btn-lg" href="https://github.com/progremir/hyperpoint/releases/latest">
+            <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
+          </a>
+          <p class="proof-line">
+            <span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-shield-check"/></svg>Signed and notarized by Apple</span>
+            <i class="dotsep" aria-hidden="true"></i>
+            <span>Version 0.1.1</span>
+            <i class="dotsep" aria-hidden="true"></i>
+            <span>macOS 27 on Apple silicon</span>
+          </p>
+        </div>
+        <img class="cta-icon" src="assets/hyperpoint-app-icon.svg" alt="The Hyperpoint app icon: the Caps Lock arrow tipped over into a pointer, above a green bar" width="160" height="160">
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-row">
+      <a href="#top" aria-label="Hyperpoint, back to top"><img src="assets/hyperpoint-horizontal-color-on-dark.svg" alt="Hyperpoint" width="87" height="24"></a>
+      <nav aria-label="Footer">
+        <ul>
+          <li><a href="https://github.com/progremir/hyperpoint/releases/latest">Download</a></li>
+          <li><a href="https://github.com/progremir/hyperpoint/releases">Release notes</a></li>
+          <li><a href="https://github.com/progremir/hyperpoint">Source code</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </nav>
+    </div>
+    <small>© 2026 Hyperpoint. BetterMouse, Karabiner, Logitech and MX Master are trademarks of their owners.</small>
+  </div>
+</footer>
+
+<script src="main.js" defer></script>
+</body>
+</html>
