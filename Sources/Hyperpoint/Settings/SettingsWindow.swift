@@ -107,7 +107,8 @@ final class SettingsWindow {
 
 /// One toolbar item and SwiftUI page per `SettingsTab`, and the window sized to the selected page. A tab switch works
 /// like a native preferences window: the new page stays hidden while the window animates to its height, then shows.
-/// A page that grows in place hides the same way, and one that shrinks stays in view while the window follows.
+/// Another mouse's page hides the same way when it is taller. A page that grows or shrinks where it is, as when a rule
+/// is added, stays in view while the window follows.
 private final class SettingsTabs: NSTabViewController {
     private let model: SettingsModel
     private var fits: [SettingsTab: PageFit] = [:]
@@ -123,7 +124,7 @@ private final class SettingsTabs: NSTabViewController {
         // Adding the first item selects it, which would overwrite the remembered tab.
         let remembered = model.tab
         for tab in SettingsTab.allCases {
-            let fit = PageFit { [weak self] in self?.resized(tab) }
+            let fit = PageFit { [weak self] replaced in self?.resized(tab, replaced: replaced) }
             fits[tab] = fit
             let page = NSHostingController(rootView: SettingsTabPage(tab: tab, model: model).environment(\.pageFit, fit))
             page.sizingOptions = []
@@ -160,12 +161,13 @@ private final class SettingsTabs: NSTabViewController {
         fitSoon()
     }
 
-    /// A page that grew in place would show clipped until the window caught up, so like a new page it is hidden until
-    /// the window has its height. This runs while SwiftUI places the page, so the page is hidden in the same update
-    /// that draws it grown. A page that shrank stays in view.
-    private func resized(_ tab: SettingsTab) {
+    /// Another mouse's page, taller than the last, is a new page, so it is hidden until the window has its height. This
+    /// runs while SwiftUI places the page, so the page is hidden in the same update that draws it. A page that grew
+    /// where it is, by a rule added, stays in view with its bottom revealed as the window grows: hiding it blanked the
+    /// whole page for the length of the animation on every added rule.
+    private func resized(_ tab: SettingsTab, replaced: Bool) {
         guard tab == self.tab else { return }
-        if let window = view.window, window.isVisible, let size = fits[tab]?.size,
+        if replaced, let window = view.window, window.isVisible, let size = fits[tab]?.size,
             target(for: size, in: window).frame.height > window.frame.height
         {
             tabView.selectedTabViewItem?.view?.isHidden = true

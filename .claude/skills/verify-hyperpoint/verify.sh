@@ -246,7 +246,7 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]
                      the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
-  settings-switches [recorders]
+  settings-switches [recorders|rules]
                      every tab switch, Device change, page past the screen and shortcut recorder, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
   menu "<item>"      press an item of the menu bar menu by title, such as "Hyper Key"

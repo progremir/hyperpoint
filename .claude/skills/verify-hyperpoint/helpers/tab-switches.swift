@@ -1,17 +1,21 @@
 // Proves the settings window's tab switches, as a click on a toolbar item makes them. It presses every tab from every
 // other tab, switches the Device popup on Buttons and Scrolling to the other mouse and back, and opens Scrolling on
 // the shortest screen when the page is taller than it. It also starts and cancels the shortcut recorder of the first
-// Buttons rule that does a shortcut. From each press it samples at 120 Hz the window's height on screen and the incoming
+// Buttons rule that does a shortcut, and adds a rule from Add Rule's menu, then puts the config file back byte for
+// byte, which removes it. From each press it samples at 120 Hz the window's height on screen and the incoming
 // page's scroll area: whether it has a scroll bar, and whether its content is taller than the part that shows. It
 // prints every sample, then a verdict per change, and puts the window back where it was.
 // Needs Accessibility for the calling shell, and opens Settings from the menu bar item if it is closed.
-// Usage: tab-switches [seconds sampled per change] [recorders], where recorders runs the recorder check alone.
+// Usage: tab-switches [seconds sampled per change] [recorders|rules], where recorders runs the recorder check alone and
+// rules the rule check alone.
 import AppKit
 import ApplicationServices
 
 let tabs = ["General", "Hyper Key", "Buttons", "Scrolling", "Devices"]
 let seconds = CommandLine.arguments.dropFirst().compactMap(Double.init).first ?? 1.2
 let recordersOnly = CommandLine.arguments.contains("recorders")
+let rulesOnly = CommandLine.arguments.contains("rules")
+let switchesToo = !recordersOnly && !rulesOnly
 let period = 1.0 / 120
 
 func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
@@ -198,10 +202,15 @@ enum Change {
     /// Something in the page changes without changing its height: the window keeps its height and the page shows
     /// throughout.
     case steady
+    /// The page gains or loses a row: the window follows within 50 ms and the page shows throughout, its bottom
+    /// revealed as the window grows.
+    case row
 
     var isInPlace: Bool {
-        if case .inPlace = self { return true }
-        return false
+        switch self {
+        case .inPlace, .row: true
+        default: false
+        }
     }
 }
 
@@ -229,6 +238,9 @@ func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool 
         ok = monotonic && (changes.isEmpty || animated) && clipped == 0 && scroller == 0 && finished <= 0.35
     case .inPlace:
         ok = monotonic && animated && clipped == 0 && scroller == 0 && (lag ?? .infinity) <= 0.05
+    case .row:
+        ok = monotonic && animated && scroller == 0 && (lag ?? .infinity) <= 0.05
+            && !recording.pages.isEmpty && recording.pages.allSatisfy { $0.content != nil }
     case .steady:
         ok = changes.isEmpty && !recording.pages.isEmpty && recording.pages.allSatisfy { $0.content != nil } && clipped == 0
     case .pastScreen(let visibleHeight):
@@ -238,10 +250,11 @@ func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool 
     }
     print(
         String(
-            format: "%@ %@: %.0f to %.0f, %d steps from %.0f to %.0f ms, %@, page shown at %@ ms, done %.0f ms, clipped %d, scroller %d",
+            format: "%@ %@: %.0f to %.0f, %d steps from %.0f to %.0f ms, %@, page shown at %@ ms, done %.0f ms, clipped %d, scroller %d, hidden %d of %d",
             ok ? "PASS" : "FAIL", label, heights[0].height, heights[heights.count - 1].height, changes.count,
             began * 1000, ended * 1000, monotonic ? "monotonic" : "NOT monotonic",
-            shown.first.map { String(format: "%.0f", $0.time * 1000) } ?? "never", finished * 1000, clipped, scroller)
+            shown.first.map { String(format: "%.0f", $0.time * 1000) } ?? "never", finished * 1000, clipped, scroller,
+            recording.pages.count - shown.count, recording.pages.count)
             + (change.isInPlace
                 ? String(
                     format: ", page changed at %@ ms, window started %@ ms after",
@@ -262,7 +275,7 @@ func select(_ tab: String) {
 
 let startTab = attribute(window, kAXTitleAttribute) as? String ?? tabs[0]
 var results: [(String, Recording, Change)] = []
-for from in tabs where !recordersOnly {
+for from in tabs where switchesToo {
     for to in tabs where to != from {
         select(from)
         let label = "\(from) > \(to)"
@@ -299,7 +312,7 @@ func button(_ name: String, in element: AXUIElement) -> AXUIElement? {
     return children(element).lazy.compactMap { button(name, in: $0) }.first
 }
 
-for tab in ["Buttons", "Scrolling"] where !recordersOnly {
+for tab in ["Buttons", "Scrolling"] where switchesToo {
     select(tab)
     guard let device = popUp(in: window) else { fail("no Device popup on \(tab)") }
     let original = attribute(device, kAXValueAttribute) as? String ?? ""
@@ -325,7 +338,7 @@ func move(_ element: AXUIElement, to point: CGPoint) {
 // A rule's Do picker and When picker give way to the shortcut recorder, and come back on Cancel.
 select("Buttons")
 let doesShortcut = { (popUp: AXUIElement) in (attribute(popUp, kAXValueAttribute) as? String)?.hasPrefix("Shortcut ") == true }
-if let shortcut = popUps(in: window).first(where: doesShortcut),
+if !rulesOnly, let shortcut = popUps(in: window).first(where: doesShortcut),
     let item = openMenu(shortcut).first(where: { title($0) == "Record Another Shortcut…" })
 {
     results.append(("Buttons record a shortcut", record("Buttons record a shortcut", outgoing: [], press(item)), .steady))
@@ -333,13 +346,67 @@ if let shortcut = popUps(in: window).first(where: doesShortcut),
     guard let cancel = button("Cancel", in: window) else { fail("the shortcut recorder has no Cancel button") }
     results.append(("Buttons stop recording", record("Buttons stop recording", outgoing: [], press(cancel)), .steady))
     settle()
-} else {
+} else if !rulesOnly {
     print("SKIP no rule on Buttons does a shortcut")
 }
 
-let tallest = recordersOnly ? 0 : { select("Scrolling"); return screenHeight() }()
+func texts(in element: AXUIElement) -> [String] {
+    let own = role(element) == kAXStaticTextRole ? [attribute(element, kAXValueAttribute) as? String ?? ""] : []
+    return own + children(element).flatMap(texts)
+}
+
+/// The count over the rules, such as "3 rules".
+func ruleCount() -> Int? {
+    texts(in: window).lazy.compactMap { text -> Int? in
+        let words = text.split(separator: " ")
+        return words.count == 2 && words[1].hasPrefix("rule") ? Int(words[0]) : nil
+    }.first
+}
+
+func menuButton(_ name: String, in element: AXUIElement) -> AXUIElement? {
+    if role(element) == "AXMenuButton", title(element) == name || attribute(element, kAXDescriptionAttribute) as? String == name {
+        return element
+    }
+    guard role(element) != kAXToolbarRole else { return nil }
+    return children(element).lazy.compactMap { menuButton(name, in: $0) }.first
+}
+
+// Add Rule's menu adds a rule the way a pressed button does, through the same learned rule, so the page grows by a row.
+// Putting the config file back removes it, and the page shrinks by that row.
+if !recordersOnly {
+    select("Buttons")
+    let config = URL(filePath: NSHomeDirectory()).appending(path: ".config/hyperpoint/config.json")
+    guard let saved = try? Data(contentsOf: config) else { fail("cannot read \(config.path)") }
+    guard let before = ruleCount(), let add = menuButton("Add Rule", in: window) else { fail("no Add Rule or rule count on Buttons") }
+    var added = false
+    AXUIElementPerformAction(add, "AXShowMenu" as CFString)
+    usleep(300_000)
+    let picks = children(add).flatMap(children).filter { role($0) == kAXMenuItemRole && !title($0).isEmpty }
+    AXUIElementPerformAction(add, kAXCancelAction as CFString)
+    for name in picks.map(title) {
+        settle()
+        AXUIElementPerformAction(add, "AXShowMenu" as CFString)
+        usleep(300_000)
+        guard let item = children(add).flatMap(children).first(where: { title($0) == name }) else { continue }
+        let label = "Buttons add a rule for \(name)"
+        let recording = record(label, outgoing: [], press(item))
+        guard ruleCount() == before + 1 else { print("SKIP \(label): the rule count stayed \(before)"); continue }
+        results.append((label, recording, .row))
+        added = true
+        break
+    }
+    if !added { print("SKIP no button in Add Rule's menu adds a rule") }
+    settle()
+    let restore: @Sendable () -> Void = { try? saved.write(to: config) }
+    let recording = record("Buttons remove the rule", outgoing: [], restore)
+    if added { results.append(("Buttons remove the rule", recording, .row)) }
+    settle()
+    print("config \((try? Data(contentsOf: config)) == saved ? "restored byte for byte" : "NOT restored"), \(ruleCount() ?? -1) rules")
+}
+
+let tallest = !switchesToo ? 0 : { select("Scrolling"); return screenHeight() }()
 var restored = true
-if !recordersOnly, let short = NSScreen.screens.min(by: { $0.visibleFrame.height < $1.visibleFrame.height }),
+if switchesToo, let short = NSScreen.screens.min(by: { $0.visibleFrame.height < $1.visibleFrame.height }),
     Double(short.visibleFrame.height) < tallest, let home = position(window)
 {
     select("General")
@@ -353,7 +420,7 @@ if !recordersOnly, let short = NSScreen.screens.min(by: { $0.visibleFrame.height
     let back = position(window) ?? .zero
     print(String(format: "window moved to %@ and back to %.0f,%.0f (was %.0f,%.0f)", short.localizedName, back.x, back.y, home.x, home.y))
     restored = abs(back.x - home.x) <= 1 && abs(back.y - home.y) <= 1
-} else if !recordersOnly {
+} else if switchesToo {
     print("SKIP no screen is shorter than the Scrolling page")
 }
 select(startTab)
