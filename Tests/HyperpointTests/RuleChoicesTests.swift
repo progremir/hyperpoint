@@ -77,6 +77,23 @@ let mxCapabilities = HIDPPCapabilities(
         #expect(saves(SettingsEdit.replaceRule(mx, RuleKey(top), tapped).applied(to: .example)), "the recorder sets it")
     }
 
+    @Test func aModifierRecordedAloneHoldsForAsLongAsTheButton() throws {
+        let back = Control.hidpp(CID(rawValue: 0x53))
+        let click = Rule(control: back, trigger: .click, action: .system(.missionControl))
+        let choices = RuleChoices(rules: mxRules + [click], capabilities: mxCapabilities, speaksHIDPP: true)
+        #expect(
+            choices.recorded(.modifier(.rightOption), in: click)
+                == Rule(control: back, trigger: .hold, action: .modifier(.rightOption)), "a tap could not be held")
+        let shortcut = Action.shortcut(Chord(key: KeyCode(name: "s")!, modifiers: .option))
+        #expect(choices.recorded(shortcut, in: click) == Rule(control: back, trigger: .click, action: shortcut))
+
+        let swipe = try #require(mxRules.first { $0.trigger == .holdMove(.down) })
+        #expect(
+            mxChoices.recorded(.modifier(.leftShift), in: swipe).trigger == .holdMove(.down),
+            "the gesture button's other rules leave no room to hold, so the swipe taps it")
+        #expect(saves(SettingsEdit.replaceRule(mx, RuleKey(swipe), mxChoices.recorded(.modifier(.leftShift), in: swipe)).applied(to: .example)))
+    }
+
     @Test func aHoldRulesOutAClickAndMoves() {
         let back = Control.hidpp(CID(rawValue: 0x53))
         let hold = Rule(control: back, trigger: .hold, action: .modifier(.leftCommand))

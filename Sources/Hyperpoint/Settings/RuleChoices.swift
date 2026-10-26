@@ -112,6 +112,16 @@ struct RuleChoices {
         return self.rule(Rule(control: control, trigger: trigger, action: rule.action), withTrigger: trigger)
     }
 
+    /// What a recording in `rule`'s Do cell saves. A modifier recorded alone is held for as long as the button is, as
+    /// push-to-talk wants: a tap of it alone did what a double tap of Right Option does, so one press could not hold
+    /// it. A control that cannot hold keeps its trigger and taps it.
+    func recorded(_ action: Action, in rule: Rule) -> Rule {
+        if case .modifier = action, rule.trigger != .hold, triggers(for: rule.control, besides: rule).contains(.hold) {
+            return Rule(control: rule.control, trigger: .hold, action: action)
+        }
+        return Rule(control: rule.control, trigger: rule.trigger, action: action)
+    }
+
     /// `rule` with `trigger`, keeping its action where it still works.
     func rule(_ rule: Rule, withTrigger trigger: Trigger) -> Rule {
         let action =

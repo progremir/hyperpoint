@@ -297,7 +297,7 @@ private struct RuleRow: View {
             if recordingShortcut {
                 ShortcutField { action in
                     recordingShortcut = false
-                    edit(Rule(control: rule.control, trigger: rule.trigger, action: action))
+                    edit(choices.recorded(action, in: rule))
                 } cancel: {
                     recordingShortcut = false
                 }
