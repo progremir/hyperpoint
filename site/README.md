@@ -10,9 +10,10 @@ Live at https://hyperpoint.progremir.dev, served by the `hyperpoint-site` Worker
 python3 -m http.server 4319 --directory site/public
 ```
 
-**Deploying.** `.github/workflows/site.yml` checks the build on pull requests that touch `site/` and deploys it on
-pushes to `main`, which needs a `CLOUDFLARE_API_TOKEN` repository secret that can deploy Workers and their custom
-domains. To deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in `site/`.
+**Deploying.** Cloudflare's Workers Builds deploys `site/` to the `hyperpoint-site` Worker on every push to `main`
+that touches it. It runs `npx cf deploy` in `site/` on Node 24 (`.node-version`), with its own API token, so the
+repository holds no Cloudflare secret. `.github/workflows/site.yml` only checks that pull requests still build. To
+deploy by hand, sign in with `cf auth login` and run `npm ci && npm run deploy` in `site/`.
 `cloudflare.config.ts` holds the Worker's name, account, domain and 404 handling, and `wrangler.config.ts` names
 `public/` as the assets, so only that folder is uploaded.
 
