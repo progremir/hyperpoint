@@ -532,6 +532,8 @@ main { padding-top: calc(80px + env(safe-area-inset-top, 0px)); }
 .facts li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
 .facts .icon { margin-top: 2px; color: var(--accent); }
 .facts b { display: block; color: var(--fg); font-weight: 600; }
+.facts a, .faq-list .a a { color: var(--fg); text-underline-offset: 3px; transition: color 700ms var(--fluid); }
+.facts a:hover, .faq-list .a a:hover { color: var(--accent); }
 .code {
   min-width: 0; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); overflow: hidden;
 }

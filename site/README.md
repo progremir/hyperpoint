@@ -33,7 +33,7 @@ that menu with real device rows and the reconnect note.
 downloads, and the proof line says it is notarized, its version and what it runs on.
 
 **Order.** Hero, problem to solution (before and after), tagline reveal, four benefit cards with stories, three
-smaller features, how it works in three steps, proof (the owner's real config and four facts), FAQ (10 questions with
+smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (12 questions with
 FAQ schema), final CTA with risk reversal, footer.
 
 **Benefits.** Settings that survive sleep. A hyper key on Caps Lock. A wheel that glides. Change a button by pressing

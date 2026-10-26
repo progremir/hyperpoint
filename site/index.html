@@ -85,6 +85,14 @@
     },
     {
       "@type": "Question",
+      "name": "Can an AI agent change my settings?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Install the Hyperpoint config skill in Claude Code, then ask for what you want, like \"make the gesture button open App Exposé\". It knows every rule the app enforces, checks the edit before saving it and reads the app's log to confirm it took."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Why does it need Accessibility and Input Monitoring?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -469,7 +477,7 @@
 <span class="p">}</span></code></pre>
       </figure>
       <ul class="facts">
-        <li class="reveal"><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><div><b>Agents can edit it</b>It is plain JSON, so you or a coding agent like Claude Code can change any rule. Hyperpoint applies the file the moment it is saved.</div></li>
+        <li class="reveal"><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><div><b>Agents can edit it</b>It is plain JSON, and Hyperpoint applies it the moment it is saved. Install the <a href="https://github.com/progremir/hyperpoint/tree/main/skills/hyperpoint-config">config skill</a> and ask Claude Code for a change in plain words.</div></li>
         <li class="reveal" style="--rd: 80ms"><svg class="icon" aria-hidden="true"><use href="#i-lock-key"/></svg><div><b>No network code</b>The app reads your devices and one file. It never connects to the internet.</div></li>
         <li class="reveal" style="--rd: 160ms"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"/></svg><div><b>Mistakes are caught</b>An invalid file is rejected whole with the path of the error. The last good settings keep running.</div></li>
         <li class="reveal" style="--rd: 240ms"><svg class="icon" aria-hidden="true"><use href="#i-power"/></svg><div><b>Quit, and it is gone</b>Quitting clears the key mappings Hyperpoint made, so Caps Lock types as Caps Lock again.</div></li>
@@ -507,6 +515,10 @@
         <details class="reveal">
           <summary>Do I still need BetterMouse or Karabiner?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
           <div class="a"><p>Not for what Hyperpoint covers: button rules and gestures, smooth scrolling, hold to scroll, the hyper key and remapping keys a mouse sends. Karabiner can also rewrite any key on any keyboard with complex rules. If you rely on those, keep it for them.</p></div>
+        </details>
+        <details class="reveal">
+          <summary>Can an AI agent change my settings?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Yes. Install the <a href="https://github.com/progremir/hyperpoint/tree/main/skills/hyperpoint-config">Hyperpoint config skill</a> in Claude Code, then ask for what you want, like "make the gesture button open App Exposé". It knows every rule the app enforces, checks the edit before saving it and reads the app's log to confirm it took.</p></div>
         </details>
         <details class="reveal">
           <summary>Why does it need Accessibility and Input Monitoring?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
