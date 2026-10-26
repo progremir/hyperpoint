@@ -107,6 +107,7 @@ private struct Rules: View {
                 ForEach(rules, id: \.key) { rule in
                     RuleRow(
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
+                        explanation: explanation(of: rule, among: rules),
                         highlighted: note?.highlights(rule) == true,
                         listen: model.listenPurpose == .replaceRule(rule.key) ? device.status?.listen : nil,
                         cannotListen: cannotListen, device: device.name,
@@ -117,15 +118,6 @@ private struct Rules: View {
                         stopListening: { model.stopListening() },
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
-                    if rule.action == .scroll {
-                        Explanation(
-                            Labels.holdToScroll(
-                                control: rule.control,
-                                hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click }))
-                        .padding(.leading, RuleRow.controlWidth + 10)
-                    } else if rule.trigger == .hold, let held = Labels.heldKeys(rule.action) {
-                        Explanation(held).padding(.leading, RuleRow.controlWidth + 10)
-                    }
                 }
             }
             if device.isNew {
@@ -140,6 +132,16 @@ private struct Rules: View {
     }
 
     private var note: LearnNote? { model.learnNote.flatMap { $0.match == device.match ? $0 : nil } }
+
+    /// What a rule does beyond its three cells, for its info icon.
+    private func explanation(of rule: Rule, among rules: [Rule]) -> String? {
+        if rule.action == .scroll {
+            return Labels.holdToScroll(
+                control: rule.control,
+                hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click })
+        }
+        return rule.trigger == .hold ? Labels.heldKeys(rule.action) : nil
+    }
 
     private var footer: String {
         if device.speaksHIDPP { return "Buttons without a rule, like Back and Forward, work as usual." }
@@ -243,6 +245,8 @@ private struct ListenRow: View {
 private struct RuleRow: View {
     static let controlWidth = 152.0
     static let triggerWidth = 150.0
+    /// The skipped warning or the info icon.
+    static let iconWidth = 16.0
 
     enum ActionChoice: Hashable {
         case action(Action)
@@ -252,6 +256,8 @@ private struct RuleRow: View {
     let rule: Rule
     let choices: RuleChoices
     let skipped: Bool
+    /// Shown on hover over an info icon, so every row keeps one height.
+    let explanation: String?
     let highlighted: Bool
     /// This row's listen, when the window listens to give this rule a new button.
     let listen: ListenStatus?
@@ -316,12 +322,22 @@ private struct RuleRow: View {
                 .buttonSizing(.flexible)
                 .frame(maxWidth: .infinity)
             }
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .help("This mouse cannot do this, so Hyperpoint skips the rule.")
-                .accessibilityLabel("Skipped")
-                .opacity(skipped ? 1 : 0)
-                .accessibilityHidden(!skipped)
+            Group {
+                if skipped {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .help("This mouse cannot do this, so Hyperpoint skips the rule.")
+                        .accessibilityLabel("Skipped")
+                } else if let explanation {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .help(explanation)
+                        .accessibilityLabel(explanation)
+                } else {
+                    Color.clear.accessibilityHidden(true)
+                }
+            }
+            .frame(width: Self.iconWidth)
             Button {
                 if recordingPress { stopListening() }
                 remove()
