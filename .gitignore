@@ -7,3 +7,4 @@ xcuserdata/
 .verify-evidence/
 .verify-bin/
 dist/
+.cloudflare/

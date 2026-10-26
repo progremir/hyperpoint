@@ -89,14 +89,31 @@ Everything lives in `~/.config/hyperpoint/config.json`, created with no devices 
 edits this file and nothing else. An invalid file is rejected whole with the path of the error, and the last good config
 keeps running. The format and the reasoning behind it are in [docs/architecture.md](docs/architecture.md).
 
+### Manage it with an agent
+
+[skills/hyperpoint-config](skills/hyperpoint-config/SKILL.md) is a skill for Claude Code and other agents that read
+`SKILL.md` files. It knows the format and every rule the app enforces, checks an edit with its own checker before
+saving it, and reads the app's log to confirm the change took. Install it once:
+
+```bash
+git clone --depth 1 https://github.com/progremir/hyperpoint.git /tmp/hyperpoint
+mkdir -p ~/.claude/skills && cp -r /tmp/hyperpoint/skills/hyperpoint-config ~/.claude/skills/
+```
+
+Then ask in plain words, such as "make the gesture button on my MX Master open App Exposé". The checker works on its
+own too: `python3 skills/hyperpoint-config/scripts/check_config.py` prints the first problem in your config with its
+path, or the devices it sets up.
+
 ## Development
 
 ```bash
 swift test
 scripts/check-layers.sh
+scripts/check-config-skill.py
 ```
 
-`check-layers.sh` enforces the module layering described in the architecture doc. To try a change on the real devices,
+`check-layers.sh` enforces the module layering described in the architecture doc. `check-config-skill.py` runs the
+skill's checker against the parser's own test files, so a change to `ConfigCodec` that the checker misses fails there. To try a change on the real devices,
 use the [verify-hyperpoint](.claude/skills/verify-hyperpoint/SKILL.md) skill: it replaces the running app with the
 build under test and reads device state back as proof.
 
