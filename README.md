@@ -27,8 +27,8 @@ change. Your setup survives sleep and reconnects, even on mice that forget their
 - **Hold to scroll.** Hold a button and move the mouse to scroll, with momentum. The MX Master 3 preset gives it to the
   right button, and any button can be given the rule.
 - **Hold a button, hold keys.** Any mouse button can hold a modifier or a shortcut down for as long as you hold it.
-  Hold Back as ⌘ and click to ⌘-click, or hold a button for a push-to-talk shortcut. Pick **Hold** under **When** on
-  the Buttons tab.
+  Hold Back as ⌘ and click to ⌘-click, or hold a button as Right Option for push-to-talk dictation. Pick **Hold** under
+  **When** on the Buttons tab. **Keyboard Shortcut…** records a combination, or one modifier pressed alone.
 - **Other mice.** Keys sent by a mouse's keyboard interface (like the 2.4G mouse's Escape and Return) can become
   modifiers or shortcuts. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices

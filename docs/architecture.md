@@ -117,9 +117,11 @@ The MX profile has `{ "control": { "hidpp": "0x53" }, "when": "hold", "do": { "m
 
 1. `Intent.compile` gives 0x53 `ControlBehavior.hold(KeyHold)`, which diverts it without raw movement (flags `0x23`), so the pointer moves as usual while it is held.
 2. The press arrives as a 0x1B04 notification on the HID thread. `HIDPPLink` emits `holdKeys(0x53, ⌘)`, and the slot sends `KeyHoldEvent.press(.control(device, 0x53), ⌘)` on its ordered stream to the tap thread.
-3. `TapHost` hands it to `HeldKeys`, which returns a marked `flagsChanged` event for Left Command that keeps the modifiers held elsewhere, and posts it at the HID tap. The system's modifier state now has ⌘.
-4. The tap never watches the left button. The system stamps the click with its modifier state, so apps get a ⌘-click.
-5. The release sends `releaseKeys`, and `HeldKeys` posts the `flagsChanged` event that lets go of ⌘. A release that never comes is covered by an apply, the device going away, a tap timeout, pause and quit, which all let go.
+3. `TapHost` hands it to `HeldKeys`, which returns a marked `flagsChanged` event for Left Command, and turns on the overlay tap before it posts the event at the HID tap. Apps see ⌘ go down as a keyboard's would.
+4. The posted change alone does not keep ⌘ held. The next hardware event, here the hand moving the mouse, puts the real modifier state back within about 20 ms (measured). So while modifiers are held, the overlay tap adds them to every other click, drag, move, scroll and key on its way through the HID tap, and the left click reaches apps as a ⌘-click. The overlay is newer than the main tap, so it runs first and smooth scrolling passes a ⌘-scroll, and it is on only while modifiers are held, so normal use never pays for it.
+5. The release sends `releaseKeys`. `TapHost` turns the overlay off first, then posts the `flagsChanged` event that lets go of ⌘. A release that never comes is covered by an apply, the device going away, a tap timeout, pause and quit, which all let go.
+
+`OverlaySwitch` calls macOS only when the overlay's state changes. Turning a tap off sends it a notice that it was turned off, and answering that notice with another call made the two chase each other: the tap thread spun on them, and every key and click waited seconds for it (measured). Only a timeout turns it back on, while modifiers are held.
 
 A plain button does the same in `ButtonStage`. Its press becomes `TapVerdict.keys(.press)`, its drags reach apps as plain `mouseMoved` events because apps never saw the press, and its release becomes `.keys(.release)`. A shortcut holds its modifiers in the order macOS menus show them, then its key, and lets go in reverse. The keys are posted, not mapped at the HID layer as a mouse's Escape is, because a button press is a HID++ notification or a mouse event, which no key map can reach.
 
@@ -160,7 +162,8 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `DeviceSetup` | What lives on the device or its service. `hidpp: [CID: ControlBehavior]`, `thumbWheelInverted`, `keyMap: [KeyRoute]`. Written whole on every apply. |
 | `ControlBehavior` | `.native`, `.press(Action)`, `.gesture(GesturePlan)`, `.hold(KeyHold)`. The firmware flags (`0x22`, `0x23`, `0x33`) and the host routing derive from the same case, so "diverted with rawXY but not fed to the recognizer" cannot be built. HID++ controls and plain buttons build it from their rules with one initializer. |
 | `KeyHold` | The keys a held button holds: modifiers in the order they go down, then at most one other key. A shortcut's modifiers are the left keys. |
-| `HeldKeys` | Every hold in progress, by `KeyHolder` (a plain button, or one device's HID++ control), and the marked key events that press and release them. Each event keeps the modifiers held elsewhere, and a modifier two holds share goes up with the last. |
+| `HeldKeys` | Every hold in progress, by `KeyHolder` (a plain button, or one device's HID++ control), and the marked key events that press and release them. A modifier two holds share goes up with the last. Its `flags` are what the overlay tap adds to every other event while modifiers are held. |
+| `OverlaySwitch` | Whether the overlay tap is on, so only a change of state calls macOS. |
 | `GesturePlan` | The distance, the click action, and `GestureMoves`, which is `.swipes([Direction: Action], fire)` or `.scroll(HoldScrollPlan)`. One control cannot do both. |
 | `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
@@ -198,7 +201,7 @@ Each device-facing thread is a global actor whose executor is that thread's CFRu
 | --- | --- |
 | Main actor | `AppModel`, SwiftUI, `ActionPerformer` (symbolic hotkey lookup runs on main in Mac Mouse Fix, so Hyperpoint does the same) |
 | `@HIDActor` | `Engine` (desired state), `DeviceHub` and its IOHIDManager, every `Slot`, every `HIDPPSession` and its `HIDPPLink`, `Journal` |
-| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` and `HoldScrollAnimator` instances and their display link, the pointer freeze, `HeldKeys`, the watchdog. Nothing else ever runs here. |
+| `@TapActor` | `TapHost`, the mach port, `TapPipeline`, the `ScrollAnimator` and `HoldScrollAnimator` instances and their display link, the pointer freeze, `HeldKeys` and the overlay tap, the watchdog. Nothing else ever runs here. |
 | Cooperative pool | `ConfigStore` (an actor that owns the file), `KeyMapWriter` (the `hidutil` process), permission polling |
 
 State crosses only as immutable `Sendable` values.
@@ -364,6 +367,7 @@ Each of these is settled by a prototype before the code that depends on it, not 
 10. **Carrier collisions.** A keyboard with physical F13 to F20 keys would collide with the carrier pool. The pool could skip keys that a present keyboard reports.
 11. **Smooth scrolling feel.** The default curve comes from the MX wheel's measured rates, and the glide's defaults are a starting point for tuning by feel. A free-spinning wheel may also send one step backwards as it stops. That step would end the glide and scroll back one step.
 12. **Listening through the tap.** Whether the 2.4G mouse's keys carry its keyboard service's sender id at the tap, and whether a diverted control held while a listen's restore write lands sends a native release, are unmeasured. The listening journey in the verify skill's settings window feature settles both.
+13. **Plain buttons other than the right one.** macOS attaches no IOHIDEvent to an other-button press: the MX's Back arrived at the tap with sender 0 while its left clicks carried its event service (measured). So `ButtonStage` cannot tell which mouse sent a middle, back or forward press, and plain-button rules on buttons 2 to 4 do not fire. The MX's own buttons are unaffected, because the pickers name them as HID++ controls. Attributing them needs another source, such as the last pointer event that carried a sender.
 
 ## Next implementation step
 
@@ -399,6 +403,9 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | The 2.4G mouse's receiver (USB, `0x1EA7:0x0002`, no product name) has two IOHIDDevice interfaces. Its pointer interface has primary usage mouse and usage pairs mouse, pointer, consumer and system control (1:0x80), with event service 0x10005214e. Its keyboard interface has only the keyboard pair, with event service 0x100052151. On a plug-in the pointer interface matched first. | measured |
 | The built-in trackpad is a second IOHIDDevice of the built-in keyboard's device, with the same missing vendor and product ids, `Built-In` 1, location 0x6F and FIFO transport. Its primary usage is mouse, and its usage pairs include digitizer touchpad (0x0D, 0x05). | measured |
 | The MX's left and right buttons (0x50, 0x51) are not divertable. The middle, back, forward, gesture, top and thumb buttons are, with raw movement. | measured |
+| A `flagsChanged` event posted at the HID tap sets `hidSystemState`, but the next hardware event puts the real state back: 20 to 40 ms later while the hand moves the MX, so a click in the hold came without the modifier. | measured |
+| An other-button press (`otherMouseDown`) carries no IOHIDEvent, so its sender reads 0, while the same mouse's left and right clicks carry its event service. | measured |
+| Turning an event tap off with `CGEventTapEnable` sends that tap a `tapDisabledByUserInput` event. | measured |
 
 ## Appendix B. Prototype results
 
