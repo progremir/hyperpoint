@@ -53,6 +53,49 @@ public enum HeldModifier: String, CaseIterable, Codable, Sendable {
 
     /// The keyboard page lists the eight modifiers from 0xE0 in this order.
     var usage: HIDUsage { HIDUsage(rawValue: 0xE0 + UInt16(Self.allCases.firstIndex(of: self)!)) }
+
+    /// The modifier whose key has this virtual key code, as a modifier change carries it, or nil for any other key.
+    public init?(virtualKeyCode: UInt16) {
+        guard let modifier = Self.allCases.first(where: { $0.virtualKeyCode == virtualKeyCode }) else { return nil }
+        self = modifier
+    }
+
+    public var virtualKeyCode: UInt16 {
+        switch self {
+        case .leftControl: 59
+        case .leftShift: 56
+        case .leftOption: 58
+        case .leftCommand: 55
+        case .rightControl: 62
+        case .rightShift: 60
+        case .rightOption: 61
+        case .rightCommand: 54
+        }
+    }
+
+    /// Which of the four it is, whichever side.
+    public var generic: Modifiers {
+        switch self {
+        case .leftControl, .rightControl: .control
+        case .leftShift, .rightShift: .shift
+        case .leftOption, .rightOption: .option
+        case .leftCommand, .rightCommand: .command
+        }
+    }
+
+    /// The event flag that tells this side's key from the other's (`NX_DEVICE*KEYMASK`).
+    public var deviceFlag: UInt64 {
+        switch self {
+        case .leftControl: 0x0001
+        case .leftShift: 0x0002
+        case .rightShift: 0x0004
+        case .leftCommand: 0x0008
+        case .rightCommand: 0x0010
+        case .leftOption: 0x0020
+        case .rightOption: 0x0040
+        case .rightControl: 0x2000
+        }
+    }
 }
 
 enum KeyTable {

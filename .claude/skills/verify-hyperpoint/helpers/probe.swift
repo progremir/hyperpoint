@@ -142,9 +142,11 @@ func mouseLine(_ stage: String, _ type: CGEventType, _ event: CGEvent) -> String
         CGEventType.leftMouseDown: "leftDown", .leftMouseUp: "leftUp", .rightMouseDown: "rightDown",
         .rightMouseUp: "rightUp", .otherMouseDown: "otherDown", .otherMouseUp: "otherUp",
     ][type] ?? "type\(type.rawValue)"
-    return String(format: "%.1f %@ %@ button=%lld flags=%@ ours=%d", Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6,
+    var sender: UInt64 = 0
+    if let hid = CGEventCopyIOHIDEvent(event) { sender = IOHIDEventGetSenderID(hid.takeRetainedValue()) }
+    return String(format: "%.1f %@ %@ button=%lld flags=%@ ours=%d sender=0x%llx", Double(DispatchTime.now().uptimeNanoseconds - wheelStart) / 1e6,
         stage, name, event.getIntegerValueField(.mouseEventButtonNumber), flagNames(event.flags),
-        event.getIntegerValueField(.eventSourceUserData) == marker ? 1 : 0)
+        event.getIntegerValueField(.eventSourceUserData) == marker ? 1 : 0, sender)
 }
 
 nonisolated(unsafe) var heldMoved = 0

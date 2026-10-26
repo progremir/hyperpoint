@@ -664,6 +664,40 @@ private let leftShift: UInt64 = 0x02
         #expect(posted(again) == [Posted(.flagsChanged, 55, 0), Posted(.flagsChanged, 55, cmd | leftCommand)])
     }
 
+    @Test func heldModifiersRideOnEveryOtherEvent() {
+        var keys = HeldKeys()
+        let keyboardShift = CGEventFlags(rawValue: shift | leftShift)
+        let before = mouse(.leftMouseDown, button: 0)
+        before.flags = keyboardShift
+        keys.overlay(before)
+        #expect(before.flags == keyboardShift, "nothing is held yet")
+
+        _ = keys.receive(.press(.button(3), command), flags: [])
+        let click = mouse(.leftMouseDown, button: 0)
+        click.flags = keyboardShift
+        keys.overlay(click)
+        #expect(click.flags.rawValue == shift | leftShift | cmd | leftCommand, "a ⌘-click that keeps the keyboard's Shift")
+        let ours = mouse(.leftMouseDown, button: 0, marked: true)
+        ours.flags = []
+        keys.overlay(ours)
+        #expect(ours.flags == [], "Hyperpoint's own events keep their flags")
+
+        _ = keys.receive(.release(.button(3)), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        let after = mouse(.leftMouseDown, button: 0)
+        after.flags = []
+        keys.overlay(after)
+        #expect(after.flags == [], "nothing rides once the button is let go")
+    }
+
+    @Test func aShortcutWithoutModifiersAddsNoFlags() {
+        var keys = HeldKeys()
+        _ = keys.receive(.press(.button(2), KeyHold(modifiers: [], key: KeyCode(name: "f5")!)), flags: [])
+        #expect(keys.flags.isEmpty, "so the overlay stays off")
+        #expect(
+            Set([.leftMouseDown, .leftMouseDragged, .mouseMoved, .scrollWheel, .keyDown, .flagsChanged])
+                .isSubset(of: Set(HeldKeys.overlayInterests)), "clicks, drags, moves, scrolls and keys from any device")
+    }
+
     @Test func releaseAllLetsGoOfEveryHoldWithoutPuttingAnyBack() {
         var keys = HeldKeys()
         _ = keys.receive(.press(.button(3), command), flags: [])

@@ -41,12 +41,32 @@ enum KeyHoldEvent: Equatable, Sendable {
 }
 
 /// The keys every held button holds, and the key events that press and release them. Hyperpoint posts the events at
-/// the HID tap, marked, so the system's modifier state holds the keys as if a keyboard did, and a click or a key
-/// meanwhile carries them. A key two holds share goes up when the last of them lets go.
+/// the HID tap, marked, so apps see the keys go down and up as a keyboard's would. A key two holds share goes up when
+/// the last of them lets go.
+///
+/// A posted modifier does not stay in the system's modifier state: the next hardware event, such as the hand moving
+/// the mouse, puts the real state back (measured: 20 ms after the press). So while modifiers are held, every other
+/// event gets them added on its way through the HID tap, as hyper's carrier does for keys.
 struct HeldKeys {
     private var holds: [KeyHolder: KeyHold] = [:]
 
     var isEmpty: Bool { holds.isEmpty }
+
+    /// What every other event carries while modifiers are held, with the flags that tell left from right.
+    var flags: CGEventFlags { Self.flags(of: held) }
+
+    /// The events a click, a drag, a move, a scroll or a key can come in, from any device.
+    static let overlayInterests: [CGEventType] = [
+        .leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+        .otherMouseDown, .otherMouseUp, .otherMouseDragged, .mouseMoved, .scrollWheel, .keyDown, .keyUp, .flagsChanged,
+    ]
+
+    /// Adds the held modifiers to an event that is not Hyperpoint's own. Hyperpoint's events carry exactly the flags
+    /// they mean, such as the modifier changes that press and release the held keys.
+    func overlay(_ event: CGEvent) {
+        guard !flags.isEmpty, event.getIntegerValueField(.eventSourceUserData) != TapPipeline.syntheticMarker else { return }
+        event.flags.formUnion(flags)
+    }
 
     /// `flags` is the system's modifier state now. A holder that already holds keys lost its release, so it lets go
     /// first.
@@ -118,31 +138,8 @@ struct HeldKeys {
 }
 
 extension HeldModifier {
-    /// Its virtual key code, as a keyboard's modifier change carries it.
-    var keyCode: KeyCode {
-        switch self {
-        case .leftControl: KeyCode(rawValue: 59)
-        case .leftShift: KeyCode(rawValue: 56)
-        case .leftOption: KeyCode(rawValue: 58)
-        case .leftCommand: KeyCode(rawValue: 55)
-        case .rightControl: KeyCode(rawValue: 62)
-        case .rightShift: KeyCode(rawValue: 60)
-        case .rightOption: KeyCode(rawValue: 61)
-        case .rightCommand: KeyCode(rawValue: 54)
-        }
-    }
+    var keyCode: KeyCode { KeyCode(rawValue: virtualKeyCode) }
 
-    /// The generic flag and the device flag that tells left from right (`NX_DEVICE*KEYMASK`).
-    var flags: CGEventFlags {
-        switch self {
-        case .leftControl: CGEventFlags(rawValue: CGEventFlags.maskControl.rawValue | 0x0001)
-        case .leftShift: CGEventFlags(rawValue: CGEventFlags.maskShift.rawValue | 0x0002)
-        case .rightShift: CGEventFlags(rawValue: CGEventFlags.maskShift.rawValue | 0x0004)
-        case .leftCommand: CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | 0x0008)
-        case .rightCommand: CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | 0x0010)
-        case .leftOption: CGEventFlags(rawValue: CGEventFlags.maskAlternate.rawValue | 0x0020)
-        case .rightOption: CGEventFlags(rawValue: CGEventFlags.maskAlternate.rawValue | 0x0040)
-        case .rightControl: CGEventFlags(rawValue: CGEventFlags.maskControl.rawValue | 0x2000)
-        }
-    }
+    /// The generic flag and the device flag, so a left and a right modifier of one kind share the generic one.
+    var flags: CGEventFlags { CGEventFlags(rawValue: generic.cgFlags.rawValue | deviceFlag) }
 }

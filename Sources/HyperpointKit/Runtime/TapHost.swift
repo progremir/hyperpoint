@@ -28,6 +28,9 @@ final class TapHost {
     private var holdPoints = (dx: WholePoints(), dy: WholePoints())
     private var cursorFrozen = false
     private var heldKeys = HeldKeys()
+    /// The tap that adds held modifiers to every other event. It is newer than the main tap, so it runs first and the
+    /// stages see the modifiers, and it is enabled only while modifiers are held.
+    private var overlay: (port: CFMachPort, source: CFRunLoopSource)?
     /// Between a hold scroll's began and ended, from either recognizer.
     private var handScrolling = false
     private var port: CFMachPort?
@@ -80,6 +83,8 @@ final class TapHost {
         let source = CFMachPortCreateRunLoopSource(nil, port, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: port, enable: true)
+        removeOverlay()
+        updateOverlay()
         var context = CFRunLoopTimerContext(
             version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil,
             copyDescription: nil)
@@ -99,6 +104,7 @@ final class TapHost {
         CFMachPortInvalidate(port)
         (self.port, self.source, self.watchdog, frames) = (nil, nil, nil, nil)
         release(pipeline.reset(), endingEverything: true)
+        removeOverlay()
         signals.yield(.removed)
     }
 
@@ -182,14 +188,52 @@ final class TapHost {
         release.press?.post(tap: .cghidEventTap)
         if endingEverything {
             post(heldKeys.releaseAll(flags: CGEventSource.flagsState(.combinedSessionState)))
+            updateOverlay()
         } else if let holder = release.letsGo {
             holdKeys(.release(holder))
         }
     }
 
-    /// At the HID tap, so the system's modifier state holds the keys and a click or a key meanwhile carries them.
+    /// At the HID tap, so apps see the keys go down and up as a keyboard's would.
     private func holdKeys(_ event: KeyHoldEvent) {
         post(heldKeys.receive(event, flags: CGEventSource.flagsState(.combinedSessionState)))
+        updateOverlay()
+    }
+
+    /// A tap that fails to install leaves held modifiers to the posted modifier changes alone.
+    private func updateOverlay() {
+        let holding = !heldKeys.flags.isEmpty
+        if holding, overlay == nil,
+            let port = CGEvent.tapCreate(
+                tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap,
+                eventsOfInterest: HeldKeys.overlayInterests.reduce(0) { $0 | (1 << CGEventMask($1.rawValue)) },
+                callback: overlayCallback, userInfo: Unmanaged.passUnretained(self).toOpaque())
+        {
+            if let source = CFMachPortCreateRunLoopSource(nil, port, 0) {
+                CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+                overlay = (port, source)
+            } else {
+                CFMachPortInvalidate(port)
+            }
+        }
+        if let overlay { CGEvent.tapEnable(tap: overlay.port, enable: holding) }
+    }
+
+    private func removeOverlay() {
+        guard let overlay else { return }
+        CGEvent.tapEnable(tap: overlay.port, enable: false)
+        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), overlay.source, .commonModes)
+        CFMachPortInvalidate(overlay.port)
+        self.overlay = nil
+    }
+
+    /// macOS disables a tap that answers slowly, and this one is wanted again while modifiers are held.
+    fileprivate func overlaid(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput: updateOverlay()
+        default: heldKeys.overlay(event)
+        }
+        return Unmanaged.passUnretained(event)
     }
 
     private func post(_ keys: [CGEvent]) {
@@ -294,6 +338,15 @@ nonisolated private func tapCallback(
     let host = Unmanaged<TapHost>.fromOpaque(refcon).takeUnretainedValue()
     nonisolated(unsafe) let event = event
     return TapActor.assumeIsolated { host.handle(type, event) }
+}
+
+nonisolated private func overlayCallback(
+    _ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent, _ refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    guard let refcon else { return Unmanaged.passUnretained(event) }
+    let host = Unmanaged<TapHost>.fromOpaque(refcon).takeUnretainedValue()
+    nonisolated(unsafe) let event = event
+    return TapActor.assumeIsolated { host.overlaid(type, event) }
 }
 
 /// A display link calls an Objective-C method, so this hands each frame to the host.
