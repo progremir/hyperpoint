@@ -146,12 +146,14 @@ A rule is `{ "control": …, "when": …, "do": … }`. Only these combinations 
 
 | Control | `when` | `do` |
 |---|---|---|
-| `{ "hidpp": "0xC3" }`, a Logitech HID++ control | `click`, or `holdMoveUp` / `Down` / `Left` / `Right` | a system action or a shortcut |
+| `{ "hidpp": "0xC3" }`, a Logitech HID++ control | `click`, or `holdMoveUp` / `Down` / `Left` / `Right` | a system action, a shortcut, or a modifier tapped alone |
+| | `hold` | a modifier or a shortcut, kept down until the release |
 | | `holdMove` (any direction) | `"scroll"` |
 | `"thumbWheel"` | `scroll` | `"reverse"` (reverses horizontal scrolling) |
-| `{ "key": "escape" }`, a key a mouse sends | `click` | a shortcut |
+| `{ "key": "escape" }`, a key a mouse sends | `click` | a shortcut, or a modifier tapped alone |
 | | `hold` | `{ "modifier": … }` |
-| `{ "button": 1 }`, a plain mouse button | `click` | a system action or a shortcut |
+| `{ "button": 1 }`, a plain mouse button | `click` | a system action, a shortcut, or a modifier tapped alone |
+| | `hold` | a modifier or a shortcut, kept down until the release |
 | | `holdMove` | `"scroll"` |
 
 - **Plain buttons** are numbered as macOS numbers them: 1 right, 2 middle, 3 back, 4 forward, up to 31. The left
@@ -159,14 +161,18 @@ A rule is `{ "control": …, "when": …, "do": … }`. Only these combinations 
 - **System actions:** `"missionControl"`, `"appExpose"`, `"spaceLeft"`, `"spaceRight"`.
 - **Shortcuts:** `{ "shortcut": "shift+cmd+4" }`. Modifiers, in any order and any case: `ctrl`/`control`,
   `opt`/`option`/`alt`, `shift`, `cmd`/`command`. The last part is the key.
-- **Held modifiers:** `leftControl`, `leftShift`, `leftOption`, `leftCommand`, `rightControl`, `rightShift`,
-  `rightOption`, `rightCommand`. They are mapped at the HID layer, so they work in password fields too.
+- **Modifiers:** `{ "modifier": "rightOption" }` with `leftControl`, `leftShift`, `leftOption`, `leftCommand`,
+  `rightControl`, `rightShift`, `rightOption` or `rightCommand`. On a key a mouse sends, `hold` maps it at the HID
+  layer, so it works in password fields too. On a button, `hold` keeps it down while the button is held, so a click
+  meanwhile is modified, and `click` taps it once.
+- **Plain buttons other than the right one** (2 to 4) never fire their rules yet: macOS does not say which mouse sent
+  them. Give a Logitech mouse's buttons their `hidpp` control instead.
 - **Key names:** `a` to `z`, `0` to `9`, `return`, `escape`, `delete`, `tab`, `space`, `minus`, `equal`,
   `leftBracket`, `rightBracket`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `period`, `slash`, `capsLock`,
   `f1` to `f12`, `home`, `pageUp`, `forwardDelete`, `end`, `pageDown`, `left`, `right`, `up`, `down`.
 - **One rule per control and `when`.** A control with `holdMove` cannot also have `holdMoveUp`-style swipes, since
-  both read the same movement. A key held as a modifier has no click left to give, so it cannot also have a `click`
-  rule.
+  both read the same movement. A control with a `hold` rule holds its keys from the press, so it cannot also have a
+  `click`, `holdMove` or swipe rule.
 - With a `holdMove` scroll rule, a quick press of a plain button still clicks as usual. On a HID++ control a quick
   press does nothing unless the control also has a `click` rule.
 
@@ -188,6 +194,8 @@ A rule is `{ "control": …, "when": …, "do": … }`. Only these combinations 
 - **Turn the hyper key off everywhere:** set `"hyper": { …, "enabled": false }`.
 - **Hold a button to scroll:** a `holdMove` → `"scroll"` rule on it, plus `scrolling.holdToScroll` if the user wants
   a different speed or direction.
+- **Hold a button as a key (push-to-talk, ⌘-click):** a `hold` rule with `{ "modifier": "rightOption" }` or
+  `{ "shortcut": "ctrl+opt+space" }`. It replaces any `click` or `holdMove` rule on that button.
 - **Stop listing a device:** move its match into `ignored` and remove its profile.
 
 ## Rules of thumb

@@ -1,15 +1,17 @@
 // Proves the settings window's tab switches, as a click on a toolbar item makes them. It presses every tab from every
 // other tab, switches the Device popup on Buttons and Scrolling to the other mouse and back, and opens Scrolling on
-// the shortest screen when the page is taller than it. From each press it samples at 120 Hz the window's height on
-// screen and the incoming page's scroll area: whether it has a scroll bar, and whether its content is taller than the
-// part that shows. It prints every sample, then a verdict per change, and puts the window back where it was.
+// the shortest screen when the page is taller than it. It also starts and cancels the shortcut recorder of the first
+// Buttons rule that does a shortcut. From each press it samples at 120 Hz the window's height on screen and the incoming
+// page's scroll area: whether it has a scroll bar, and whether its content is taller than the part that shows. It
+// prints every sample, then a verdict per change, and puts the window back where it was.
 // Needs Accessibility for the calling shell, and opens Settings from the menu bar item if it is closed.
-// Usage: tab-switches [seconds sampled per change]
+// Usage: tab-switches [seconds sampled per change] [recorders], where recorders runs the recorder check alone.
 import AppKit
 import ApplicationServices
 
 let tabs = ["General", "Hyper Key", "Buttons", "Scrolling", "Devices"]
-let seconds = CommandLine.arguments.dropFirst().first.flatMap(Double.init) ?? 1.2
+let seconds = CommandLine.arguments.dropFirst().compactMap(Double.init).first ?? 1.2
+let recordersOnly = CommandLine.arguments.contains("recorders")
 let period = 1.0 / 120
 
 func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
@@ -193,6 +195,9 @@ enum Change {
     case inPlace
     /// A page taller than the screen comes in: the window stops at the screen's bottom and the page scrolls.
     case pastScreen(visibleHeight: Double)
+    /// Something in the page changes without changing its height: the window keeps its height and the page shows
+    /// throughout.
+    case steady
 
     var isInPlace: Bool {
         if case .inPlace = self { return true }
@@ -224,6 +229,8 @@ func verdict(_ label: String, _ recording: Recording, _ change: Change) -> Bool 
         ok = monotonic && (changes.isEmpty || animated) && clipped == 0 && scroller == 0 && finished <= 0.35
     case .inPlace:
         ok = monotonic && animated && clipped == 0 && scroller == 0 && (lag ?? .infinity) <= 0.05
+    case .steady:
+        ok = changes.isEmpty && !recording.pages.isEmpty && recording.pages.allSatisfy { $0.content != nil } && clipped == 0
     case .pastScreen(let visibleHeight):
         let final = shown.last
         ok = monotonic && animated && abs(heights[heights.count - 1].height - visibleHeight) <= 1
@@ -255,7 +262,7 @@ func select(_ tab: String) {
 
 let startTab = attribute(window, kAXTitleAttribute) as? String ?? tabs[0]
 var results: [(String, Recording, Change)] = []
-for from in tabs {
+for from in tabs where !recordersOnly {
     for to in tabs where to != from {
         select(from)
         let label = "\(from) > \(to)"
@@ -276,10 +283,23 @@ func openMenu(_ popUp: AXUIElement) -> [AXUIElement] {
         if !items.isEmpty { return items }
         usleep(20_000)
     }
-    fail("the Device popup's menu did not open")
+    fail("the popup's menu did not open")
 }
 
-for tab in ["Buttons", "Scrolling"] {
+func popUps(in element: AXUIElement) -> [AXUIElement] {
+    if role(element) == kAXPopUpButtonRole { return [element] }
+    guard role(element) != kAXToolbarRole else { return [] }
+    return children(element).flatMap(popUps)
+}
+
+/// SwiftUI names a button by its description, not its title.
+func button(_ name: String, in element: AXUIElement) -> AXUIElement? {
+    if role(element) == kAXButtonRole, attribute(element, kAXDescriptionAttribute) as? String == name { return element }
+    guard role(element) != kAXToolbarRole else { return nil }
+    return children(element).lazy.compactMap { button(name, in: $0) }.first
+}
+
+for tab in ["Buttons", "Scrolling"] where !recordersOnly {
     select(tab)
     guard let device = popUp(in: window) else { fail("no Device popup on \(tab)") }
     let original = attribute(device, kAXValueAttribute) as? String ?? ""
@@ -302,10 +322,24 @@ func move(_ element: AXUIElement, to point: CGPoint) {
     usleep(300_000)
 }
 
-select("Scrolling")
-let tallest = screenHeight()
+// A rule's Do picker and When picker give way to the shortcut recorder, and come back on Cancel.
+select("Buttons")
+let doesShortcut = { (popUp: AXUIElement) in (attribute(popUp, kAXValueAttribute) as? String)?.hasPrefix("Shortcut ") == true }
+if let shortcut = popUps(in: window).first(where: doesShortcut),
+    let item = openMenu(shortcut).first(where: { title($0) == "Record Another Shortcut…" })
+{
+    results.append(("Buttons record a shortcut", record("Buttons record a shortcut", outgoing: [], press(item)), .steady))
+    settle()
+    guard let cancel = button("Cancel", in: window) else { fail("the shortcut recorder has no Cancel button") }
+    results.append(("Buttons stop recording", record("Buttons stop recording", outgoing: [], press(cancel)), .steady))
+    settle()
+} else {
+    print("SKIP no rule on Buttons does a shortcut")
+}
+
+let tallest = recordersOnly ? 0 : { select("Scrolling"); return screenHeight() }()
 var restored = true
-if let short = NSScreen.screens.min(by: { $0.visibleFrame.height < $1.visibleFrame.height }),
+if !recordersOnly, let short = NSScreen.screens.min(by: { $0.visibleFrame.height < $1.visibleFrame.height }),
     Double(short.visibleFrame.height) < tallest, let home = position(window)
 {
     select("General")
@@ -319,7 +353,7 @@ if let short = NSScreen.screens.min(by: { $0.visibleFrame.height < $1.visibleFra
     let back = position(window) ?? .zero
     print(String(format: "window moved to %@ and back to %.0f,%.0f (was %.0f,%.0f)", short.localizedName, back.x, back.y, home.x, home.y))
     restored = abs(back.x - home.x) <= 1 && abs(back.y - home.y) <= 1
-} else {
+} else if !recordersOnly {
     print("SKIP no screen is shorter than the Scrolling page")
 }
 select(startTab)

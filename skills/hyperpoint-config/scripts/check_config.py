@@ -30,12 +30,16 @@ DIRECTIONS = ("Up", "Down", "Left", "Right")
 TRIGGERS = {"click", "hold", "holdMove", "scroll"} | {"holdMove" + d for d in DIRECTIONS}
 
 # Which triggers each kind of control takes, and which actions each trigger may do. "swipe" is hold and move one
-# way, "holdMove" hold and move any way.
+# way, "holdMove" hold and move any way. A click or a swipe taps a modifier alone, and a hold keeps a modifier or a
+# shortcut's keys down until the release.
 RULE_TABLE = {
-    "hidpp": {"click": {"system", "shortcut"}, "swipe": {"system", "shortcut"}, "holdMove": {"scroll"}},
+    "hidpp": {
+        "click": {"system", "shortcut", "modifier"}, "hold": {"modifier", "shortcut"},
+        "swipe": {"system", "shortcut", "modifier"}, "holdMove": {"scroll"},
+    },
     "thumbWheel": {"scroll": {"reverse"}},
-    "key": {"click": {"shortcut"}, "hold": {"modifier"}},
-    "button": {"click": {"system", "shortcut"}, "holdMove": {"scroll"}},
+    "key": {"click": {"shortcut", "modifier"}, "hold": {"modifier"}},
+    "button": {"click": {"system", "shortcut", "modifier"}, "hold": {"modifier", "shortcut"}, "holdMove": {"scroll"}},
 }
 
 
@@ -403,7 +407,9 @@ def conflict(trigger, other):
     if pair == {"holdMove", "swipe"}:
         return "scrolling and swipes both use the movement"
     if pair == {"click", "hold"}:
-        return "a key held as a modifier becomes that modifier, so it has no click of its own"
+        return "a control that holds keys holds them from its press, so it has no click of its own"
+    if pair in ({"hold", "holdMove"}, {"hold", "swipe"}):
+        return "a control that holds keys holds them from its press, so its movement only moves the pointer"
     return None
 
 

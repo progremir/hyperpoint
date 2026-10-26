@@ -34,7 +34,9 @@ public final class ActionPerformer {
             postSymbolicHotKey(hotKey)
         case .shortcut(let chord):
             post(key: CGKeyCode(chord.key.rawValue), flags: chord.modifiers.cgFlags, to: .cghidEventTap)
-        case .modifier, .reverse, .scroll:
+        case .modifier(let modifier):
+            tap(modifier)
+        case .reverse, .scroll:
             log.fault("\(String(describing: action), privacy: .public) is not a button action")
         }
     }
@@ -56,6 +58,18 @@ public final class ActionPerformer {
             return
         }
         post(key: CGKeyCode(truncatingIfNeeded: keyCode), flags: CGEventFlags(rawValue: modifiers), to: .cgSessionEventTap)
+    }
+
+    /// A modifier alone goes down and up as its own key would, so an app that listens for it alone hears it.
+    private func tap(_ modifier: HeldModifier) {
+        for down in [true, false] {
+            guard let event = CGEvent(keyboardEventSource: source, virtualKey: modifier.virtualKeyCode, keyDown: down)
+            else { continue }
+            event.type = .flagsChanged
+            event.flags = down ? modifier.flags : []
+            event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker)
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     private func post(key: CGKeyCode, flags: CGEventFlags, to tap: CGEventTapLocation) {

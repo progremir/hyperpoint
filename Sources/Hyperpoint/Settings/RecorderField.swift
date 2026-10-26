@@ -27,6 +27,10 @@ struct RecorderField: View {
         fileprivate var color: Color { if case .problem = self { .orange } else { .primary } }
     }
 
+    /// Every state is as tall as a picker, so a row whose pickers give way to a recording capsule keeps its height. A
+    /// page that grows in place hides until the window has its height, so a taller capsule flashed the page blank.
+    static let height = 24.0
+
     let state: State
     var start: () -> Void = {}
     var cancel: () -> Void = {}
@@ -54,7 +58,7 @@ struct RecorderField: View {
                     if !chips.isEmpty { chipRow(chips) }
                     Text(hint.text)
                         .foregroundStyle(hint.color)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
                     Spacer(minLength: 0)
                     if let trailing {
                         Text(trailing).monospacedDigit().foregroundStyle(.secondary).lineLimit(1).fixedSize()
@@ -78,8 +82,7 @@ struct RecorderField: View {
         HStack(spacing: 6) { content() }
             .padding(.leading, 5)
             .padding(.trailing, recording ? 3 : 5)
-            .padding(.vertical, 3)
-            .frame(minHeight: 24)
+            .frame(height: Self.height)
             .background {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(recording ? AnyShapeStyle(Color.red.opacity(0.12)) : AnyShapeStyle(.quaternary))

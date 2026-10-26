@@ -522,3 +522,204 @@ private let f13: CGKeyCode = 105
         #expect(!rules.isEmpty)
     }
 }
+
+private let command = KeyHold(modifiers: [.leftCommand])
+
+@Suite struct ButtonHoldTests {
+    var rules: TapRules {
+        var config = Config.example
+        config.devices[0].rules = [
+            Rule(control: .button(3), trigger: .hold, action: .modifier(.leftCommand)),
+            Rule(control: .button(4), trigger: .click, action: shotAction),
+        ]
+        return Intent.compile(
+            config, paused: false, tapAvailable: true, present: [present(3, Bags.mxMaster3, services: [mxSender.rawValue])]
+        ).tap
+    }
+
+    func pipeline() -> TapPipeline {
+        TapPipeline(rules: rules, origin: { _ in HIDOrigin(sender: mxSender, wheelDetents: 0) })
+    }
+
+    @Test func aHeldButtonHoldsItsKeysFromPressToRelease() {
+        var pipeline = pipeline()
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3)) == .keys(.press(.button(3), command)))
+        #expect(!pipeline.holdsPointer, "the pointer moves while the keys are held")
+        let drag = mouse(.otherMouseDragged, button: 3, dx: 40, dy: 10)
+        #expect(pipeline.process(.otherMouseDragged, drag) == .pass)
+        #expect(drag.type == .mouseMoved, "apps never saw the press, so its drags are plain movement")
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .keys(.release(.button(3))))
+        let after = mouse(.otherMouseDragged, button: 3, dx: 5)
+        #expect(pipeline.process(.otherMouseDragged, after) == .pass)
+        #expect(after.type == .otherMouseDragged, "a drag after the release is untouched")
+    }
+
+    @Test func aClickWhileTheKeysAreHeldIsTheButtonsOwn() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3))
+        #expect(pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 4)) == .pass, "one button at a time")
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 4)) == .pass)
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .keys(.release(.button(3))))
+    }
+
+    @Test func resetLetsGoOfAHeldButtonsKeys() {
+        var pipeline = pipeline()
+        _ = pipeline.process(.otherMouseDown, mouse(.otherMouseDown, button: 3))
+        #expect(pipeline.reset() == ButtonStage.Release(press: nil, endsScroll: false, letsGo: .button(3)))
+        #expect(pipeline.process(.otherMouseUp, mouse(.otherMouseUp, button: 3)) == .pass, "nothing is held any more")
+        #expect(pipeline.reset() == ButtonStage.Release(press: nil, endsScroll: false))
+    }
+}
+
+/// What a posted key event says, without the flag every posted event carries.
+private struct Posted: Equatable, CustomStringConvertible {
+    var type: CGEventType
+    var key: Int64
+    var flags: UInt64
+
+    init(_ type: CGEventType, _ key: Int64, _ flags: UInt64) {
+        (self.type, self.key, self.flags) = (type, key, flags)
+    }
+
+    init(_ event: CGEvent) {
+        self.init(
+            event.type, event.getIntegerValueField(.keyboardEventKeycode),
+            event.flags.subtracting(.maskNonCoalesced).rawValue)
+    }
+
+    var description: String { "\(type.rawValue) key \(key) flags 0x\(String(flags, radix: 16))" }
+}
+
+private func posted(_ events: [CGEvent]) -> [Posted] { events.map(Posted.init) }
+
+private let cmd = CGEventFlags.maskCommand.rawValue
+private let ctrl = CGEventFlags.maskControl.rawValue
+private let opt = CGEventFlags.maskAlternate.rawValue
+private let shift = CGEventFlags.maskShift.rawValue
+/// The device flags that tell left from right.
+private let leftCommand: UInt64 = 0x08
+private let leftControl: UInt64 = 0x01
+private let leftOption: UInt64 = 0x20
+private let leftShift: UInt64 = 0x02
+
+@Suite struct HeldKeysTests {
+    let talk = KeyHold(modifiers: [.leftControl, .leftOption], key: KeyCode(name: "space")!)
+    let mxBack = KeyHolder.control(DeviceInstanceID(rawValue: 3), CID(rawValue: 0x53))
+
+    @Test func aModifierGoesDownOnThePressAndUpOnTheRelease() {
+        var keys = HeldKeys()
+        let down = keys.receive(.press(.button(3), command), flags: [])
+        #expect(posted(down) == [Posted(.flagsChanged, 55, cmd | leftCommand)])
+        #expect(down.allSatisfy(isMarked), "no stage takes them")
+        let up = keys.receive(.release(.button(3)), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        #expect(posted(up) == [Posted(.flagsChanged, 55, 0)])
+        #expect(keys.isEmpty)
+    }
+
+    @Test func aShortcutHoldsItsModifiersThenItsKey() {
+        var keys = HeldKeys()
+        let down = keys.receive(.press(.button(2), talk), flags: [])
+        #expect(
+            posted(down) == [
+                Posted(.flagsChanged, 59, ctrl | leftControl),
+                Posted(.flagsChanged, 58, ctrl | leftControl | opt | leftOption),
+                Posted(.keyDown, 49, ctrl | leftControl | opt | leftOption),
+            ])
+        let up = keys.receive(.release(.button(2)), flags: CGEventFlags(rawValue: ctrl | leftControl | opt | leftOption))
+        #expect(
+            posted(up) == [
+                Posted(.keyUp, 49, ctrl | leftControl | opt | leftOption),
+                Posted(.flagsChanged, 58, ctrl | leftControl),
+                Posted(.flagsChanged, 59, 0),
+            ], "the key goes up first, then the modifiers in reverse")
+    }
+
+    @Test func modifiersHeldElsewhereStayHeldAndFnIsLeftOut() {
+        var keys = HeldKeys()
+        let keyboardShift = CGEventFlags(rawValue: shift | leftShift)
+        let down = keys.receive(.press(.button(3), command), flags: keyboardShift.union(.maskSecondaryFn))
+        #expect(posted(down) == [Posted(.flagsChanged, 55, shift | leftShift | cmd | leftCommand)])
+        let up = keys.receive(.release(.button(3)), flags: CGEventFlags(rawValue: shift | leftShift | cmd | leftCommand))
+        #expect(posted(up) == [Posted(.flagsChanged, 55, shift | leftShift)], "the keyboard's Shift is still down")
+    }
+
+    @Test func aModifierTwoHoldsShareGoesUpWithTheLast() {
+        var keys = HeldKeys()
+        let commandShift = KeyHold(modifiers: [.leftCommand, .leftShift])
+        _ = keys.receive(.press(.button(3), command), flags: [])
+        let second = keys.receive(.press(mxBack, commandShift), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        #expect(posted(second) == [Posted(.flagsChanged, 56, cmd | leftCommand | shift | leftShift)], "Command is down already")
+        let all = CGEventFlags(rawValue: cmd | leftCommand | shift | leftShift)
+        #expect(keys.receive(.release(.button(3)), flags: all).isEmpty, "the MX still holds Command")
+        #expect(
+            posted(keys.receive(.release(mxBack), flags: all)) == [
+                Posted(.flagsChanged, 56, cmd | leftCommand), Posted(.flagsChanged, 55, 0),
+            ])
+    }
+
+    @Test func aPressWithoutAReleaseLetsGoFirst() {
+        var keys = HeldKeys()
+        _ = keys.receive(.press(.button(3), command), flags: [])
+        let again = keys.receive(.press(.button(3), command), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        #expect(posted(again) == [Posted(.flagsChanged, 55, 0), Posted(.flagsChanged, 55, cmd | leftCommand)])
+    }
+
+    @Test func heldModifiersRideOnEveryOtherEvent() {
+        var keys = HeldKeys()
+        let keyboardShift = CGEventFlags(rawValue: shift | leftShift)
+        let before = mouse(.leftMouseDown, button: 0)
+        before.flags = keyboardShift
+        keys.overlay(before)
+        #expect(before.flags == keyboardShift, "nothing is held yet")
+
+        _ = keys.receive(.press(.button(3), command), flags: [])
+        let click = mouse(.leftMouseDown, button: 0)
+        click.flags = keyboardShift
+        keys.overlay(click)
+        #expect(click.flags.rawValue == shift | leftShift | cmd | leftCommand, "a ⌘-click that keeps the keyboard's Shift")
+        let ours = mouse(.leftMouseDown, button: 0, marked: true)
+        ours.flags = []
+        keys.overlay(ours)
+        #expect(ours.flags == [], "Hyperpoint's own events keep their flags")
+
+        _ = keys.receive(.release(.button(3)), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        let after = mouse(.leftMouseDown, button: 0)
+        after.flags = []
+        keys.overlay(after)
+        #expect(after.flags == [], "nothing rides once the button is let go")
+    }
+
+    @Test func aShortcutWithoutModifiersAddsNoFlags() {
+        var keys = HeldKeys()
+        _ = keys.receive(.press(.button(2), KeyHold(modifiers: [], key: KeyCode(name: "f5")!)), flags: [])
+        #expect(keys.flags.isEmpty, "so the overlay stays off")
+        #expect(
+            Set([.leftMouseDown, .leftMouseDragged, .mouseMoved, .scrollWheel, .keyDown, .flagsChanged])
+                .isSubset(of: Set(HeldKeys.overlayInterests)), "clicks, drags, moves, scrolls and keys from any device")
+    }
+
+    @Test func theOverlayTapIsCalledOnlyWhenItsStateChanges() {
+        var overlay = OverlaySwitch()
+        #expect(overlay.set(false) == nil, "off already")
+        overlay.created()
+        #expect(overlay.set(true) == nil, "a new tap starts on")
+        #expect(overlay.set(false) == false)
+        #expect(overlay.set(false) == nil, "the notice that it went off asks for nothing more")
+        #expect(overlay.set(true) == true)
+        overlay.timedOut()
+        #expect(overlay.set(true) == true, "macOS turned it off, so it goes back on while held")
+    }
+
+    @Test func releaseAllLetsGoOfEveryHoldWithoutPuttingAnyBack() {
+        var keys = HeldKeys()
+        _ = keys.receive(.press(.button(3), command), flags: [])
+        _ = keys.receive(.press(mxBack, talk), flags: CGEventFlags(rawValue: cmd | leftCommand))
+        let held = CGEventFlags(rawValue: cmd | leftCommand | ctrl | leftControl | opt | leftOption)
+        let all = posted(keys.releaseAll(flags: held))
+        #expect(all.count == 4)
+        #expect(all.last?.flags == 0, "nothing is left held")
+        #expect(all.filter { $0.type == .flagsChanged }.map(\.key).sorted() == [55, 58, 59])
+        #expect(keys.isEmpty)
+        #expect(keys.receive(.release(.button(3)), flags: []).isEmpty, "a release after it lets go of nothing")
+    }
+}

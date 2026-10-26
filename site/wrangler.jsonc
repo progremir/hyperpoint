@@ -1,0 +1,16 @@
+// For `npx wrangler preview`, which Workers Builds runs on branch pushes. Plain Wrangler reads this file, not
+// cloudflare.config.ts, and refuses to publish a preview without a `previews` block. `npx cf deploy` still deploys
+// from cloudflare.config.ts, so keep the name, date and assets here in step with it.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hyperpoint",
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "workers_dev": false,
+  "preview_urls": true,
+  "previews": {}
+}

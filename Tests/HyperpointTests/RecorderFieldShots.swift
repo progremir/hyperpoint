@@ -37,10 +37,12 @@ import Testing
                 trailing: "9 s")
         ),
         ("recording-shortcut", 337, .recording(chips: ["⇧", "⌘"], hint: .prompt("Now press a key"), trailing: nil)),
+        ("recording-shortcut-empty", 337, .recording(chips: [], hint: .prompt("Type a shortcut, or one modifier"), trailing: nil)),
+        ("recording-lone-modifier", 337, .recording(chips: ["⌥"], hint: .prompt("Let go to use Right Option"), trailing: nil)),
         (
             "shortcut-problem", 337,
             .recording(
-                chips: ["⌘"], hint: .problem("Hyperpoint cannot name that key in a shortcut. Try another."),
+                chips: ["⌘"], hint: .problem("Can't use that key. Try another."),
                 trailing: nil)
         ),
     ]
@@ -55,6 +57,17 @@ import Testing
             let file = directory.appending(path: "\(shot.name)-\(scheme == .dark ? "dark" : "light").png")
             let png = try #require(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
             try png.write(to: file)
+        }
+    }
+
+    /// A rule row's pickers give way to the capsule while it records, and a row that grew would flash the page.
+    @Test func everyStateIsAsTallAsAPicker() {
+        let picker = NSHostingView(
+            rootView: Picker("Do", selection: .constant(0)) { Text("Shortcut ⇧⌘4").tag(0) }.labelsHidden().frame(width: 200))
+        #expect(abs(picker.fittingSize.height - RecorderField.height) < 0.5, "\(picker.fittingSize.height)")
+        for shot in Self.shots {
+            let field = NSHostingView(rootView: RecorderField(state: shot.state).frame(width: shot.width))
+            #expect(abs(field.fittingSize.height - RecorderField.height) < 0.5, "\(shot.name) \(field.fittingSize.height)")
         }
     }
 

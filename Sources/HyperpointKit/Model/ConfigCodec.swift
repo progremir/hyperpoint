@@ -148,11 +148,16 @@ enum RuleShape {
     enum TriggerKind: Hashable { case click, hold, swipe, holdMove, scroll }
     enum ActionKind { case system, shortcut, modifier, reverse, scroll }
 
+    /// A click or a swipe taps a modifier alone, and a hold holds a modifier or a shortcut's keys down until it is
+    /// released.
     static let table: [ControlKind: [TriggerKind: Set<ActionKind>]] = [
-        .hidpp: [.click: [.system, .shortcut], .swipe: [.system, .shortcut], .holdMove: [.scroll]],
+        .hidpp: [
+            .click: [.system, .shortcut, .modifier], .hold: [.modifier, .shortcut],
+            .swipe: [.system, .shortcut, .modifier], .holdMove: [.scroll],
+        ],
         .thumbWheel: [.scroll: [.reverse]],
-        .key: [.click: [.shortcut], .hold: [.modifier]],
-        .button: [.click: [.system, .shortcut], .holdMove: [.scroll]],
+        .key: [.click: [.shortcut, .modifier], .hold: [.modifier]],
+        .button: [.click: [.system, .shortcut, .modifier], .hold: [.modifier, .shortcut], .holdMove: [.scroll]],
     ]
 
     static func problem(with rule: Rule) -> (key: String, message: String)? {
@@ -204,7 +209,9 @@ extension Trigger {
         case (.holdMove(nil), .holdMove(.some)), (.holdMove(.some), .holdMove(nil)):
             "scrolling and swipes both use the movement"
         case (.click, .hold), (.hold, .click):
-            "a key held as a modifier becomes that modifier, so it has no click of its own"
+            "a control that holds keys holds them from its press, so it has no click of its own"
+        case (.hold, .holdMove), (.holdMove, .hold):
+            "a control that holds keys holds them from its press, so its movement only moves the pointer"
         default: nil
         }
     }

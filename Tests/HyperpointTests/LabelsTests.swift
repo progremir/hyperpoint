@@ -49,6 +49,16 @@ import Testing
         #expect(Labels.holdToScroll(control: topButton, hasClickRule: false).hasSuffix("A quick press does nothing until you add a click rule."))
     }
 
+    @Test func aHoldRuleSaysWhatStaysDown() throws {
+        #expect(
+            Labels.heldKeys(.modifier(.leftCommand))
+                == "Left Command stays down while you hold it, so a click meanwhile is a ⌘-click.")
+        #expect(
+            Labels.heldKeys(.shortcut(try chord("ctrl+opt+space")))
+                == "⌃⌥Space stays down while you hold it, and goes up when you let go.")
+        #expect(Labels.heldKeys(.system(.missionControl)) == nil)
+    }
+
     @Test func everyKeyHasAPlainName() {
         #expect(Labels.key("capsLock") == "Caps Lock")
         #expect(Labels.key("f5") == "F5")

@@ -25,8 +25,9 @@ struct RuleChoices {
     /// A new shortcut rule needs some chord before the user records one.
     static let placeholderChord = Chord(key: KeyCode(name: "4")!, modifiers: [.shift, .command])
 
+    /// A hold lists its modifiers before a shortcut, so a click rule turned into a hold starts by holding one key.
     static let actions: [Action] =
-        SystemAction.allCases.map(Action.system) + [.shortcut(placeholderChord)] + HeldModifier.allCases.map(Action.modifier)
+        SystemAction.allCases.map(Action.system) + HeldModifier.allCases.map(Action.modifier) + [.shortcut(placeholderChord)]
         + [.reverse, .scroll]
 
     /// The standard HID++ control of each plain button, so a Logitech mouse that reports a button it cannot divert
@@ -64,8 +65,14 @@ struct RuleChoices {
         }
     }
 
+    /// A click or a swipe can tap a modifier alone, which the shortcut recorder sets, so the eight are listed for a
+    /// hold only.
     func actions(for control: Control, on trigger: Trigger) -> [Action] {
-        Self.actions.filter { control.accepts($0, on: trigger) }
+        Self.actions.filter { action in
+            guard control.accepts(action, on: trigger) else { return false }
+            if case .modifier = action { return trigger == .hold }
+            return true
+        }
     }
 
     /// What Add Rule adds for a pressed button or one picked from its menu: the control as the pickers name it, on
@@ -103,6 +110,16 @@ struct RuleChoices {
         let triggers = triggers(for: control, besides: rule)
         let trigger = triggers.contains(rule.trigger) ? rule.trigger : triggers.first ?? rule.trigger
         return self.rule(Rule(control: control, trigger: trigger, action: rule.action), withTrigger: trigger)
+    }
+
+    /// What a recording in `rule`'s Do cell saves. A modifier recorded alone is held for as long as the button is, as
+    /// push-to-talk wants: a tap of it alone did what a double tap of Right Option does, so one press could not hold
+    /// it. A control that cannot hold keeps its trigger and taps it.
+    func recorded(_ action: Action, in rule: Rule) -> Rule {
+        if case .modifier = action, rule.trigger != .hold, triggers(for: rule.control, besides: rule).contains(.hold) {
+            return Rule(control: rule.control, trigger: .hold, action: action)
+        }
+        return Rule(control: rule.control, trigger: rule.trigger, action: action)
     }
 
     /// `rule` with `trigger`, keeping its action where it still works.

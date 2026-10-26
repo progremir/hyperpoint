@@ -14,6 +14,8 @@ struct HIDPPLink: Sendable {
     private var held: [CID] = []
     private var gesture = GestureMachine()
     private var gestureControl: CID?
+    /// The controls holding keys down, in the order they were pressed.
+    private var keyHolds: [CID] = []
 
     private struct Run: Sendable {
         let job: ApplyScheduler.Job
@@ -91,11 +93,12 @@ struct HIDPPLink: Sendable {
         return finished(out)
     }
 
-    /// For a link that is going away. A scroll in progress ends.
+    /// For a link that is going away. A scroll in progress ends, and held keys go up.
     mutating func close() -> HIDPPOutput {
         var out = HIDPPOutput()
         gestureControl = nil
         perform(gesture.step(.cancel), into: &out)
+        releaseKeys(into: &out)
         return out
     }
 
@@ -139,6 +142,7 @@ struct HIDPPLink: Sendable {
         }
         retryAt = nil
         perform(gesture.step(.cancel), into: &out)
+        releaseKeys(into: &out)
         if let capabilities {
             run = Run(job: job, plan: plan, steps: Self.applySteps(plan, capabilities))
         } else {
@@ -245,13 +249,26 @@ struct HIDPPLink: Sendable {
         case .gesture(let gesturePlan):
             gestureControl = cid
             perform(gesture.step(.press(gesturePlan)), into: &out)
+        case .hold(let keys):
+            if !keyHolds.contains(cid) { keyHolds.append(cid) }
+            out.events.append(.holdKeys(cid, keys))
         }
     }
 
     private mutating func released(_ cid: CID, into out: inout HIDPPOutput) {
+        if let index = keyHolds.firstIndex(of: cid) {
+            keyHolds.remove(at: index)
+            out.events.append(.releaseKeys(cid))
+        }
         guard cid == gestureControl else { return }
         gestureControl = nil
         perform(gesture.step(.release), into: &out)
+    }
+
+    /// An apply or a close may come between a press and its release, which then lets go of nothing.
+    private mutating func releaseKeys(into out: inout HIDPPOutput) {
+        out.events += keyHolds.map(HIDPPEvent.releaseKeys)
+        keyHolds = []
     }
 
     private func perform(_ output: GestureMachine.Output?, into out: inout HIDPPOutput) {
@@ -320,6 +337,9 @@ enum HIDPPEvent: Equatable, Sendable {
     case applyFinished(ApplyScheduler.Job, HIDPPOutcome)
     case perform(Action)
     case holdScroll(HoldScrollEvent)
+    /// A control that holds keys was pressed. Its release, or an apply or close before it, sends `releaseKeys`.
+    case holdKeys(CID, KeyHold)
+    case releaseKeys(CID)
     /// A control pressed or the wheel turned while the plan listens. Nothing else happens for it.
     case heard(ListenPress)
 }

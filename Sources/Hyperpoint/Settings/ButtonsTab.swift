@@ -107,6 +107,7 @@ private struct Rules: View {
                 ForEach(rules, id: \.key) { rule in
                     RuleRow(
                         rule: rule, choices: choices, skipped: skipped.contains(rule),
+                        explanation: explanation(of: rule, among: rules),
                         highlighted: note?.highlights(rule) == true,
                         listen: model.listenPurpose == .replaceRule(rule.key) ? device.status?.listen : nil,
                         cannotListen: cannotListen, device: device.name,
@@ -117,13 +118,6 @@ private struct Rules: View {
                         stopListening: { model.stopListening() },
                         replace: { model.apply(.replaceRule(device.match, rule.key, $0)) },
                         remove: { model.apply(.removeRule(device.match, rule.key)) })
-                    if rule.action == .scroll {
-                        Explanation(
-                            Labels.holdToScroll(
-                                control: rule.control,
-                                hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click }))
-                        .padding(.leading, RuleRow.controlWidth + 10)
-                    }
                 }
             }
             if device.isNew {
@@ -138,6 +132,16 @@ private struct Rules: View {
     }
 
     private var note: LearnNote? { model.learnNote.flatMap { $0.match == device.match ? $0 : nil } }
+
+    /// What a rule does beyond its three cells, for its info icon.
+    private func explanation(of rule: Rule, among rules: [Rule]) -> String? {
+        if rule.action == .scroll {
+            return Labels.holdToScroll(
+                control: rule.control,
+                hasClickRule: rules.contains { $0.control == rule.control && $0.trigger == .click })
+        }
+        return rule.trigger == .hold ? Labels.heldKeys(rule.action) : nil
+    }
 
     private var footer: String {
         if device.speaksHIDPP { return "Buttons without a rule, like Back and Forward, work as usual." }
@@ -241,6 +245,8 @@ private struct ListenRow: View {
 private struct RuleRow: View {
     static let controlWidth = 152.0
     static let triggerWidth = 150.0
+    /// The skipped warning or the info icon.
+    static let iconWidth = 16.0
 
     enum ActionChoice: Hashable {
         case action(Action)
@@ -250,6 +256,8 @@ private struct RuleRow: View {
     let rule: Rule
     let choices: RuleChoices
     let skipped: Bool
+    /// Shown on hover over an info icon, so every row keeps one height.
+    let explanation: String?
     let highlighted: Bool
     /// This row's listen, when the window listens to give this rule a new button.
     let listen: ListenStatus?
@@ -293,9 +301,9 @@ private struct RuleRow: View {
             }
             // A shortcut's hint and live chips need more room than the Do cell has, so recording takes When's too.
             if recordingShortcut {
-                ShortcutField { chord in
+                ShortcutField { action in
                     recordingShortcut = false
-                    edit(Rule(control: rule.control, trigger: rule.trigger, action: .shortcut(chord)))
+                    edit(choices.recorded(action, in: rule))
                 } cancel: {
                     recordingShortcut = false
                 }
@@ -314,12 +322,22 @@ private struct RuleRow: View {
                 .buttonSizing(.flexible)
                 .frame(maxWidth: .infinity)
             }
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .help("This mouse cannot do this, so Hyperpoint skips the rule.")
-                .accessibilityLabel("Skipped")
-                .opacity(skipped ? 1 : 0)
-                .accessibilityHidden(!skipped)
+            Group {
+                if skipped {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .help("This mouse cannot do this, so Hyperpoint skips the rule.")
+                        .accessibilityLabel("Skipped")
+                } else if let explanation {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                        .help(explanation)
+                        .accessibilityLabel(explanation)
+                } else {
+                    Color.clear.accessibilityHidden(true)
+                }
+            }
+            .frame(width: Self.iconWidth)
             Button {
                 if recordingPress { stopListening() }
                 remove()
@@ -337,10 +355,13 @@ private struct RuleRow: View {
         .animation(.easeOut(duration: 0.3), value: highlighted)
     }
 
+    /// A recorded action, a shortcut or a modifier tapped alone, shows above the item that records another.
     private var actionChoices: [(choice: ActionChoice, label: String)] {
-        choices.actions(for: rule.control, on: rule.trigger).flatMap { action -> [(choice: ActionChoice, label: String)] in
+        let listed = choices.actions(for: rule.control, on: rule.trigger)
+        let recorded = if case .shortcut = rule.action { true } else { !listed.contains(rule.action) }
+        return listed.flatMap { action -> [(choice: ActionChoice, label: String)] in
             guard case .shortcut = action else { return [(.action(action), Labels.action(action))] }
-            guard case .shortcut = rule.action else { return [(.recordShortcut, "Keyboard Shortcut…")] }
+            guard recorded else { return [(.recordShortcut, "Keyboard Shortcut…")] }
             return [(.action(rule.action), Labels.action(rule.action)), (.recordShortcut, "Record Another Shortcut…")]
         }
     }
@@ -376,40 +397,45 @@ private struct RuleRow: View {
 }
 
 /// Records a shortcut in place of the When and Do pickers. It saves on the first key down that makes a chord the file
-/// can name, and Escape alone cancels.
+/// can name, or on letting go of a modifier pressed alone, and Escape alone cancels.
 private struct ShortcutField: View {
-    let record: (Chord) -> Void
+    let record: (Action) -> Void
     let cancel: () -> Void
     @State private var monitor: Any?
-    @State private var held = Modifiers()
+    @State private var recording = ShortcutRecording()
     @State private var unnameable = false
 
     var body: some View {
-        RecorderField(state: .recording(chips: Labels.modifierSymbols(held), hint: hint, trailing: nil), cancel: cancel)
-            .onAppear {
-                monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
-                    if event.type == .flagsChanged {
-                        held = Labels.modifiers(event.modifierFlags)
-                        return event
-                    }
-                    if event.keyCode == 53, Labels.modifiers(event.modifierFlags).isEmpty {
-                        cancel()
-                    } else if let chord = Labels.recordedChord(keyCode: event.keyCode, flags: event.modifierFlags) {
-                        record(chord)
-                    } else {
-                        unnameable = true
-                    }
-                    return nil
+        RecorderField(
+            state: .recording(chips: Labels.modifierSymbols(recording.held), hint: hint, trailing: nil), cancel: cancel
+        )
+        .onAppear {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+                if event.type == .flagsChanged {
+                    handle(recording.flagsChanged(keyCode: event.keyCode, flags: event.modifierFlags))
+                    return event
                 }
+                handle(recording.keyDown(keyCode: event.keyCode, flags: event.modifierFlags))
+                return nil
             }
-            .onDisappear {
-                if let monitor { NSEvent.removeMonitor(monitor) }
-                monitor = nil
-            }
+        }
+        .onDisappear {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+
+    private func handle(_ outcome: ShortcutRecording.Outcome) {
+        switch outcome {
+        case .waiting: break
+        case .recorded(let action): record(action)
+        case .cancelled: cancel()
+        case .unnameable: unnameable = true
+        }
     }
 
     private var hint: RecorderField.Hint {
-        if unnameable { return .problem("Hyperpoint cannot name that key in a shortcut. Try another.") }
-        return .prompt(held.isEmpty ? "Type the shortcut" : "Now press a key")
+        if unnameable { return .problem("Can't use that key. Try another.") }
+        return .prompt(recording.hint)
     }
 }

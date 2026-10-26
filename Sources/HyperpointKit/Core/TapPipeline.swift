@@ -52,6 +52,8 @@ enum TapVerdict: Equatable {
     case perform(Action)
     /// Drop the event and feed the hold-to-scroll animator.
     case holdScroll(HoldScrollEvent)
+    /// Drop the event and press or release the keys a held button holds.
+    case keys(KeyHoldEvent)
     /// Drop the event and tell the engine.
     case heard(ListenID, ListenPress)
 }
@@ -207,7 +209,8 @@ struct LearnStage {
 
 /// Carries out the rules on plain mouse buttons, for the senders that have them. A button whose rule waits on its
 /// movement is held back from apps. A release before the distance is its click, and moving past it scrolls. A
-/// button that scrolls holds the pointer from its press, so a fast flick cannot move it before the scroll starts. The
+/// button that scrolls holds the pointer from its press, so a fast flick cannot move it before the scroll starts. A
+/// button that holds keys holds them from its press to its release, and apps see its drags as plain movement. The
 /// left button never has rules, so it is not watched.
 struct ButtonStage {
     static let interests: [CGEventType] = [
@@ -219,6 +222,8 @@ struct ButtonStage {
         /// A press held back from apps, marked, which goes to them now so that the button's own release pairs with it.
         var press: CGEvent?
         var endsScroll: Bool
+        /// A button that held keys, whose keys go up now.
+        var letsGo: KeyHolder? = nil
     }
 
     /// The button Hyperpoint has taken from apps, until it is released. One at a time.
@@ -260,7 +265,8 @@ struct ButtonStage {
             machine = GestureMachine()
         }
         let ended = machine.step(.cancel) == .scroll(.ended)
-        return Release(press: ended ? nil : held?.press, endsScroll: ended)
+        let holding: KeyHolder? = held.flatMap { if case .hold = $0.behavior { .button($0.button) } else { nil } }
+        return Release(press: ended ? nil : held?.press, endsScroll: ended, letsGo: holding)
     }
 
     private static func button(_ event: CGEvent) -> Int { Int(event.getIntegerValueField(.mouseEventButtonNumber)) }
@@ -288,20 +294,32 @@ struct ButtonStage {
             let ended = machine.step(.press(plan))
             held = Held(button: button, behavior: behavior, press: Self.replayable(event))
             return ended.map(verdict) ?? .drop
+        case .hold(let keys):
+            held = Held(button: button, behavior: behavior)
+            return .keys(.press(.button(button), keys))
         }
     }
 
+    /// Apps never saw the press of a button that holds keys, so its drags reach them as plain movement.
     private mutating func dragged(_ event: CGEvent) -> TapVerdict {
         guard let held, held.button == Self.button(event) else { return .pass }
-        guard case .gesture = held.behavior else { return .drop }
-        let move = GestureMachine.Input.move(
-            dx: event.getDoubleValueField(.mouseEventDeltaX), dy: event.getDoubleValueField(.mouseEventDeltaY))
-        return machine.step(move).map(verdict) ?? .drop
+        switch held.behavior {
+        case .gesture:
+            let move = GestureMachine.Input.move(
+                dx: event.getDoubleValueField(.mouseEventDeltaX), dy: event.getDoubleValueField(.mouseEventDeltaY))
+            return machine.step(move).map(verdict) ?? .drop
+        case .hold:
+            event.type = .mouseMoved
+            return .pass
+        case .native, .press:
+            return .drop
+        }
     }
 
     private mutating func released(_ event: CGEvent) -> TapVerdict {
         guard let held, held.button == Self.button(event) else { return .pass }
         self.held = nil
+        if case .hold = held.behavior { return .keys(.release(.button(held.button))) }
         guard case .gesture = held.behavior else { return .drop }
         switch machine.step(.release) {
         case .click(nil):

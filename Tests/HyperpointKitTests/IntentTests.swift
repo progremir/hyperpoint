@@ -294,6 +294,36 @@ import Testing
                 == HIDPPSetup(controls: [gestureButton: .press(.system(.missionControl)), topButton: .press(shot)], thumbWheelInverted: false))
     }
 
+    @Test func aHoldDivertsWithoutRawMovementAndHoldsItsKeys() {
+        let back = CID(rawValue: 0x53)
+        let forward = CID(rawValue: 0x56)
+        var config = Config.example
+        config.devices[0].rules = [
+            Rule(control: .hidpp(back), trigger: .hold, action: .modifier(.leftCommand)),
+            Rule(control: .hidpp(forward), trigger: .hold, action: .shortcut(Chord(key: KeyCode(name: "space")!, modifiers: [.command, .control]))),
+        ]
+        let setup = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).setup(for: mx.id).hidpp
+        #expect(
+            setup
+                == HIDPPSetup(
+                    controls: [
+                        back: .hold(KeyHold(modifiers: [.leftCommand])),
+                        forward: .hold(KeyHold(modifiers: [.leftControl, .leftCommand], key: KeyCode(name: "space")!)),
+                    ], thumbWheelInverted: false),
+            "a shortcut holds its modifiers in the order macOS menus show them, then its key")
+        let control = HIDPPCapabilities.Control(cid: back, divertable: true, rawXY: true)
+        #expect(setup?.behavior(of: back).reporting(for: control).writeFlags == 0x23, "the pointer keeps moving as usual")
+    }
+
+    @Test func aHoldOnAControlThatCannotDivertIsSkipped() {
+        var config = Config.example
+        let rightButton = Rule(control: .hidpp(CID(rawValue: 0x51)), trigger: .hold, action: .modifier(.leftShift))
+        config.devices[0].rules = [rightButton]
+        let intent = Intent.compile(config, paused: false, tapAvailable: true, present: [mx])
+        #expect(intent.skipped[mx.id] == [rightButton])
+        #expect(intent.setup(for: mx.id).hidpp?.controls.isEmpty == true)
+    }
+
     @Test func gestureSettingsComeFromTheProfile() {
         var config = Config.example
         config.devices[0].gestures = GestureSettings(fire: .onRelease, distance: 300)
@@ -425,6 +455,14 @@ import Testing
         let tap = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).tap
         #expect(tap.buttons[ButtonKey(sender: mxService, button: 3)] == .press(.system(.spaceLeft)))
         #expect(!tap.isEmpty, "button rules alone install the tap")
+    }
+
+    @Test func aPlainButtonHoldIsATapRuleThatHoldsItsKeys() {
+        var config = Config.example
+        config.devices[0].rules = [Rule(control: .button(3), trigger: .hold, action: .modifier(.rightOption))]
+        let tap = Intent.compile(config, paused: false, tapAvailable: true, present: [mx]).tap
+        #expect(tap.buttons[ButtonKey(sender: mxService, button: 3)] == .hold(KeyHold(modifiers: [.rightOption])))
+        #expect(tap.buttons[ButtonKey(sender: otherService, button: 3)] == .hold(KeyHold(modifiers: [.rightOption])))
     }
 
     @Test func noButtonRulesOrNoServiceMeansNoTapRules() {

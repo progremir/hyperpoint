@@ -178,8 +178,8 @@ case ${1:-help} in
     ;;
   record)
     build_helpers
-    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]}
-    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, senders: 90 s)"
+    mode=${2:?record posted|wheel|senders|hold|keys[-seconds]|held[-seconds]}
+    echo "recording $mode; ask the user to act now (posted/wheel/hold/keys: 40-45 s, held: 60 s, senders: 90 s)"
     probe "$mode" "$EVIDENCE/record-$mode.txt" || exit $?
     python3 "$SKILL_DIR/helpers/analyze.py" "$mode" "$EVIDENCE/record-$mode.txt" | tee "$EVIDENCE/record-$mode-summary.txt"
     ;;
@@ -206,7 +206,7 @@ case ${1:-help} in
   settings-switches)
     build_helpers
     switches=0
-    "$BIN/tab-switches" > "$EVIDENCE/settings-switches.txt" || switches=$?
+    "$BIN/tab-switches" "${@:2}" > "$EVIDENCE/settings-switches.txt" || switches=$?
     grep -E '^(PASS|FAIL|SKIP)|^window moved| pass' "$EVIDENCE/settings-switches.txt" || tail -3 "$EVIDENCE/settings-switches.txt"
     exit $switches
     ;;
@@ -242,11 +242,12 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
   hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
-  record <mode>      posted | wheel | senders | hold | keys[-seconds], needs the user to use the mouse
+  record <mode>      posted | wheel | senders | hold | keys[-seconds] | held[-seconds], needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]
                      the real scroll animator on recorded wheel steps, per setting: stops, swing, lag (no app needed)
-  settings-switches  every tab switch, Device change and a page past the screen, sampled at 120 Hz
+  settings-switches [recorders]
+                     every tab switch, Device change, page past the screen and shortcut recorder, sampled at 120 Hz
   set-up "<button>" ["<item>"]  press a new device's Set Up button on Devices, or choose an item from its menu
   menu "<item>"      press an item of the menu bar menu by title, such as "Hyper Key"
   evidence           print this run's evidence directory
