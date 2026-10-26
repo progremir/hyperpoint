@@ -5,7 +5,7 @@ struct ScrollingTab: View {
     let model: SettingsModel
 
     var body: some View {
-        SettingsPage(model: model) {
+        SettingsPage(model: model, subject: model.selectedMouse?.match) {
             if let device = model.selectedMouse {
                 FormRow(label: "Device") { MousePopup(model: model) }
                 Divider()

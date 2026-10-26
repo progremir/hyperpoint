@@ -2,20 +2,24 @@ import HyperpointKit
 import SwiftUI
 
 /// A page's link to the window. The page reports its full size as SwiftUI places it, so the window can take its
-/// height, and the window says whether it stopped at the bottom of the screen, the only time the page scrolls.
+/// height, and the window says whether it stopped at the bottom of the screen, the only time the page scrolls. The page
+/// also says which mouse it shows, so the window can tell another mouse's page from a rule added to the same one.
 @MainActor
 @Observable
 final class PageFit {
     @ObservationIgnored private(set) var size: CGSize?
     var scrolls = false
-    @ObservationIgnored private let resized: () -> Void
+    @ObservationIgnored private var subject: DeviceMatch?
+    @ObservationIgnored private let resized: (_ replaced: Bool) -> Void
 
-    init(resized: @escaping () -> Void) { self.resized = resized }
+    init(resized: @escaping (_ replaced: Bool) -> Void) { self.resized = resized }
 
-    func place(_ size: CGSize) {
+    func place(_ size: CGSize, subject: DeviceMatch?) {
+        let replaced = subject != self.subject
+        self.subject = subject
         guard size != self.size else { return }
         self.size = size
-        resized()
+        resized(replaced)
     }
 }
 
@@ -24,13 +28,14 @@ final class PageFit {
 /// the window could hide it.
 struct PageMeasure: Layout {
     let fit: PageFit?
+    let subject: DeviceMatch?
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         subviews.first?.sizeThatFits(proposal) ?? .zero
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        MainActor.assumeIsolated { fit?.place(bounds.size) }
+        MainActor.assumeIsolated { fit?.place(bounds.size, subject: subject) }
         subviews.first?.place(at: bounds.origin, proposal: proposal)
     }
 }
@@ -44,12 +49,14 @@ extension EnvironmentValues {
 /// open when that happens.
 struct SettingsPage<Content: View>: View {
     let model: SettingsModel
+    /// The mouse the page shows, on the pages that show one.
+    var subject: DeviceMatch?
     @ViewBuilder var content: Content
     @Environment(\.pageFit) private var pageFit
 
     var body: some View {
         ScrollView {
-            PageMeasure(fit: pageFit) {
+            PageMeasure(fit: pageFit, subject: subject) {
                 VStack(alignment: .leading, spacing: 12) {
                     if let error = model.snapshot?.error {
                         FormRow(label: "Config file") {

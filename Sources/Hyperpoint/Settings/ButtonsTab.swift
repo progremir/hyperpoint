@@ -6,7 +6,7 @@ struct ButtonsTab: View {
     let model: SettingsModel
 
     var body: some View {
-        SettingsPage(model: model) {
+        SettingsPage(model: model, subject: model.selectedMouse?.match) {
             if let device = model.selectedMouse {
                 FormRow(label: "Device") {
                     MousePopup(model: model)
@@ -159,8 +159,8 @@ private struct AddRule: View {
     let note: LearnNote?
     let footer: String
 
-    /// Fits the listening capsule as well as the button, so starting a listen does not grow the page. A page that
-    /// grows in place hides until the window has its height, which flashed it blank on every Add Rule.
+    /// Fits the listening capsule as well as the button, so starting a listen does not move the rows under it or
+    /// resize the window.
     static let height = 28.0
 
     /// A listen for a rule's Button cell shows in that row, not here. The line under it always holds one line of text,
