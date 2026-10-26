@@ -75,4 +75,5 @@ as `FAQPage`.
 
 The card and curve data come from the app: the menu strings from `StatusMenu.swift` and `MenuPresentation.swift`, the
 rules from the MX Master 3 preset, and the curve and measured wheel bands from `SpeedCurve.swift` and
-`CurveGraph.swift`. Update the page when those change.
+`CurveGraph.swift`. Update the page when those change. The sizes (1.2 MB download, 3.3 MB installed) are measured from
+the v0.1.1 DMG and the app inside it, so check them on each release.
