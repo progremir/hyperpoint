@@ -37,7 +37,8 @@ change. Your setup survives sleep and reconnects, even on mice that forget their
 ## Install
 
 Requires macOS 27. Download `Hyperpoint-<version>.dmg` from
-[Releases](https://github.com/progremir/hyperpoint/releases), open it and drag Hyperpoint into Applications.
+[hyperpoint.progremir.dev/download](https://hyperpoint.progremir.dev/download), open it and drag Hyperpoint into
+Applications.
 
 Releases are signed with Developer ID and notarized by Apple. v0.1.0 predates that: macOS refuses its first open, so
 allow it under System Settings › Privacy & Security › Open Anyway.
@@ -127,6 +128,12 @@ and save notarization credentials as the `hyperpoint` keychain profile with an
 xcrun notarytool store-credentials hyperpoint --apple-id <apple-id> --team-id ZZ2G9658MN
 ```
 
+Publishing also uploads to Cloudflare R2, so install the site's tools and sign in to Cloudflare once, in `site/`:
+
+```bash
+npm ci && npx cf auth login
+```
+
 Then:
 
 ```bash
@@ -134,10 +141,22 @@ scripts/release.sh 0.2.0 --publish
 ```
 
 This builds `dist/Hyperpoint-0.2.0.dmg`, signs the app and the DMG with Developer ID, notarizes and staples the DMG,
-tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release. It refuses to publish without
-Developer ID, with uncommitted changes or with an unpushed HEAD. Drop `--publish` to only build the DMG. Pull requests
-that touch the pipeline run `.github/workflows/release.yml`, which builds an ad-hoc DMG on CI as an artifact. The
-installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release and to the
+`hyperpoint-releases` R2 bucket, where the site's `/download` serves it to anyone. A prerelease is uploaded but
+`/download` stays on the last release. It refuses to publish without Developer ID, with uncommitted changes, with an
+unpushed HEAD or without access to the bucket. Drop `--publish` to build and notarize the DMG without publishing
+it. The installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+
+To check a change to the pipeline (`build-app.sh`, `release.sh`, `dmg-settings.py` or `design/installer/`) before
+merging it, build an ad-hoc DMG. This needs no certificate and skips notarization:
+
+```bash
+SIGN_IDENTITY=- ALLOW_ADHOC=1 scripts/release.sh 0.2.0-check
+```
+
+It builds, signs, checks and packs the app the same way, then verifies `dist/Hyperpoint-0.2.0-check.dmg` and writes
+its SHA-256. An ad-hoc signature changes on every build, which drops the Accessibility and Input Monitoring grants,
+so open this DMG to look at the installer, not to install.
 
 The release's Developer ID signature differs from a `bundle.sh` build's Apple Development one, so switching between
 the two asks for the Accessibility and Input Monitoring grants again.

@@ -1,26 +1,45 @@
 # Hyperpoint website
 
-A static landing page: plain HTML, CSS and JavaScript with no build step. It was designed with the
+A landing page in plain HTML, CSS and JavaScript with no build step, plus a small Worker that serves the downloads.
+It was designed with the
 [`landing-page-design`](https://github.com/elayadesign/ai-design-skills/tree/main/skills/landing-page-design) and
 [`design-to-motion`](https://github.com/elayadesign/ai-design-skills/tree/main/skills/design-to-motion) skills.
 
-Live at https://hyperpoint.progremir.dev, served by the `hyperpoint` Worker as static assets on Cloudflare.
+Live at https://hyperpoint.progremir.dev, served by the `hyperpoint` Worker on Cloudflare.
 
 ```bash
 python3 -m http.server 4319 --directory site/public
 ```
 
+That serves the page alone. To try `/download` too, run the Worker with a local bucket, filled with
+`npx wrangler r2 object put hyperpoint-releases/<key> --local --persist-to .wrangler/state --file <file>` in `site/`:
+
+```bash
+site/node_modules/.bin/wrangler dev -c site/wrangler.jsonc --port 8787 --persist-to site/.wrangler/state
+```
+
 **Deploying.** Cloudflare's Workers Builds builds `site/` on every push that touches it. A push to `main` runs
-`npx cf deploy` and updates the live site. A push to any other branch runs `npx cf previews deploy`, which publishes
-that branch at `https://<branch>-hyperpoint.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
-noindex`). Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
+`npx wrangler deploy` and updates the live site. A push to any other branch runs `npx wrangler preview`, which
+publishes that branch at `https://<branch>-hyperpoint.progremir.workers.dev` (public, but sent with `X-Robots-Tag:
+noindex`). Both read `wrangler.jsonc`, so a change to the Worker's entry, assets or bindings goes there as well as in
+`cloudflare.config.ts`, and a binding goes in its `previews` block too, since previews inherit none. Both run in `site/` on Node 24 (`.node-version`) with Cloudflare's own build token, so the repository
 holds no Cloudflare secret. The connection lives on the Worker in the Cloudflare dashboard, under Settings ›
 Builds, and Cloudflare posts each branch's preview link on its pull request.
-`cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs and 404 handling, and `wrangler.config.ts` names
-`public/` as the assets, so only that folder is uploaded.
+`cloudflare.config.ts` holds the Worker's name, account, domain, preview URLs, 404 handling, entry and bindings for
+`npx cf deploy` and `npx cf previews deploy` from a Mac, and `wrangler.config.ts` names `public/` as the assets, so
+only that folder and the Worker are uploaded.
 
-`404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth. The download buttons link to
-the latest GitHub release, which only people with access to the repository can open while it is private.
+`404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth.
+
+**Downloads.** The download buttons link to `/download`, which needs no GitHub account or repository access. The
+Worker runs only for `/download` paths and reads the private `hyperpoint-releases` R2 bucket, which
+`scripts/release.sh --publish` fills: `/download` redirects to the file its `latest` object names, and
+`/download/Hyperpoint-<version>.dmg` and its `.sha256` serve that release. Any other path, in the bucket or not, gets
+the 404 page. To point `/download` at another release, run in `site/`:
+
+```bash
+npx cf r2 objects put latest --bucket-name hyperpoint-releases --body Hyperpoint-0.1.1.dmg --content-type "text/plain; charset=utf-8"
+```
 
 | File | What it is |
 |---|---|
@@ -30,7 +49,8 @@ the latest GitHub release, which only people with access to the repository can o
 | `public/404.html`, `public/privacy.html` | The branded 404 and the privacy page |
 | `public/og.png` | Social preview, drawn by `og.py` from the logo kit and Geist |
 | `public/favicon.*`, `icon-*.png`, `site.webmanifest`, `assets/` | Copied from `design/logo/` |
-| `cloudflare.config.ts`, `wrangler.config.ts`, `package.json` | The Cloudflare project; `cf` and Wrangler are pinned in `package-lock.json` |
+| `src/index.ts` | The Worker that serves `/download` from R2 |
+| `cloudflare.config.ts`, `wrangler.config.ts`, `wrangler.jsonc`, `package.json` | The Cloudflare project; `cf` and Wrangler are pinned in `package-lock.json` |
 
 ## The brief
 
