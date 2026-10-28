@@ -1,7 +1,8 @@
 // The films' music and sound effects, synthesized here from nothing, so there is no license to clear. A film exposes
 // window.CUES and its score picks the arrangement: "punchy" (demo.html) is a 140 BPM track in A minor with hits on
 // the cuts; "editorial" (editorial.html) is a calm 100 BPM piece with soft sounds on the cues the page places and
-// its lift on the logo. render.cjs calls write() and muxes the result.
+// its lift on the logo; "keycaps" (keycaps.html) is 120 BPM in D minor, a click for every key that appears, an
+// impact on the full keyboard, mouse clicks and wheel notches over a lighter groove, and a warm end card. render.cjs calls write() and muxes the result.
 "use strict";
 const fs = require("node:fs");
 
@@ -563,8 +564,84 @@ function editorial(c) {
   return master(m, 0.75 * B, { room: 0.86, wet: 3.2, drive: 1.0 });
 }
 
+const KC = {
+  Dm9: { bass: 38, pad: [57, 60, 62, 64, 65] },
+  Bbmaj7: { bass: 46, pad: [58, 62, 65, 69] },
+  Gm9: { bass: 43, pad: [55, 58, 62, 65, 69] },
+  Fmaj9: { bass: 41, pad: [57, 60, 64, 67] },
+  C6: { bass: 48, pad: [55, 60, 64, 69] },
+  Bbmaj9: { bass: 46, pad: [57, 60, 62, 65] },
+  FA: { bass: 45, pad: [57, 60, 65, 69] },
+};
+
+function keycaps(c) {
+  const B = 60 / c.BPM, BAR = 4 * B, bars = Math.round(c.TOTAL / BAR);
+  const m = new Mix(c.TOTAL);
+  // Two bars over the hero, a bar that builds as the keys multiply, the impact on the full keyboard and a bar of
+  // groove under it, three lighter bars for the mouse, then the end card on Bbmaj9, moving to F as the word swaps.
+  const PROG = ["Dm9", "Bbmaj7", "Gm9", "Fmaj9", "C6", "Dm9", "Bbmaj7", "C6", "Bbmaj9", "FA", "Fmaj9"];
+  const roleAt = (t) => (t < c.IMPACT - 0.01 ? (t < 2 * BAR ? "intro" : "build") : t < c.MOUSE - 0.01 ? "drive" : t < c.END - 0.01 ? "mouse" : "end");
+
+  const pulses = [];
+  for (let b = 0; b * B < c.TOTAL - 0.01; b++) {
+    const t = b * B, role = roleAt(t);
+    if (role !== "end" || b % 4 === 0) pulses.push(t);
+  }
+  for (let i = 0, k = -1; i < m.n; i++) {
+    while (k + 1 < pulses.length && i / SR >= pulses[k + 1]) k++;
+    m.pump[i] = k < 0 ? 1 : 1 - Math.exp(-(i / SR - pulses[k]) / 0.12);
+  }
+
+  for (let bar = 0; bar < bars; bar++) {
+    const t = bar * BAR, ch = KC[PROG[bar]], notes = ch.pad.map((n) => n + 12), role = roleAt(t);
+    const gain = { intro: 0.6, build: 0.85, drive: 1.0, mouse: 0.85, end: 1.3 }[role];
+    const cut = role === "build" ? (u) => 900 + 2200 * (u / BAR) : { intro: 900, drive: 1900, mouse: 1500, end: 1600 }[role];
+    pad(m, t, BAR, ch.pad, gain, { cut, attack: role === "drive" ? 0.05 : 0.35, release: role === "end" && bar === bars - 1 ? 1.4 : 0.8, duck: 0.35 });
+    if (role === "intro") {
+      [[0, 0, 0.45], [2, 2, 0.4], [3, 3, 0.35]].forEach(([b, k, v]) => keys(m, t + b * B, notes[k % notes.length], v, 0.2));
+    } else if (role === "build") {
+      for (let s = 0; s < 8; s++) keys(m, t + (s * B) / 2, notes[s % notes.length] + (s >= 4 ? 12 : 0), 0.35 + 0.3 * (s / 7), s % 2 ? 0.3 : -0.3);
+      softBass(m, t, 2 * B - 0.05, ch.bass, 0.9);
+      softBass(m, t + 2 * B, 2 * B - 0.05, ch.bass, 1);
+      for (let s = 8; s < 16; s++) shaker(m, t + (s * B) / 4, 0.4 + 0.6 * ((s - 8) / 7));
+    } else if (role === "drive") {
+      [0, 2, 1, 3, 2, 4, 3, 1].forEach((k, s) => keys(m, t + (s * B) / 2, notes[k % notes.length], s % 2 ? 0.4 : 0.55, s % 2 ? 0.3 : -0.25));
+      for (let s = 0; s < 8; s++) {
+        softBass(m, t + (s * B) / 2, B / 2 - 0.04, ch.bass + (s === 7 ? 12 : 0), 1.1);
+        shaker(m, t + (s * B) / 2, s % 2 ? 0.6 : 1);
+      }
+    } else if (role === "mouse") {
+      [0, 2, 1, 3, 2, 1, 3, 2].forEach((k, s) => s % 2 === 0 && keys(m, t + (s * B) / 2, notes[k % notes.length], 0.45, s % 4 ? 0.3 : -0.25));
+      for (let b = 0; b < 4; b++) softBass(m, t + b * B, B - 0.05, ch.bass + (b === 3 ? 7 : 0), 0.9);
+      for (let s = 0; s < 8; s++) shaker(m, t + (s * B) / 2, s % 2 ? 0.3 : 0.5);
+    } else {
+      [0, 1, 2, 3].forEach((k) => keys(m, t + k * B, notes[[0, 2, 1, 3][k] % notes.length], bar === bars - 1 ? 0.4 - 0.08 * k : 0.5, k % 2 ? 0.3 : -0.3));
+      softBass(m, t, BAR - 0.05, ch.bass, 1.1);
+    }
+  }
+  for (const p of pulses) {
+    const role = roleAt(p), beat = Math.round(p / B);
+    if (role === "drive" || (role === "mouse" && beat % 2 === 0)) kick(m, p, role === "drive" ? 0.6 : 0.45);
+    else thump(m, p, role === "end" ? 0.7 : role === "mouse" ? 0.4 : 0.45 + 0.5 * (p / c.IMPACT));
+  }
+
+  // The full keyboard lands; then it scatters.
+  riser(m, c.IMPACT - 1.2, 1.2, 0.7);
+  boom(m, c.IMPACT, 0.9);
+  crash(m, c.IMPACT, 0.55);
+  stab(m, c.IMPACT, KC.Fmaj9.pad.map((n) => n + 12), 0.8);
+  swish(m, c.SCATTER, 0.5, 1.0);
+  stab(m, c.MOUSE, KC.Dm9.pad.map((n) => n + 12), 0.45);
+  chime(m, c.SWAP, 0.45);
+
+  const play = { clack, tick, click: mouseClick, detent };
+  for (const { t, kind, gain } of c.sfx) play[kind](m, t, gain);
+  return master(m, 0.75 * B, { room: 0.84, wet: 2.8, drive: 1.05 });
+}
+
 function write(file, cues) {
-  const [L, R] = (cues.score === "editorial" ? editorial : punchy)(cues);
+  const score = { editorial, keycaps }[cues.score] || punchy;
+  const [L, R] = score(cues);
   const buf = Buffer.alloc(44 + L.length * 4);
   buf.write("RIFF", 0); buf.writeUInt32LE(36 + L.length * 4, 4); buf.write("WAVE", 8);
   buf.write("fmt ", 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(2, 22);

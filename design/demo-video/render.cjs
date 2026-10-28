@@ -25,9 +25,19 @@ function run(args) {
 
 (async () => {
   fs.mkdirSync(out, { recursive: true });
-  const browser = await chromium.launch();
+  // A page drawn with WebGL says so with a "render: gpu" comment, and gets the Mac's GPU through Metal; the
+  // software renderer would take several times longer per frame.
+  const gpu = fs.readFileSync(path.join(__dirname, `${film}.html`), "utf8").includes("render: gpu");
+  const browser = await chromium.launch({ args: gpu ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : [] });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
-  await page.goto(`file://${path.join(__dirname, `${film}.html`)}?capture`);
+  // The page is served from the design folder at a made-up origin, so it can fetch its own files (a 3D model, say),
+  // which Chromium refuses for pages opened from disk.
+  const ORIGIN = "http://films.local";
+  await page.route(`${ORIGIN}/**`, (route) => {
+    const file = path.join(__dirname, "..", decodeURIComponent(new URL(route.request().url()).pathname));
+    return fs.existsSync(file) ? route.fulfill({ path: file }) : route.fulfill({ status: 404 });
+  });
+  await page.goto(`${ORIGIN}/${path.basename(__dirname)}/${film}.html?capture`);
   await page.waitForFunction(() => window.ready === true, null, { timeout: 30000 });
   const total = await page.evaluate(() => window.TOTAL);
   const file = path.join(out, `hyperpoint-${film}.mp4`);

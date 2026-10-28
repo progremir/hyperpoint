@@ -73,7 +73,21 @@ For `out/hyperpoint-editorial.mp4`, the calmer version.
 Demo of Hyperpoint, a macOS menu bar app, on grey paper cards. Caps Lock is pressed, splits into Command, Option, Shift and Control, and they merge into one hyper key ✦; a list turns it on for the desk keyboard and leaves the MacBook keyboard on Caps Lock. In a table of mouse button rules, Add rule listens, the right button is pressed and a row types itself in: Right button, Hold and move, Scroll. Wheel steps become eased pulses that sum into a smooth curve, then a marker climbs the speed curve from 1 to 150 steps per second. At the end a Mac Caps Lock key, its ⇪ drawn as the Hyperpoint arrow over the Caps Lock light, is pressed and the light turns green. The symbol lifts off the key, tilts into a mouse pointer, clicks, glides and double-clicks, then settles as the logo. It ends on the Hyperpoint logo and hyperpoint.progremir.dev.
 ```
 
+## Keycaps cut alt text
+
+For `out/hyperpoint-keycaps.mp4`, the 3D keycap version.
+
+```
+Glossy 3D keycaps on black. "Your keyboard has a spare key. It's Caps Lock." A Caps Lock keycap whose ⇪ is the Hyperpoint arrow over a green bar floats in the middle while letter keys pop in around it, each named as Caps Lock plus that key, a new shortcut. The keys fly together into a full MacBook keyboard behind a large green ✦ + any key: a shortcut of your own on every key. The keyboard scatters and a Logitech MX Master 4 rises in: "And every button on your mouse. Press it, pick what it does." Its top button, thumb buttons and thumb wheel light up in turn, labeled Mission Control, Switch Spaces and App Exposé. Then "And a wheel that glides": as the wheel is flicked, a feed labeled A plain wheel jumps a notch at a time while one labeled Hyperpoint glides. The mouse and keycaps then tumble beside "One app for your mouse", which changes to "keyboard", with a Download for Mac button and hyperpoint.progremir.dev.
+```
+
 ## About the video
+
+- `keycaps.html` (22 s, 120 BPM) draws its keycaps with three.js on the GPU; `node render.cjs keycaps.html` renders it.
+  The mouse is Logitech's MX Master 4 model from Sketchfab
+  (https://sketchfab.com/3d-models/910-007575-mx-master-4-mac-space-black-3d2ad75a27cd4b7d96c86b34719bedaf), saved as
+  `models/mx-master-4.glb`; its license allows using it in the video. At 63 MB it is not committed: download it
+  from that page to render this cut.
 
 - Two cuts: `demo.html` (15 s, fast, 140 BPM) and `editorial.html` (46 s, calm paper cards, 100 BPM, its music lifting
   as a Caps Lock key turns into the logo). `node render.cjs editorial.html` renders the second.

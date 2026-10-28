@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyperpoint keycaps</title>
+<!-- render: gpu -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400&family=Instrument+Serif:ital@1&display=block">
+<script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<!-- The keycaps cut: glossy 3D keycaps on black. A Caps Lock key whose ⇪ is the Hyperpoint symbol, the keys it turns
+     into shortcuts multiplying around it, a full keyboard behind "✦ + any key", then an end card. Rendered like the other
+     films (render.cjs seeks it with ?capture, ?t= freezes it), but the keys are three.js on the GPU, so render.cjs
+     launches Chromium with GPU flags when a page carries the "render: gpu" comment above. -->
+<style>
+:root { --fg: #f4f2ee; --dim: #9a9894; --accent: #52e07a; --sys: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: #050506; color: var(--fg); font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+#stage canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+#far { filter: blur(7px); }
+#near { filter: blur(14px); }
+.layer { position: absolute; inset: 0; pointer-events: none; }
+
+.head { position: absolute; left: 0; right: 0; top: 64px; text-align: center; font-size: 52px; line-height: 62px; font-weight: 500; letter-spacing: -0.02em; }
+.head p { margin: 0; }
+.head p.d { color: var(--dim); }
+.mpill { position: absolute; left: 0; top: 0; padding: 12px 24px; border-radius: 999px; background: rgba(20, 20, 22, 0.72); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.16); font-size: 26px; white-space: nowrap; }
+.mpill b { font-weight: 600; color: var(--accent); }
+.leaders { position: absolute; left: 0; top: 0; overflow: visible; }
+.feeds { position: absolute; left: 980px; top: 236px; display: flex; gap: 36px; }
+.feed .fl { margin: 0 0 14px 6px; font-size: 24px; color: var(--dim); }
+.feed.on .fl { color: var(--accent); font-weight: 500; }
+.fwin { position: relative; width: 330px; height: 600px; overflow: hidden; border-radius: 30px; background: rgba(255, 255, 255, 0.045); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.1); -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent); }
+.feed.on .fwin { box-shadow: inset 0 0 0 1.5px rgba(82, 224, 122, 0.45); }
+.flist { position: absolute; left: 0; right: 0; top: 0; padding: 26px 24px; }
+.frow { display: flex; align-items: center; gap: 16px; height: 68px; }
+.frow i { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+.frow div { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+.frow u { display: block; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.22); }
+.frow u + u { background: rgba(255, 255, 255, 0.1); }
+.leaders line { stroke: rgba(255, 255, 255, 0.4); stroke-width: 1.5; }
+.leaders circle { fill: var(--accent); stroke: rgba(5, 5, 6, 0.8); stroke-width: 3; }
+.pill { position: absolute; left: 50%; top: 742px; transform: translateX(-50%); padding: 10px 22px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.14); font-size: 25px; white-space: nowrap; }
+.pill b { font-weight: 600; }
+.glyphs { font-family: var(--sys); letter-spacing: 0.02em; }
+.count { position: absolute; left: 0; right: 0; top: 808px; text-align: center; font-size: 22px; color: var(--dim); }
+.count b { display: inline-block; min-width: 1.4em; color: var(--fg); font-weight: 600; text-align: center; }
+
+.dim { position: absolute; inset: 0; background: radial-gradient(1100px 380px at 50% 50%, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.55) 70%, rgba(0, 0, 0, 0.35)); }
+.big { position: absolute; left: 0; right: 0; top: 360px; text-align: center; }
+.big .n { font-size: 210px; line-height: 230px; font-weight: 400; letter-spacing: -0.04em; }
+.big .star { font-family: var(--sys); color: var(--accent); }
+.big .l { margin-top: 18px; font-size: 40px; font-weight: 500; }
+.big .m { margin-top: 18px; font-family: "Geist Mono", monospace; font-size: 22px; color: #c9c7c2; }
+
+.end { position: absolute; left: 132px; top: 0; bottom: 0; width: 1000px; }
+.end .logo { position: absolute; left: 0; top: 116px; height: 46px; }
+.end h2 { position: absolute; left: 0; top: 250px; margin: 0; font-size: 124px; line-height: 128px; font-weight: 500; letter-spacing: -0.035em; white-space: nowrap; }
+.swap { position: relative; display: inline-block; width: 600px; height: 128px; vertical-align: top; }
+.swap i { position: absolute; left: 0; top: 0; font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; font-size: 140px; letter-spacing: -0.01em; }
+.dl { position: absolute; left: 0; top: 576px; display: flex; align-items: center; gap: 22px; height: 128px; padding: 0 58px; border-radius: 999px; background: #f1efea; color: #101012; font-size: 46px; font-weight: 500; }
+.dl .arrow { width: 44px; height: 44px; }
+.end .fine { position: absolute; left: 0; top: 752px; font-size: 34px; color: #9d9b97; white-space: nowrap; }
+.end .fine u { color: var(--fg); text-decoration-thickness: 2px; text-underline-offset: 8px; text-decoration-color: rgba(255, 255, 255, 0.45); }
+#grain { position: absolute; inset: 0; opacity: 0.06; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="far" width="1920" height="1080"></canvas>
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <canvas id="near" width="1920" height="1080"></canvas>
+
+  <div class="layer" id="intro">
+    <div class="head"><p id="h1">Your keyboard has a spare key.</p><p id="h2">It's Caps Lock.</p></div>
+    <div class="pill" id="pill">Hold it and it's <b class="glyphs">⌘⌥⇧⌃</b></div>
+    <div class="count" id="count">Caps Lock + <b id="last">A</b> is a new shortcut</div>
+  </div>
+
+  <div class="layer" id="fill">
+    <div class="dim" id="dimmer"></div>
+    <div class="big"><div class="n"><span class="star">✦</span> + any key</div><div class="l">a shortcut of your own on every key</div><div class="m">Hold Caps Lock and press any key</div></div>
+  </div>
+
+  <div class="layer" id="mousecard">
+    <div class="head"><p id="mh1">And every button on your mouse.</p><p id="mh2" class="d">Press it, pick what it does.</p></div>
+    <svg class="leaders" id="leaders" width="1920" height="1080" aria-hidden="true">
+      <g id="ld1"><line/><circle r="6"/></g><g id="ld2"><line/><circle r="6"/></g><g id="ld3"><line/><circle r="6"/></g>
+    </svg>
+    <div class="mpill" id="mp1"><b>Top button</b> → Mission Control</div>
+    <div class="mpill" id="mp2"><b>Thumb buttons</b> → Switch Spaces</div>
+    <div class="mpill" id="mp3"><b>Thumb wheel</b> → App Exposé</div>
+    <div class="head" id="shead"><p id="sh1">And a wheel that glides.</p><p id="sh2" class="d">Each notch becomes an eased pulse.</p></div>
+    <div class="feeds" id="feeds">
+      <div class="feed"><div class="fl">A plain wheel</div><div class="fwin"><div class="flist" id="fl1"></div></div></div>
+      <div class="feed on"><div class="fl">Hyperpoint</div><div class="fwin"><div class="flist" id="fl2"></div></div></div>
+    </div>
+  </div>
+
+  <div class="layer" id="endcard">
+    <div class="end">
+      <img class="logo" id="elogo" src="../logo/svg/hyperpoint-horizontal-color-on-dark.svg" alt="Hyperpoint">
+      <h2 id="eh"><span>One app for your</span><br><span class="swap"><i id="w1">mouse</i><i id="w2">keyboard</i></span></h2>
+      <div class="dl" id="edl"><svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11.5M6.5 9.5 12 15l5.5-5.5M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Download for Mac</div>
+      <div class="fine" id="efine"><u>hyperpoint.progremir.dev</u> · 1.2 MB · macOS 27</div>
+    </div>
+  </div>
+  <div id="grain"></div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const E = "cubic-bezier(0.16, 1, 0.3, 1)";
+const IO = "cubic-bezier(0.65, 0, 0.35, 1)";
+const $ = (s) => document.querySelector(s);
+const updaters = [];
+const clamp = (v) => Math.min(1, Math.max(0, v));
+const lerp = (a, b, u) => a + (b - a) * u;
+const outExpo = (u) => (u >= 1 ? 1 : 1 - Math.pow(2, -10 * u));
+const outCubic = (u) => 1 - Math.pow(1 - u, 3);
+const inOut = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+function rng(seed) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+}
+
+// Cues on a 120 BPM grid (B is one beat, a bar is 2 s) so the score's phrases turn with the scenes; music.cjs plays
+// the sounds placed here.
+const BPM = 120, B = 60 / BPM;
+const SPAWN0 = 1.5, SPAWN1 = 4.7, ASSEMBLE = 5.0, IMPACT = 6.0, SCATTER = 9.0, MOUSE = 10.0, END = 16.0, SWAP = 18.0, TOTAL = 22.0;
+// The mouse's beats: the right button, the side button, then a flick of the wheel that glides to a stop.
+// The mouse's beats: three buttons named, then the wheel flicked twice beside two feeds, one stepping a notch at a
+// time and one gliding.
+const M_TOP = MOUSE + B, M_SIDE = MOUSE + 2 * B, M_THUMB = MOUSE + 3 * B, M_SCROLL = MOUSE + 5 * B;
+const FLICKS = [MOUSE + 6 * B, MOUSE + 8 * B], M_LEAVE = END - 1.0;
+const sfx = [];
+const cue = (t, kind, gain = 1) => sfx.push({ t, kind, gain });
+const CUES = { score: "keycaps", BPM, TOTAL, IMPACT, SCATTER, MOUSE, END, SWAP, sfx };
+
+function track(el, keys) {
+  if (typeof el === "string") el = $(el);
+  const t0 = keys[0][0];
+  const dur = Math.max(0.001, keys[keys.length - 1][0] - t0);
+  const frames = keys.map(([t, p, e]) => ({ ...p, offset: Math.min(1, (t - t0) / dur), easing: e || "linear" }));
+  if (frames.length === 1) frames.push({ ...frames[0], offset: 1 });
+  el.animate(frames, { delay: t0 * 1000, duration: dur * 1000, fill: "both" });
+}
+function inout(el, a, b, { y = 16, blur = 10, d = 0.7, d2 = 0.4 } = {}) {
+  const hide = (yy) => ({ opacity: 0, transform: `translateY(${yy}px)`, filter: `blur(${blur}px)` });
+  const show = { opacity: 1, transform: "translateY(0px)", filter: "blur(0px)" };
+  const keys = [[a, hide(y), E], [a + d, show]];
+  if (b != null) keys.push([b, show, IO], [b + d2, hide(-y * 0.5)]);
+  track(el, keys);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Keycaps. One sculpted shape: a tapered, rounded body whose top edge is filleted into a shallow dish, hollow
+// underneath like a real cap. Built as a stack of rounded-rect rings so a wide key is the same shape stretched.
+
+// A rounded rectangle as a ring of points: corner arcs, and a fixed number of points along each straight edge so the
+// surface is an even grid (long single segments make slivers that shade as creases).
+const RING_ARC = 8, EDGE_Z = 5;
+function ringAt(w, d, r, y, z, ex) {
+  const pts = [], hw = w / 2 - r, hd = d / 2 - r;
+  const corners = [[hw, hd, 0], [-hw, hd, 0.5], [-hw, -hd, 1], [hw, -hd, 1.5]];
+  corners.forEach(([cx, cz, a0], k) => {
+    for (let i = 0; i <= RING_ARC; i++) {
+      const a = (a0 + (i / RING_ARC) * 0.5) * Math.PI;
+      pts.push([cx + r * Math.cos(a), y, cz + r * Math.sin(a) + z]);
+    }
+    // The edge from this corner's end to the next corner's start.
+    const [nx, nz] = corners[(k + 1) % 4], n = k % 2 === 0 ? ex : EDGE_Z;
+    const a1 = (a0 + 0.5) * Math.PI, sx = cx + r * Math.cos(a1), sz = cz + r * Math.sin(a1);
+    const b0 = (corners[(k + 1) % 4][2]) * Math.PI, ex2 = nx + r * Math.cos(b0), ez2 = nz + r * Math.sin(b0);
+    for (let i = 1; i <= n; i++) pts.push([lerp(sx, ex2, i / (n + 1)), y, lerp(sz, ez2, i / (n + 1)) + z]);
+  });
+  return pts;
+}
+
+const geoCache = new Map();
+function keycapGeometry(units) {
+  if (geoCache.has(units)) return geoCache.get(units);
+  const W0 = units - 0.07, D0 = 0.93, H = 0.56, TAPER = 0.24, BACK = -0.05, R0 = 0.07, R1 = 0.11, F = 0.075, DISH = 0.022, WALL = 0.06;
+  const W1 = W0 - TAPER, D1 = D0 - TAPER - 0.06;
+  const at = (y) => ({ w: lerp(W0, W1, y / H), d: lerp(D0, D1, y / H), r: lerp(R0, R1, y / H), z: lerp(0, BACK, y / H) });
+  const EX = Math.max(5, Math.round(units * 5));
+  const ring = (w, d, r, y, z) => ringAt(w, d, r, y, z, EX);
+  const rings = []; // [points, joinToPrevious, top?]
+  const push = (pts, join, top = false) => rings.push({ pts, join, top });
+  // Inside: ceiling, wall down to the lip.
+  const inner = (y) => { const a = at(y); return ring(a.w - 2 * WALL - 0.05, a.d - 2 * WALL - 0.05, Math.max(0.02, a.r - WALL), y, a.z); };
+  push(ring(0.002, 0.002, 0.001, H * 0.62, BACK * 0.62), false);
+  push(inner(H * 0.62), true);
+  push(inner(H * 0.62), false);
+  push(inner(0), true);
+  // Lip, then the outer wall up to the fillet.
+  push(inner(0), false);
+  { const a = at(0); push(ring(a.w, a.d, a.r, 0, a.z), true); }
+  { const a = at(0); push(ring(a.w, a.d, a.r, 0, a.z), false); }
+  for (let i = 1; i <= 6; i++) {
+    const y = (i / 6) * (H - F), a = at(y);
+    push(ring(a.w, a.d, a.r, y, a.z), true);
+  }
+  // Fillet into the top surface.
+  for (let i = 1; i <= 6; i++) {
+    const phi = (i / 6) * Math.PI / 2, y = H - F + F * Math.sin(phi), inset = F * (1 - Math.cos(phi)), a = at(y);
+    push(ring(a.w - 2 * inset, a.d - 2 * inset, Math.max(0.02, a.r - inset), y, a.z), true, i === 6);
+  }
+  // The dish: rings shrinking to the center and dipping a little, rounding toward a circle as they go so the
+  // corners don't crease into an X under a highlight.
+  const topA = at(H), tw = topA.w - 2 * F, td = topA.d - 2 * F, tr = Math.max(0.02, topA.r - F);
+  // Depth follows each point's distance from the center, an elliptic bowl, so reflections stay smooth.
+  const bowl = ([x, , z]) => [x, H - DISH * (1 - Math.min(1, (x / (tw / 2)) ** 2 + ((z - topA.z) / (td / 2)) ** 2)), z];
+  for (let i = 1; i <= 14; i++) {
+    const s = 1 - i / 14 + 0.0005, round = lerp((Math.min(tw, td) * s) / 2 * 0.98, tr * s, s);
+    push(ring(tw * s, td * s, round, H, topA.z).map(bowl), true, true);
+  }
+  const P = rings[0].pts.length, pos = [], uv = [], uv1 = [], idx = [];
+  rings.forEach(({ pts, top }) => pts.forEach(([x, y, z]) => {
+    pos.push(x, y, z);
+    // The legend maps across the flat of the top; everything else samples the texture's blank margin.
+    uv.push(top ? 0.5 + x / tw : 0.002, top ? 0.5 - (z - topA.z) / td : 0.002);
+    uv1.push(x * 1.6 + z * 0.9, y * 1.6 + z * 1.3);
+  }));
+  for (let k = 1; k < rings.length; k++) {
+    if (!rings[k].join) continue;
+    const a0 = (k - 1) * P, b0 = k * P;
+    for (let i = 0; i < P; i++) {
+      const j = (i + 1) % P;
+      idx.push(a0 + i, b0 + i, a0 + j, a0 + j, b0 + i, b0 + j);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute("uv1", new THREE.Float32BufferAttribute(uv1, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  g.userData = { tw, td };
+  geoCache.set(units, g);
+  return g;
+}
+
+// Colors, light to dark. Light caps take a dark legend through the color map; dark caps a light one through the
+// emissive map, the way printed legends read on both.
+const PALETTE = {
+  cream: { color: 0xe8dcc2, dark: false }, green: { color: 0x45c470, dark: false }, slate: { color: 0x8794a3, dark: false },
+  ink: { color: 0x2a2d33, dark: true },
+};
+const INK = "#111214";
+
+// Ceramic-like speckle: a bump texture for the surface, and a mostly white texture of fine dark flecks that
+// darkens the color, both sampled through uv1 so the sides carry it as well as the top.
+let speckle, flecks;
+function speckleTexture(seed, base, dots, dark, light, size) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d"), r = rng(seed);
+  g.fillStyle = base;
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < dots; i++) {
+    const v = r() < 0.7 ? dark + r() * 40 : light;
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    g.beginPath();
+    g.arc(r() * 256, r() * 256, 0.4 + r() * size, 0, Math.PI * 2);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.channel = 1;
+  return t;
+}
+
+// The ⇪ legend is the Hyperpoint symbol stood upright: its arrow over its green bar, the Caps Lock light.
+const ARROW = new Path2D("M82.12 39.54A11 11 0 0 1 96.71 33.64L209.41 83.02A11 11 0 0 1 209.12 103.29L172.96 117.9L183.07 142.94A11 11 0 0 1 176.99 157.26L110.23 184.23A11 11 0 0 1 95.91 178.15L85.8 153.12L49.64 167.73A11 11 0 0 1 35.34 153.35ZM98.19 58.31L176.65 92.68L154.52 101.63A11 11 0 0 0 148.44 115.95L158.55 140.98L112.19 159.71L102.08 134.68A11 11 0 0 0 87.76 128.6L65.63 137.54Z");
+const BARP = new Path2D("M112.14 199.63L186.32 169.67A8 8 0 0 1 196.73 174.09L200.48 183.36A8 8 0 0 1 196.06 193.77L121.88 223.74A8 8 0 0 1 111.47 219.32L107.72 210.05A8 8 0 0 1 112.14 199.63Z");
+
+function legendTexture(units, legend, dark) {
+  const g0 = keycapGeometry(units).userData, H = 256, W = Math.round((256 * g0.tw) / g0.td);
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = dark ? "#000" : "#fff";
+  g.fillRect(0, 0, W, H);
+  const ink = dark ? "#fff" : INK;
+  if (legend === "⇪") {
+    const s = 0.86;
+    g.translate(W / 2, H / 2 + 6);
+    g.scale(s, s);
+    g.rotate((22 * Math.PI) / 180);
+    g.translate(-122, -128);
+    g.fillStyle = ink;
+    g.fill(ARROW, "evenodd");
+    g.fillStyle = dark ? "#fff" : "#16a34a";
+    g.fill(BARP);
+  } else if (legend) {
+    const small = legend.length > 1 && !/^F\d/.test(legend);
+    g.fillStyle = ink;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = `600 ${small ? 54 : legend.length > 1 ? 66 : 112}px -apple-system, "SF Pro Text", sans-serif`;
+    g.fillText(legend, W / 2, H / 2 + (small ? 0 : 4));
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+function keycap(units, legend, tone) {
+  const p = PALETTE[tone];
+  const tex = legendTexture(units, legend, p.dark);
+  const m = new THREE.MeshPhysicalMaterial({
+    color: p.color, roughness: 0.34, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 1.35,
+    bumpMap: speckle, bumpScale: 0.3,
+  });
+  if (p.dark) {
+    m.emissiveMap = tex;
+    m.emissive = new THREE.Color(0xd9d6cf);
+    m.emissiveIntensity = 0.85;
+  } else {
+    m.map = tex;
+  }
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.flecks = { value: flecks };
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D flecks;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), texture2D(flecks, vBumpMapUv * 1.7).rgb, 0.9);");
+  };
+  const mesh = new THREE.Mesh(keycapGeometry(units), m);
+  mesh.userData.units = units;
+  return mesh;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The scene. One unit is one key width and 124 px on the z = 0 plane, so a 14.5-unit keyboard spans 1800 px.
+
+const gl = $("#gl");
+const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(1920, 1080, false);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(30, 1920 / 1080, 0.1, 100);
+camera.position.set(0, 0, 1080 / 124 / 2 / Math.tan((15 * Math.PI) / 180));
+// A soft key light from above and a little left, a cool rim from behind, and the room for reflections.
+const keyLight = new THREE.DirectionalLight(0xfff6ec, 3.2);
+keyLight.position.set(-3, 9, 7);
+const rim = new THREE.DirectionalLight(0xe4ecff, 1.6);
+rim.position.set(6, -2, -6);
+const fill = new THREE.AmbientLight(0xffffff, 0.12);
+for (const l of [keyLight, rim, fill]) { l.layers.enableAll(); scene.add(l); }
+
+const LAYER = { sharp: 0, far: 1, near: 2 };
+const far2d = $("#far").getContext("2d"), near2d = $("#near").getContext("2d");
+function draw() {
+  for (const [layer, ctx] of [[LAYER.far, far2d], [LAYER.near, near2d]]) {
+    camera.layers.set(layer);
+    renderer.render(scene, camera);
+    ctx.clearRect(0, 0, 1920, 1080);
+    ctx.drawImage(gl, 0, 0);
+  }
+  camera.layers.set(LAYER.sharp);
+  renderer.render(scene, camera);
+}
+
+// Places a key: position, Euler rotation in degrees, uniform scale.
+const place = (m, [x, y, z], [rx, ry, rz], s = 1) => {
+  m.position.set(x, y, z);
+  m.rotation.set((rx * Math.PI) / 180, (ry * Math.PI) / 180, (rz * Math.PI) / 180, "XYZ");
+  m.scale.setScalar(s);
+};
+
+speckle = speckleTexture(5, "#808080", 2600, 70, 200, 0.9);
+flecks = speckleTexture(9, "#ffffff", 1400, 90, 235, 0.8);
+const world = new THREE.Group();
+scene.add(world);
+const deg = (r) => (r * 180) / Math.PI;
+
+// ---------------------------------------------------------------------------------------------------------------
+// A MacBook keyboard, US layout: rows of [legend, width in keys, modifier?]. Caps Lock held makes every key that
+// isn't a modifier a new shortcut.
+const ROWS = [
+  [["esc", 1], ...Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, 1])],
+  [["`", 1], ..."1234567890".split("").map((c) => [c, 1]), ["-", 1], ["=", 1], ["delete", 1.5]],
+  [["tab", 1.5], ..."QWERTYUIOP".split("").map((c) => [c, 1]), ["[", 1], ["]", 1], ["\\", 1]],
+  [["⇪", 1.75, "caps"], ..."ASDFGHJKL".split("").map((c) => [c, 1]), [";", 1], ["'", 1], ["return", 1.75]],
+  [["⇧", 2.25, "mod"], ..."ZXCVBNM".split("").map((c) => [c, 1]), [",", 1], [".", 1], ["/", 1], ["⇧", 2.25, "mod"]],
+  [["fn", 1, "mod"], ["⌃", 1, "mod"], ["⌥", 1, "mod"], ["⌘", 1, "mod"], ["", 5.5], ["⌘", 1, "mod"], ["⌥", 1, "mod"], ["←", 0.75], ["↑", 0.75], ["↓", 0.75], ["→", 0.75]],
+];
+const toneR = rng(17);
+const TONES = ["cream", "cream", "cream", "slate", "slate", "ink", "ink", "green"];
+const slots = [];
+ROWS.forEach((row, r) => {
+  const width = row.reduce((w, [, u]) => w + u, 0);
+  let x = -width / 2;
+  row.forEach(([legend, u, kind]) => {
+    slots.push({ legend, u, kind: kind || "key", x: x + u / 2, y: 2.55 - r * 1.02 });
+    x += u;
+  });
+});
+const keys = slots.map((sl) => {
+  const tone = sl.kind === "caps" ? "cream" : sl.kind === "mod" ? "ink" : TONES[Math.floor(toneR() * TONES.length)];
+  const m = keycap(sl.u, sl.legend, tone);
+  world.add(m);
+  return { ...sl, m };
+});
+const capsKey = keys.find((k) => k.kind === "caps");
+const shortcutKeys = keys.filter((k) => k.kind === "key");
+const mods = keys.filter((k) => k.kind === "mod");
+const BOARD_RX = 62;
+
+// The hero is Caps Lock, floating big under the headline. The keys it turns into shortcuts pop in around it,
+// filling two clusters from the inside out, faster and faster.
+const HERO = { pos: [0, 0.35, 0], s: 2.3 };
+const sideSlots = [];
+for (let c = 0; c < 6; c++) for (let r = 0; r < 6; r++) sideSlots.push({ c, r, d: c + Math.abs(r - 2.5) * 0.8 });
+sideSlots.sort((p, q) => p.d - q.d);
+const jr = rng(23);
+const order = shortcutKeys.map((k) => ({ k, sort: jr() })).sort((p, q) => p.sort - q.sort).map((o) => o.k);
+// Space, tab, return and delete are counted like the rest but would crowd the clusters, so they join at assembly.
+const wide = (k) => k.u > 1.25;
+const clustered = order.filter((k) => !wide(k));
+order.forEach((k, i) => {
+  k.spawn = SPAWN0 + (SPAWN1 - SPAWN0) * Math.pow(i / (order.length - 1), 0.55);
+  cue(k.spawn, "clack", 0.55 + jr() * 0.45);
+});
+clustered.forEach((k, i) => {
+  const side = i % 2 ? 1 : -1, sl = sideSlots[Math.floor(i / 2)];
+  k.cluster = [side * (2.7 + sl.c * 0.62), 0.35 + (sl.r - 2.5) * 0.62, 0];
+  k.crot = [56 + (jr() - 0.5) * 16, side * -16 + (jr() - 0.5) * 18, (jr() - 0.5) * 14];
+});
+
+// Then every key flies into its place on the keyboard, the modifiers rising in from below.
+const ar = rng(31);
+keys.forEach((k) => {
+  k.fly = ASSEMBLE + (k === capsKey ? 0.05 : ar() * 0.28);
+  k.land = k.fly + 0.65;
+  k.from = k.kind === "mod" || (k.kind === "key" && wide(k)) ? [k.x * 1.3, k.y - 7, 5] : null;
+  k.spin = [(ar() - 0.5) * 300, (ar() - 0.5) * 300, (ar() - 0.5) * 200];
+  if (k.kind !== "caps") cue(k.land, "tick", 0.25 + ar() * 0.2);
+});
+// A ripple of presses out from Caps Lock.
+keys.forEach((k) => {
+  k.press = IMPACT + 0.35 + Math.hypot(k.x - capsKey.x, (k.y - capsKey.y) * 1.3) * 0.09;
+  if (k.kind === "key") cue(k.press, "tick", 0.16);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The mouse is Logitech's own MX Master 4 model (Space Black, from Sketchfab), kept in models/ and not committed.
+// Its meshes are grouped by material, not by button, so a press shows as a glow on the button; the main wheel is cut
+// out of its mesh so it can spin. Points are in the model's millimetres: front is -z, thumb side -x, top +y.
+const mouse = new THREE.Group();
+scene.add(mouse);
+// Without the file (it is not committed, and a page opened from disk cannot fetch it) the film plays without a mouse.
+const mx = await new GLTFLoader().loadAsync("models/mx-master-4.glb").then((g) => g.scene, () => new THREE.Group());
+mx.updateMatrixWorld(true);
+// Centred on its body and scaled to 2 units long, the size the scene was laid out for.
+const MM = (x, y, z) => new THREE.Vector3(x / 1000, y / 1000, z / 1000);
+const BODY = MM(0, -5, -212), FIT = 2 / 0.135;
+const holder = new THREE.Group();
+holder.scale.setScalar(FIT);
+holder.position.copy(BODY).multiplyScalar(-FIT);
+holder.add(mx);
+mouse.add(holder);
+// Darkened to read as Space Black under this scene's key light; Material4 is the metal wheels and the light.
+mx.traverse((o) => {
+  if (!o.isMesh) return;
+  o.frustumCulled = false;
+  o.material.envMapIntensity = 0.8;
+  if (o.material.name !== "Material4") o.material.color.multiplyScalar(0.5);
+});
+// The main wheel: a disc on an axle along x through (y 7.6, z -244.6), rim at 11 to 13 mm, the slot around it from
+// 17 mm. Every triangle of its mesh inside 15.5 mm of the axle moves to a mesh of its own that turns on the axle.
+const AXLE = MM(9.8, 7.63, -244.61);
+const wheelPivot = new THREE.Group();
+wheelPivot.position.copy(AXLE);
+mx.add(wheelPivot);
+mx.traverse((o) => {
+  if (!o.isMesh || o.material.name !== "Material4") return;
+  const g = o.geometry, pos = g.attributes.position, idx = g.index, v = new THREE.Vector3(), keep = [], spin = [];
+  for (let t = 0; t < idx.count; t += 3) {
+    const tri = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+    const inside = tri.every((i) => {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      return v.x > 0.004 && v.x < 0.0155 && Math.hypot(v.y - AXLE.y, v.z - AXLE.z) < 0.0155;
+    });
+    (inside ? spin : keep).push(...tri);
+  }
+  g.setIndex(keep);
+  const wg = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(g.attributes)) wg.setAttribute(name, attr);
+  wg.setIndex(spin);
+  const wheelMesh = new THREE.Mesh(wg, o.material);
+  wheelMesh.frustumCulled = false;
+  wheelMesh.applyMatrix4(o.matrixWorld);
+  wheelMesh.position.sub(AXLE);
+  wheelPivot.add(wheelMesh);
+});
+// A soft green glow for each control, drawn over the model.
+const glowTex = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d"), r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(160, 255, 190, 1)");
+  r.addColorStop(0.25, "rgba(82, 224, 122, 0.7)");
+  r.addColorStop(1, "rgba(82, 224, 122, 0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+})();
+const glow = (at, size) => {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthTest: false, transparent: true, opacity: 0 }));
+  sp.position.copy(at);
+  sp.scale.setScalar(size / 1000);
+  sp.renderOrder = 10;
+  mx.add(sp);
+  return sp;
+};
+const ANCHORS = { top: MM(9.4, 19.5, -218.5), side: MM(-24, 4, -214), thumb: MM(-22, 14, -210), wheel: MM(9.8, 19.5, -244.6) };
+const GLOWS = { top: glow(ANCHORS.top, 18), side: glow(ANCHORS.side, 30), thumb: glow(ANCHORS.thumb, 22), wheel: glow(ANCHORS.wheel, 26) };
+const screenOf = (v) => { const w = mx.localToWorld(v.clone()).project(camera); return [(w.x + 1) * 960, (1 - w.y) * 540]; };
+cue(M_TOP, "click", 1.1);
+cue(M_SIDE, "click", 1.0);
+cue(M_SIDE + 0.16, "click", 0.85);
+cue(M_THUMB, "detent", 0.8);
+cue(M_THUMB + 0.09, "detent", 0.7);
+cue(M_THUMB + 0.2, "detent", 0.55);
+
+// Each flick spins the wheel up and lets it glide to a stop; every notch it passes is a tick, a step in the plain
+// feed, and an eased pulse in Hyperpoint's.
+const FLICK = 4.2, GLIDE = 0.45, NOTCH = (Math.PI * 2) / 24, STEP = 34;
+const notches = [];
+for (const f of FLICKS) for (let k = 1; k * NOTCH < FLICK * 0.97; k++) notches.push(f - GLIDE * Math.log(1 - (k * NOTCH) / FLICK));
+notches.forEach((n, i) => cue(n, "detent", 0.85 - 0.45 * ((i % 16) / 16)));
+const wheelAngle = (t) => FLICKS.reduce((a, f) => a + (t < f ? 0 : FLICK * (1 - Math.exp(-(t - f) / GLIDE))), 0);
+const stepped = (t) => STEP * notches.filter((n) => n <= t).length;
+const eased = (t) => STEP * notches.reduce((a, n) => a + outCubic(clamp((t - n) / 0.3)), 0);
+{
+  const fr = rng(41), dots = ["#52e07a", "#e8dcc2", "#8794a3", "#5a5e66"];
+  const rows = Array.from({ length: 30 }, () => [dots[Math.floor(fr() * 4)], 40 + fr() * 50, 25 + fr() * 50]);
+  for (const id of ["#fl1", "#fl2"]) $(id).innerHTML = rows.map(([c, a, b]) => `<div class="frow"><i style="background:${c}"></i><div><u style="width:${a}%"></u><u style="width:${b}%"></u></div></div>`).join("");
+  updaters.push((t) => {
+    $("#fl1").style.transform = `translateY(${-stepped(t)}px)`;
+    $("#fl2").style.transform = `translateY(${-eased(t)}px)`;
+  });
+}
+
+// The end card's keys, tumbling on the right with the mouse; a few sit out of focus near and far.
+const END_KEYS = [
+  [1.75, "⇪", "cream", [4.25, 1.35, 0], 1.75, [48, -26, 10], LAYER.sharp],
+  [1, "⌘", "ink", [7.35, 3.05, -0.6], 1.3, [56, 20, -14], LAYER.sharp],
+  [1, "⌥", "slate", [2.85, -2.55, 0.4], 1.1, [62, -32, 18], LAYER.sharp],
+  [1, "⇧", "green", [2.35, 2.95, -0.8], 0.95, [52, 30, -10], LAYER.sharp],
+  [1, "⌃", "cream", [7.9, -3.5, -0.6], 0.9, [64, -12, 22], LAYER.sharp],
+  [1, "K", "cream", [8.2, 4.4, 3.4], 1.9, [40, 30, 30], LAYER.near],
+  [1, "", "ink", [5.0, -5.0, 3.6], 2.0, [70, -40, -20], LAYER.near],
+  [1, "J", "slate", [1.5, 0.0, -4.5], 1.1, [58, 40, 8], LAYER.far],
+  [1, "", "cream", [8.7, -0.2, -5], 1.2, [30, -30, 40], LAYER.far],
+].map(([u, legend, tone, pos, s, rot, layer], i) => {
+  const m = keycap(u, legend, tone);
+  m.layers.set(layer);
+  scene.add(m);
+  return { m, pos, s, rot, i, arrive: END - 0.45 + i * 0.05 };
+});
+
+function render(t) {
+  for (const a of document.getAnimations()) {
+    a.pause();
+    a.currentTime = t * 1000;
+  }
+  for (const u of updaters) u(t);
+
+  const scatter = clamp((t - SCATTER) / 0.9);
+  const sway = Math.sin(Math.max(0, t - IMPACT) * 0.7) * 3 * clamp((t - IMPACT) / 1.2);
+  world.rotation.set(0, (sway * Math.PI) / 180, 0);
+  for (const k of keys) {
+    const m = k.m;
+    // Where it is before it flies to the keyboard: the hero spot for Caps Lock, its cluster slot for a shortcut
+    // key, nowhere yet for a modifier.
+    let pos, rot, sc;
+    if (k === capsKey) {
+      pos = [HERO.pos[0], HERO.pos[1] + Math.sin(t * 1.3) * 0.06, 0];
+      rot = [50 + Math.sin(t * 0.9) * 3, -24 + t * 3.2, 6 - t * 0.8];
+      sc = HERO.s;
+    } else if (k.kind === "key" && !wide(k)) {
+      const pop = clamp((t - k.spawn) / 0.28);
+      const back = pop < 1 ? 1 + 2.2 * Math.pow(pop - 1, 3) + 1.2 * Math.pow(pop - 1, 2) : 1;
+      pos = [k.cluster[0], k.cluster[1] + (1 - outCubic(pop)) * 0.25, 0];
+      rot = [k.crot[0] + Math.sin(t * 1.1 + k.x) * 4, k.crot[1] + Math.sin(t * 0.8 + k.y) * 5, k.crot[2]];
+      sc = 0.52 * Math.max(0, back) * (t >= k.spawn ? 1 : 0);
+    } else {
+      pos = k.from;
+      rot = [BOARD_RX + 40, k.spin[1] * 0.4, k.spin[2] * 0.4];
+      sc = 1;
+    }
+    // Flying into the keyboard.
+    const f = inOut(clamp((t - k.fly) / (k.land - k.fly)));
+    const slotRot = [BOARD_RX, 0, 0];
+    pos = [lerp(pos[0], k.x, f), lerp(pos[1], k.y, f), lerp(pos[2], 0, f) + Math.sin(Math.PI * f) * 1.2];
+    rot = rot.map((v, i) => lerp(v, slotRot[i], f) + Math.sin(Math.PI * f) * k.spin[i] * 0.15);
+    sc = lerp(sc, 1, f);
+    // A press, rippling out from Caps Lock.
+    const pr = clamp((t - k.press) / 0.28), dipAmt = pr > 0 && pr < 1 ? Math.sin(Math.PI * pr) : 0;
+    pos[2] -= 0.16 * dipAmt;
+    // Scattering off screen, spinning.
+    if (scatter > 0) {
+      const sp = Math.pow(scatter, 1.6), dir = [k.x / 7, k.y / 3.2];
+      pos = [pos[0] + dir[0] * 9 * sp, pos[1] + dir[1] * 6 * sp, pos[2] + 7 * sp];
+      rot = rot.map((v, i) => v + k.spin[i] * sp);
+    }
+    m.visible = sc > 0.001 && scatter < 1;
+    place(m, pos, rot, sc);
+  }
+
+  // The mouse rises in as the keyboard scatters, its buttons are named, it steps aside for the scroll feeds, then it
+  // glides into the end card and tumbles there.
+  {
+    const rise = outExpo(clamp((t - (MOUSE - 0.7)) / 1.1)), aside = inOut(clamp((t - (M_SCROLL - 0.25)) / 0.8));
+    const leave = inOut(clamp((t - M_LEAVE) / 1.2)), dt = Math.max(0, t - M_LEAVE), sw = Math.sin((t - MOUSE) * 0.8);
+    // Front three-quarter, like a product shot: buttons and wheel toward us, the thumb side showing, the hump behind.
+    const stage = { pos: [0, -0.4, 0], rot: [24, 118 + sw * 8, 2], s: 2.5 };
+    const side = { pos: [-3.9, -0.2, 0], rot: [34, 168 + sw * 5, 4], s: 2.25 };
+    const card = { pos: [5.6, -1.75 + Math.sin(dt * 0.9) * 0.1, 0.6], rot: [34 + dt * 4, 130 + dt * 7, 8 + dt * 2], s: 1.25 };
+    const mix3 = (k) => lerp(lerp(stage[k], side[k], aside), card[k], leave);
+    const pos = stage.pos.map((_, i) => lerp(lerp(stage.pos[i], side.pos[i], aside), card.pos[i], leave));
+    pos[1] -= (1 - rise) * 6;
+    pos[2] -= (1 - rise) * 3;
+    const rot = stage.rot.map((_, i) => lerp(lerp(stage.rot[i], side.rot[i], aside), card.rot[i], leave) + (i === 1 ? (1 - rise) * -160 : 0));
+    mouse.visible = t >= MOUSE - 0.7;
+    place(mouse, pos, rot, mix3("s") * (0.4 + 0.6 * rise));
+    const flash = (c, len = 1.0) => clamp((t - c) / 0.08) * (1 - clamp((t - c - len) / 0.5));
+    GLOWS.top.material.opacity = flash(M_TOP);
+    GLOWS.side.material.opacity = Math.max(flash(M_SIDE), flash(M_SIDE + 0.16));
+    GLOWS.thumb.material.opacity = flash(M_THUMB);
+    GLOWS.wheel.material.opacity = 0.8 * Math.min(1, FLICKS.reduce((a, f) => a + flash(f, 0.8), 0));
+    wheelPivot.rotation.x = -wheelAngle(t);
+    mouse.updateMatrixWorld(true);
+    // Callouts: each pill sits to one side, a leader line running to the part it names. From the front the thumb
+    // side is on the right of the screen.
+    const [cx, cy] = screenOf(BODY);
+    for (const [n, anchor, dir, dy, c] of [[1, ANCHORS.top, -1, -110, M_TOP], [2, ANCHORS.side, 1, 60, M_SIDE], [3, ANCHORS.thumb, 1, -60, M_THUMB]]) {
+      const [ax, ay] = screenOf(anchor), el = $(`#mp${n}`), w = el.offsetWidth, h = el.offsetHeight;
+      const show = outExpo(clamp((t - c) / 0.5)) * (1 - clamp((t - (M_SCROLL - 0.35)) / 0.35));
+      const px = dir > 0 ? cx + 380 : cx - 380 - w, py = cy + dy - h / 2;
+      el.style.transform = `translate(${px + (1 - show) * 16 * dir}px, ${py}px)`;
+      el.style.opacity = show.toFixed(3);
+      el.style.filter = `blur(${(1 - show) * 8}px)`;
+      const ex = dir > 0 ? px : px + w, ey = py + h / 2, g = $(`#ld${n}`), line = g.querySelector("line"), dot = g.querySelector("circle");
+      line.setAttribute("x1", ax);
+      line.setAttribute("y1", ay);
+      line.setAttribute("x2", lerp(ax, ex, show));
+      line.setAttribute("y2", lerp(ay, ey, show));
+      dot.setAttribute("cx", ax);
+      dot.setAttribute("cy", ay);
+      g.style.opacity = show.toFixed(3);
+    }
+  }
+
+  for (const e of END_KEYS) {
+    const a = outExpo(clamp((t - e.arrive) / 1.0)), dt = Math.max(0, t - e.arrive);
+    const pos = [e.pos[0] + (1 - a) * 7, e.pos[1] + Math.sin(dt * 0.9 + e.i) * 0.12 + (1 - a) * (e.i % 2 ? 2 : -2), e.pos[2] - (1 - a) * 4];
+    const rot = [e.rot[0] + dt * (6 + e.i), e.rot[1] + dt * (9 - e.i * 1.5) + (1 - a) * 120, e.rot[2] + dt * (e.i % 2 ? 5 : -4)];
+    e.m.visible = t >= e.arrive;
+    place(e.m, pos, rot, e.s);
+  }
+  draw();
+}
+
+// Text and overlays.
+inout("#h1", -1, ASSEMBLE - 0.3, { d2: 0.5 });
+inout("#h2", 0.45, ASSEMBLE - 0.3, { d2: 0.5 });
+inout("#pill", 1.0, ASSEMBLE - 0.3, { d2: 0.5 });
+inout("#count", SPAWN0 - 0.2, ASSEMBLE - 0.3, { d2: 0.5 });
+// The line under the pill names the key that just arrived.
+updaters.push((t) => {
+  const last = order.filter((k) => k.spawn <= t).pop();
+  $("#last").textContent = last ? last.legend || "space" : "A";
+});
+track("#dimmer", [[IMPACT - 0.1, { opacity: 0 }, E], [IMPACT + 0.5, { opacity: 1 }], [SCATTER - 0.2, { opacity: 1 }, IO], [SCATTER + 0.3, { opacity: 0 }]]);
+inout("#fill .big", IMPACT, SCATTER - 0.2, { y: 24, blur: 14, d: 0.8, d2: 0.4 });
+inout("#mh1", MOUSE - 0.2, M_SCROLL - 0.4, { d2: 0.35 });
+inout("#mh2", MOUSE + 0.2, M_SCROLL - 0.4, { d2: 0.35 });
+inout("#sh1", M_SCROLL, M_LEAVE - 0.3, { d2: 0.5 });
+inout("#sh2", M_SCROLL + 0.15, M_LEAVE - 0.3, { d2: 0.5 });
+inout("#feeds", M_SCROLL + 0.2, M_LEAVE - 0.3, { y: 30, d: 0.8, d2: 0.5 });
+inout("#elogo", END, null, { y: 10 });
+inout("#eh", END + 0.1, null, { y: 20, d: 0.9 });
+track("#w1", [[END + 0.2, { opacity: 0, filter: "blur(10px)", transform: "translateY(16px)" }, E], [END + 1.0, { opacity: 1, filter: "blur(0px)", transform: "translateY(0px)" }], [SWAP - 0.25, { opacity: 1, filter: "blur(0px)", transform: "translateY(0px)" }, IO], [SWAP + 0.35, { opacity: 0, filter: "blur(12px)", transform: "translateY(-14px)" }]]);
+track("#w2", [[SWAP - 0.1, { opacity: 0, filter: "blur(12px)", transform: "translateY(16px)" }, E], [SWAP + 0.7, { opacity: 1, filter: "blur(0px)", transform: "translateY(0px)" }]]);
+inout("#edl", END + 0.35, null, { y: 18 });
+inout("#efine", END + 0.55, null, { y: 12 });
+
+// Film grain, shifted every frame.
+{
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d"), img = g.createImageData(256, 256), r = rng(3);
+  for (let i = 0; i < img.data.length; i += 4) { img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = r() * 255; }
+  g.putImageData(img, 0, 0);
+  $("#grain").style.backgroundImage = `url(${c.toDataURL()})`;
+  updaters.push((t) => { const r2 = rng(Math.floor(t * 30) + 11); $("#grain").style.backgroundPosition = `${Math.floor(r2() * 256)}px ${Math.floor(r2() * 256)}px`; });
+}
+
+window.render = render;
+window.TOTAL = TOTAL;
+window.CUES = CUES;
+await Promise.all([document.fonts.load('500 124px "Geist"'), document.fonts.load('italic 140px "Instrument Serif"'), document.fonts.load('400 22px "Geist Mono"')]);
+await document.fonts.ready;
+await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+const q = new URLSearchParams(location.search);
+if (q.has("capture")) {
+  render(0);
+  window.ready = true;
+} else {
+  const fit = () => {
+    const sc = Math.min(innerWidth / 1920, innerHeight / 1080), st = $("#stage").style;
+    st.transform = `scale(${sc})`;
+    st.left = `${(innerWidth - 1920 * sc) / 2}px`;
+    st.top = `${(innerHeight - 1080 * sc) / 2}px`;
+  };
+  fit();
+  addEventListener("resize", fit);
+  if (q.has("t")) render(parseFloat(q.get("t")));
+  else {
+    const t0 = performance.now();
+    const loop = (now) => { render(((now - t0) / 1000) % TOTAL); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+}
+</script>
+</body>
+</html>
