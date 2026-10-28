@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyperpoint demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=block">
+<!-- A 1920x1080 composition. render.cjs seeks it frame by frame with ?capture; opened plainly it plays on a loop,
+     and ?t=12.5 freezes it at one moment. Every motion is a Web Animation on one timeline in seconds. -->
+<style>
+:root {
+  --bg: #141414; --surface: #1f1f1f; --raised: #272727; --line: #313131;
+  --fg: #fff; --fg-2: #b4b4b4; --muted: #9b9b9b; --faint: #6b6b6b;
+  --accent: #52e07a; --accent-soft: rgba(82, 224, 122, 0.14);
+  --win: #1e1e1e;
+  --sys: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+#stage {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0;
+  background: var(--bg); color: var(--fg-2); font-family: "Geist", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.glow { position: absolute; inset: 0; background: radial-gradient(1000px 700px at 70% 50%, rgba(82, 224, 122, 0.07), transparent 70%); }
+.scene { position: absolute; inset: 0; }
+
+/* Feature scenes: copy on the left, the thing itself on the right. */
+.copy { position: absolute; left: 128px; top: 0; bottom: 0; width: 680px; display: flex; flex-direction: column; justify-content: center; }
+.eyebrow {
+  font-family: "Geist Mono", monospace; font-size: 24px; line-height: 32px; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 24px;
+}
+.h { font-size: 76px; line-height: 84px; font-weight: 600; color: var(--fg); letter-spacing: -0.025em; margin: 0 0 28px; text-wrap: balance; }
+.sub { font-size: 32px; line-height: 46px; margin: 0; text-wrap: pretty; }
+.glyphs { font-family: var(--sys); font-weight: 500; letter-spacing: 0.02em; }
+
+/* Intro and outro */
+.center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.icon { width: 176px; height: 176px; margin-bottom: 48px; filter: drop-shadow(0 24px 60px rgba(82, 224, 122, 0.18)); }
+.big { font-size: 112px; line-height: 120px; font-weight: 600; color: var(--fg); letter-spacing: -0.035em; margin: 0; }
+.big.g { color: var(--accent); }
+.center .sub { margin-top: 36px; font-size: 36px; color: var(--fg-2); }
+.logo { width: 760px; height: auto; margin-bottom: 40px; }
+.tag { font-size: 52px; line-height: 64px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em; margin: 0; }
+.tag .g { color: var(--accent); }
+.facts { display: flex; align-items: center; gap: 22px; margin-top: 40px; font-size: 28px; color: var(--muted); }
+.facts i { width: 6px; height: 6px; border-radius: 3px; background: var(--faint); }
+.url {
+  margin-top: 56px; padding: 18px 34px; border-radius: 999px; border: 2px solid rgba(82, 224, 122, 0.55);
+  background: var(--accent-soft); color: var(--accent); font-family: "Geist Mono", monospace; font-size: 38px; line-height: 48px;
+}
+
+/* Brand watermark through the feature scenes */
+#wm-out, #badge-out { position: absolute; inset: 0; pointer-events: none; }
+.wm { position: absolute; left: 128px; right: 96px; bottom: 52px; display: flex; align-items: center; justify-content: space-between; }
+.wm .mark { display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 600; color: rgba(255, 255, 255, 0.78); }
+.wm .mark img { width: 40px; height: 40px; }
+.wm .site { font-family: "Geist Mono", monospace; font-size: 22px; color: var(--faint); }
+
+/* Hyper key */
+.hyper { position: absolute; left: 880px; width: 944px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.keycap {
+  position: relative; display: grid; place-items: center; width: 108px; height: 108px; border-radius: 18px;
+  background: var(--raised); border: 2px solid var(--line); color: var(--fg-2); box-shadow: 0 7px 0 #0b0b0b;
+  font-family: var(--sys); font-size: 46px;
+}
+/* Every key sits on the stage's center and moves by transform, so Caps Lock can split into the modifiers and they
+   can merge back into one key in the same spot. */
+.morph { position: relative; width: 640px; height: 200px; }
+.morph > * { position: absolute; left: 50%; top: 50%; }
+.caps-out { margin: -84px 0 0 -160px; }
+.keycap.caps, .keycap.hyperkey { width: 320px; height: 168px; border-radius: 22px; }
+.keycap.caps { place-items: end start; padding: 20px 30px; }
+.cap-led { position: absolute; top: 24px; left: 30px; width: 42px; height: 10px; border-radius: 5px; background: var(--line); }
+.cap-text { font-family: "Geist", sans-serif; font-size: 30px; color: var(--muted); }
+.keycap.mod { width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 22px; font-size: 56px; }
+/* SF draws ⌃ high in its em box; drop it level with ⌘⌥⇧. */
+.keycap.ctrl { padding-top: 22px; }
+.keycap.hyperkey { margin: -84px 0 0 -160px; }
+.keycap.hyperkey .star { font-size: 84px; line-height: 1; margin-top: -24px; }
+.keycap.hyperkey .cap-text { position: absolute; left: 30px; bottom: 16px; }
+.flash { width: 1000px; height: 1000px; margin: -500px 0 0 -500px; border-radius: 50%; background: radial-gradient(closest-side, rgba(82, 224, 122, 0.4), rgba(82, 224, 122, 0) 70%); }
+.burst { width: 240px; height: 240px; margin: -120px 0 0 -120px; border-radius: 50%; border: 3px solid var(--accent); }
+
+/* Real settings windows, drawn from the app's own -snapshotSettings PNGs at 2x */
+.win {
+  position: absolute; overflow: hidden; border-radius: 20px; background: var(--win);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 50px 120px rgba(0, 0, 0, 0.55), 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+.inner { position: absolute; left: 0; top: 0; width: 1280px; height: 2600px; transform-origin: 0 0; }
+.inner > img { position: absolute; left: 0; top: 0; width: 1280px; }
+.cover { position: absolute; background: var(--win); }
+.slice { position: absolute; left: 0; width: 1280px; background: var(--win) url(shots/buttons.png) no-repeat; background-size: 1280px auto; }
+.press-hl { position: absolute; left: 56px; top: 12px; width: 236px; height: 48px; border-radius: 12px; background: rgba(255, 255, 255, 0.16); }
+.recorder {
+  position: absolute; left: 56px; top: 12px; width: 1168px; height: 48px; border-radius: 16px; background: var(--win);
+}
+.recorder .cap {
+  position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 6px 0 14px; border-radius: 16px;
+  background: rgba(255, 69, 58, 0.12); border: 2px solid rgba(255, 69, 58, 0.5);
+  font-family: var(--sys); font-size: 26px; color: #fff; white-space: nowrap;
+}
+.rdot { width: 14px; height: 14px; border-radius: 7px; background: #ff453a; flex: none; }
+.recorder .grow { flex: 1; }
+.recorder .secs { position: relative; width: 52px; text-align: right; color: rgba(235, 235, 245, 0.6); font-variant-numeric: tabular-nums; }
+.recorder .secs span { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.recorder .cancel { padding: 2px 16px; border-radius: 10px; background: rgba(255, 255, 255, 0.16); font-size: 22px; line-height: 30px; }
+.listen-note {
+  position: absolute; left: 50px; top: 74px; width: 1200px; height: 44px; padding-left: 6px; background: var(--win);
+  font-family: var(--sys); font-size: 26px; line-height: 44px; color: rgba(235, 235, 245, 0.6);
+}
+.row-flash { position: absolute; left: 46px; width: 1188px; height: 60px; border-radius: 14px; background: rgba(82, 224, 122, 0.14); box-shadow: inset 0 0 0 2px rgba(82, 224, 122, 0.6); }
+
+/* Mouse badge: the press that makes the rule */
+.badge { position: absolute; display: flex; align-items: center; gap: 28px; }
+.badge .disc {
+  position: relative; display: grid; place-items: center; width: 136px; height: 136px; border-radius: 50%;
+  background: var(--raised); border: 2px solid var(--line); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.badge .ripple { position: absolute; inset: -2px; border-radius: 50%; border: 3px solid var(--accent); }
+.badge svg { width: 58px; height: 87px; overflow: visible; }
+.badge .label { display: flex; flex-direction: column; gap: 2px; font-size: 32px; line-height: 40px; font-weight: 500; color: var(--fg); }
+.badge .label small { font-size: 26px; line-height: 34px; font-weight: 400; color: var(--muted); }
+
+/* Cursor and click ring, in stage pixels */
+#cursor { position: absolute; left: 0; top: 0; width: 36px; height: 54px; transform-origin: 0 0; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5)); }
+#ring { position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.9); }
+
+/* Scroll curve overlay */
+.knob { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.knob .halo { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; border-radius: 50%; background: rgba(82, 224, 122, 0.25); }
+.knob .dot { position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px #fff, 0 0 30px rgba(82, 224, 122, 0.8); }
+.scrub { position: absolute; top: 593px; width: 3px; height: 468px; margin-left: -1.5px; background: rgba(82, 224, 122, 0.55); }
+.readout {
+  position: absolute; left: 0; top: 0; padding: 10px 18px; border-radius: 14px; white-space: nowrap;
+  background: rgba(18, 18, 18, 0.94); border: 2px solid rgba(82, 224, 122, 0.6);
+  font-family: "Geist Mono", monospace; font-size: 30px; line-height: 40px; color: #fff;
+}
+.readout b { color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow"></div>
+
+  <!-- 1. Intro -->
+  <section class="scene" id="s1">
+    <div class="center">
+      <div class="icon-in"><img class="icon" src="../logo/svg/hyperpoint-app-icon.svg" alt=""></div>
+      <h1 class="big l1">Replace Logi&nbsp;Options+.</h1>
+      <h1 class="big g l2">Hyper key included.</h1>
+      <p class="sub">A 1.2 MB menu bar app for your Mac's mouse and keyboard.</p>
+    </div>
+  </section>
+
+  <!-- 2. Hyper key -->
+  <section class="scene" id="s2">
+    <div class="copy">
+      <div class="eyebrow">Hyper key</div>
+      <h2 class="h">Caps Lock becomes a hyper key</h2>
+      <p class="sub">One key holds <span class="glyphs">⌘⌥⇧⌃</span>. Shortcuts no app has taken.</p>
+    </div>
+    <div class="hyper">
+      <div class="morph">
+        <i class="flash"></i>
+        <div class="caps-out"><div class="keycap caps" id="caps"><i class="cap-led" id="led"></i><span class="cap-text">caps lock</span></div></div>
+        <span class="keycap mod">⌘</span><span class="keycap mod">⌥</span><span class="keycap mod">⇧</span><span class="keycap mod ctrl">⌃</span>
+        <i class="burst"></i>
+        <div class="keycap hyperkey" id="hk"><span class="star">✦</span><span class="cap-text">hyper</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Buttons: the real Buttons tab, with Add Rule listening for a press -->
+  <section class="scene" id="s3">
+    <div class="copy">
+      <div class="eyebrow">Buttons and gestures</div>
+      <h2 class="h">Change a button by pressing it</h2>
+      <p class="sub">Mission Control, Spaces, any shortcut.</p>
+    </div>
+    <div class="win" id="bw" style="left: 892px; top: 158px; width: 921.6px; height: 763.2px;">
+      <div class="inner" style="transform: scale(0.72);">
+        <img src="shots/buttons.png" alt="">
+        <div class="cover" style="left: 0; top: 872px; width: 1280px; height: 600px;"></div>
+        <div class="cover" id="count" style="left: 1100px; top: 398px; width: 140px; height: 44px;"></div>
+        <div class="slice" id="row7" style="top: 872px; height: 64px; background-position: 0 -872px;"></div>
+        <div class="slice" id="sliceB" style="top: 936px; height: 124px; background-position: 0 -936px;">
+          <div class="press-hl" id="presshl"></div>
+          <div class="listen-note" id="lnote">The left button keeps working while Hyperpoint listens.</div>
+          <div class="recorder" id="rec">
+            <div class="cap">
+              <i class="rdot" id="rdot"></i>
+              <span>Press a button or turn the thumb wheel on MX Master 3</span>
+              <span class="grow"></span>
+              <span class="secs"><span id="sec10">10 s</span><span id="sec9">9 s</span></span>
+              <span class="cancel">Cancel</span>
+            </div>
+          </div>
+        </div>
+        <div class="row-flash" id="r7flash" style="top: 874px;"></div>
+      </div>
+    </div>
+    <div id="badge-out">
+    <div class="badge" id="badge" style="left: 128px; top: 786px;">
+      <div class="disc">
+        <i class="ripple" id="ripple"></i>
+        <svg viewBox="0 0 120 180" aria-hidden="true">
+          <path id="rbtn" d="M60 6A54 54 0 0 1 114 60L114 76Q87 83 60 84Z" fill="#52e07a"/>
+          <rect x="6" y="6" width="108" height="168" rx="54" fill="none" stroke="#b4b4b4" stroke-width="5"/>
+          <path d="M60 6V30M60 58V84M8 76Q60 90 112 76" fill="none" stroke="#b4b4b4" stroke-width="5" stroke-linecap="round"/>
+          <rect x="51" y="28" width="18" height="34" rx="9" fill="#b4b4b4"/>
+        </svg>
+      </div>
+      <span class="label">Right button<small>pressed on MX Master 3</small></span>
+    </div>
+    </div>
+  </section>
+
+  <!-- 4. Scrolling: the real Scrolling tab's speed curve -->
+  <section class="scene" id="s4">
+    <div class="copy">
+      <div class="eyebrow">Smooth scrolling</div>
+      <h2 class="h">A wheel that glides</h2>
+      <p class="sub">Eased pulses, sized by a curve you drag.</p>
+    </div>
+    <div class="win" id="sw" style="left: 910px; top: 112px; width: 883.2px; height: 855.6px;">
+      <div class="inner" style="transform: scale(0.69);">
+        <img src="shots/scrolling.png" alt="">
+        <div class="scrub" id="scrub"></div>
+        <div class="knob" id="knob"><i class="halo" id="halo"></i><i class="dot"></i></div>
+        <div class="readout" id="readout"><span id="ro-s">1</span> steps/s → <b id="ro-v">29</b> pt/s</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Outro -->
+  <section class="scene" id="s5">
+    <div class="center">
+      <img class="logo" src="../logo/svg/hyperpoint-horizontal-color-on-dark.svg" alt="Hyperpoint">
+      <p class="tag">Replace Logi Options+. <span class="g">Hyper key included.</span></p>
+      <div class="facts"><span>1.2 MB download</span><i></i><span>Signed and notarized</span><i></i><span>No network code</span><i></i><span>macOS 27</span></div>
+      <div class="url">hyperpoint.progremir.dev</div>
+    </div>
+  </section>
+
+  <div id="wm-out">
+    <div class="wm" id="wm">
+      <span class="mark"><img src="../logo/svg/hyperpoint-symbol-color-on-dark.svg" alt="">Hyperpoint</span>
+      <span class="site">hyperpoint.progremir.dev</span>
+    </div>
+  </div>
+
+  <div id="ring"></div>
+  <svg id="cursor" viewBox="0 0 24 36" aria-hidden="true"><path d="M1.5 1.5V27.5L7.8 21.6L12.2 31.8L16.6 29.9L12.3 20H21.2Z" fill="#000" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+
+</div>
+
+<script>
+const E = "cubic-bezier(0.16, 1, 0.3, 1)";
+const IO = "cubic-bezier(0.65, 0, 0.35, 1)";
+const ACCEL = "cubic-bezier(0.7, 0, 0.84, 0)";
+const BACK = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const updaters = [];
+
+// One property track on absolute seconds: [[t, {props}, easing to the next key], ...]. Holds its first value
+// before and its last after, so tracks never fight as long as each element has one per property.
+function track(el, keys) {
+  if (typeof el === "string") el = $(el);
+  const t0 = keys[0][0];
+  const dur = Math.max(0.001, keys[keys.length - 1][0] - t0);
+  const frames = keys.map(([t, p, e]) => ({ ...p, offset: Math.min(1, (t - t0) / dur), easing: e || "linear" }));
+  if (frames.length === 1) frames.push({ ...frames[0], offset: 1 });
+  el.animate(frames, { delay: t0 * 1000, duration: dur * 1000, fill: "both" });
+}
+
+function fade(el, keys, easing = "ease-in-out") {
+  track(el, keys.map(([t, o]) => [t, { opacity: o }, easing]));
+}
+
+function rise(el, t, { y = 40, d = 0.5, blur = 12, scale = 1 } = {}) {
+  track(el, [
+    [t, { opacity: 0, transform: `translateY(${y}px) scale(${scale})`, filter: `blur(${blur}px)` }, E],
+    [t + d, { opacity: 1, transform: "translateY(0px) scale(1)", filter: "blur(0px)" }],
+  ]);
+}
+
+// Exits accelerate away, so a cut never lingers.
+function leave(el, t, d = 0.28) {
+  track(el, [
+    [t, { opacity: 1, transform: "translateY(0px) scale(1)", filter: "blur(0px)" }, ACCEL],
+    [t + d, { opacity: 0, transform: "translateY(-40px) scale(1.03)", filter: "blur(12px)" }],
+  ]);
+}
+
+// A window rises in, holds, then the camera pushes in on what changed.
+function riseAndPush(el, t, push0, push1, s) {
+  const tf = (y, k) => `translateY(${y}px) scale(${k})`;
+  track(el, [
+    [t, { opacity: 0, transform: tf(60, 0.94), filter: "blur(14px)" }, E],
+    [t + 0.55, { opacity: 1, transform: tf(0, 1), filter: "blur(0px)" }],
+    [push0, { opacity: 1, transform: tf(0, 1), filter: "blur(0px)" }, IO],
+    [push1, { opacity: 1, transform: tf(0, s), filter: "blur(0px)" }],
+  ]);
+}
+
+function copyIn(scene, t) {
+  rise(`${scene} .eyebrow`, t);
+  rise(`${scene} .h`, t + 0.05);
+  rise(`${scene} .sub`, t + 0.12);
+}
+
+function press(el, down, up, depth) {
+  const raised = { transform: "translateY(0px)", boxShadow: `0 ${depth}px 0 #0b0b0b` };
+  const sunk = { transform: `translateY(${depth}px)`, boxShadow: "0 0px 0 #0b0b0b" };
+  track(el, [[down, raised, E], [down + 0.07, sunk], [up, sunk, E], [up + 0.16, raised]]);
+}
+
+const keyOff = { color: "#b4b4b4", borderColor: "#313131", backgroundColor: "#272727" };
+const keyOn = { color: "#ffffff", borderColor: "rgba(82, 224, 122, 0.55)", backgroundColor: "#2b332d" };
+
+function lit(el, on, off, a = keyOff, b = keyOn) {
+  const keys = [[on, a, E], [on + 0.12, b]];
+  if (off != null) keys.push([off, b, E], [off + 0.3, a]);
+  track(el, keys);
+}
+
+// Cues sit on a 140 BPM grid (B is one beat in seconds) so the soundtrack lands on them. render.cjs hands
+// window.CUES to music.cjs, so moving a cue here moves its sound too.
+const BPM = 140, B = 60 / BPM;
+const T2 = 4 * B, T3 = 12 * B, T4 = 20 * B, T5 = 28 * B, TOTAL = 36 * B;
+const DOWN = T2 + B, SPLIT = T2 + 1.5 * B, HIT = T2 + 4 * B, MERGE = HIT - 0.22;
+const CLICK = T3 + 2 * B, PRESS = T3 + 4 * B, ROW = PRESS + 0.17;
+const SWEEP = T4 + 2 * B, SWEEP_D = 5 * B;
+const CUES = { score: "punchy", BPM, T2, T3, T4, T5, TOTAL, DOWN, SPLIT, MERGE, HIT, CLICK, PRESS, ROW, SWEEP, SWEEP_D };
+
+function build() {
+  // 1. Intro: composed on frame 0 so it is the poster, then zooms through.
+  track("#s1 .center", [[0, { transform: "scale(1.06)" }, E], [T2, { transform: "scale(1)" }]]);
+  track("#s1", [
+    [T2 - 0.25, { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }, ACCEL],
+    [T2 + 0.03, { opacity: 0, transform: "scale(1.2)", filter: "blur(16px)" }],
+  ]);
+
+  // 2. Hyper key
+  copyIn("#s2", T2);
+  rise("#s2 .morph", T2 + 0.05, { y: 0, scale: 0.85 });
+  press("#caps", DOWN, T5, 7);
+  lit("#caps", DOWN, null);
+  track("#led", [[DOWN, { backgroundColor: "#313131", boxShadow: "0 0 0px rgba(82, 224, 122, 0)" }, E], [DOWN + 0.1, { backgroundColor: "#52e07a", boxShadow: "0 0 22px rgba(82, 224, 122, 0.7)" }]]);
+  // Held, Caps Lock splits into the four modifiers, and the four slam back together into the hyper key where Caps Lock was.
+  const ghost = (tf, o, b) => ({ transform: tf, opacity: o, filter: `blur(${b}px)` });
+  track("#s2 .caps-out", [[SPLIT, ghost("scale(1, 1)", 1, 0), E], [SPLIT + 0.2, ghost("scale(1.15, 0.85)", 0, 10)]]);
+  $$("#s2 .mod").forEach((m, i) => {
+    const x = (i - 1.5) * 150;
+    track(m, [
+      [SPLIT, ghost(`translateX(${x * 0.15}px) scale(0.6)`, 0, 8), BACK],
+      [SPLIT + 0.38, ghost(`translateX(${x}px) scale(1)`, 1, 0)],
+      [MERGE, ghost(`translateX(${x}px) scale(1)`, 1, 0), ACCEL],
+      [HIT, ghost("translateX(0px) scale(0.8)", 1, 5)],
+      [HIT + 0.04, ghost("translateX(0px) scale(0.8)", 0, 5)],
+    ]);
+    lit(m, SPLIT + 0.05 + i * 0.04, null);
+  });
+  track("#s2 .flash", [[HIT - 0.01, { opacity: 0, transform: "scale(0.4)" }], [HIT, { opacity: 1, transform: "scale(0.4)" }, E], [HIT + 0.6, { opacity: 0, transform: "scale(1.2)" }]]);
+  track("#s2 .burst", [[HIT - 0.01, { transform: "scale(0.5)", opacity: 0 }], [HIT, { transform: "scale(0.5)", opacity: 1 }, E], [HIT + 0.55, { transform: "scale(3)", opacity: 0 }]]);
+  track("#hk", [[HIT, ghost("scale(0.5)", 0, 10), BACK], [HIT + 0.25, ghost("scale(1)", 1, 0)]]);
+  lit("#hk", HIT, null, { ...keyOn, color: "#ffffff", boxShadow: "0 7px 0 #0b0b0b, 0 0 120px rgba(82, 224, 122, 0.9)" }, { ...keyOn, color: "#52e07a", boxShadow: "0 7px 0 #0b0b0b, 0 0 48px rgba(82, 224, 122, 0.3)" });
+  const shake = [[0, 0], [-14, 8], [12, -7], [-8, 5], [5, -3], [-2, 1], [0, 0]];
+  track("#s2 .hyper", shake.map(([x, y], i) => [HIT + i * 0.035, { transform: `translate(${x}px, ${y}px)` }, "ease-out"]));
+  leave("#s2", T3 - 0.25);
+
+  // 3. Buttons. Add Rule and the footnote start one row up, where they sit before the Right button rule exists.
+  copyIn("#s3", T3);
+  // Push in on the new row once it lands; the origin is row 7 in the window's own pixels.
+  $("#bw").style.transformOrigin = "460px 628px";
+  riseAndPush("#bw", T3 + 0.07, ROW + 0.1, ROW + 0.7, 1.07);
+  track("#sliceB", [[ROW - 0.12, { transform: "translateY(-64px)" }, E], [ROW + 0.2, { transform: "translateY(0px)" }]]);
+  const addRule = [892 + 174 * 0.72, 158 + 908 * 0.72];
+  const at = (x, y, s = 1) => `translate(${x}px, ${y}px) scale(${s})`;
+  track("#cursor", [
+    [T3 + 0.45, { opacity: 0, transform: at(1660, 1040) }, IO],
+    [T3 + 0.55, { opacity: 1, transform: at(1610, 1010) }, IO],
+    [CLICK - 0.03, { opacity: 1, transform: at(...addRule) }],
+    [CLICK, { opacity: 1, transform: at(...addRule, 0.84) }, E],
+    [CLICK + 0.1, { opacity: 1, transform: at(...addRule) }],
+    [CLICK + 0.25, { opacity: 1, transform: at(...addRule) }, IO],
+    [CLICK + 0.55, { opacity: 1, transform: at(1390, 1000) }, IO],
+    [CLICK + 0.7, { opacity: 0, transform: at(1420, 1010) }],
+  ]);
+  $("#ring").style.left = `${addRule[0] - 28}px`;
+  $("#ring").style.top = `${addRule[1] - 28}px`;
+  track("#ring", [[CLICK, { opacity: 0, transform: "scale(0.4)" }, E], [CLICK + 0.02, { opacity: 0.9, transform: "scale(0.5)" }, E], [CLICK + 0.35, { opacity: 0, transform: "scale(2.2)" }]]);
+  fade("#presshl", [[CLICK - 0.02, 0], [CLICK + 0.01, 1], [CLICK + 0.18, 0]]);
+  fade("#rec", [[CLICK + 0.08, 0], [CLICK + 0.18, 1], [ROW - 0.18, 1], [ROW - 0.1, 0]]);
+  fade("#lnote", [[CLICK + 0.08, 0], [CLICK + 0.18, 1], [ROW - 0.18, 1], [ROW - 0.1, 0]]);
+  $("#rdot").animate([{ opacity: 1 }, { opacity: 0.4 }], { duration: 500, iterations: Infinity, direction: "alternate", easing: "ease-in-out" });
+  fade("#sec9", [[0, 0]]);
+  rise("#badge", CLICK + 0.2, { y: 24, d: 0.4, scale: 0.85 });
+  fade("#rbtn", [[CLICK, 0.12], [PRESS, 0.12], [PRESS + 0.04, 1], [PRESS + 0.5, 1], [PRESS + 0.8, 0.12]]);
+  track("#ripple", [[PRESS, { opacity: 0, transform: "scale(1)" }, E], [PRESS + 0.03, { opacity: 0.9, transform: "scale(1)" }, E], [PRESS + 0.5, { opacity: 0, transform: "scale(1.6)" }]]);
+  track("#badge .disc", [[PRESS, { transform: "scale(1)" }, E], [PRESS + 0.06, { transform: "scale(0.9)" }, BACK], [PRESS + 0.3, { transform: "scale(1)" }]]);
+  fade("#row7", [[ROW, 0], [ROW + 0.15, 1]]);
+  fade("#count", [[ROW - 0.08, 1], [ROW + 0.05, 0]]);
+  fade("#r7flash", [[ROW + 0.02, 0], [ROW + 0.1, 1], [ROW + 1.1, 0]]);
+  leave("#badge-out", T4 - 0.6);
+  leave("#s3", T4 - 0.25);
+
+  // 4. Scrolling. The knob rides the real curve; the readout reads the graph's log axes.
+  copyIn("#s4", T4);
+  $("#sw").style.transformOrigin = "470px 560px";
+  riseAndPush("#sw", T4 + 0.05, SWEEP + 0.1, SWEEP + SWEEP_D + 0.4, 1.05);
+  for (const el of ["#knob", "#scrub", "#readout"]) fade(el, [[SWEEP - 0.15, 0], [SWEEP, 1]]);
+  $("#halo").animate([{ transform: "scale(0.8)", opacity: 0.9 }, { transform: "scale(1.5)", opacity: 0 }], { duration: 700, iterations: Infinity, easing: "ease-out" });
+  const P = [[183.5, 999.3], [543.8, 839.5], [741.4, 788.5], [904.5, 713.3], [1190.3, 608.1]];
+  const seg = P.slice(1).map((p, i) => Math.hypot(p[0] - P[i][0], p[1] - P[i][1]));
+  const total = seg.reduce((a, b) => a + b);
+  const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const round = (v) => (v < 100 ? Math.round(v) : v < 1000 ? Math.round(v / 10) * 10 : Math.round(v / 100) * 100);
+  const knob = $("#knob"), scrub = $("#scrub"), readout = $("#readout"), roS = $("#ro-s"), roV = $("#ro-v");
+  updaters.push((t) => {
+    let d = ease(Math.min(1, Math.max(0, (t - SWEEP) / SWEEP_D))) * total;
+    let i = 0;
+    while (i < seg.length - 1 && d > seg[i]) d -= seg[i++];
+    const f = Math.min(1, d / seg[i]);
+    const x = P[i][0] + (P[i + 1][0] - P[i][0]) * f;
+    const y = P[i][1] + (P[i + 1][1] - P[i][1]) * f;
+    knob.style.transform = `translate(${x}px, ${y}px)`;
+    scrub.style.left = `${x}px`;
+    const steps = Math.pow(10, ((x - P[0][0]) / (P[4][0] - P[0][0])) * Math.log10(150));
+    const points = 10 * Math.pow(10, (1061 - y) / 134.2);
+    roS.textContent = steps < 10 ? steps.toFixed(1).replace(/\.0$/, "") : Math.round(steps);
+    roV.textContent = round(points).toLocaleString("en-US");
+    const w = readout.offsetWidth;
+    readout.style.transform = `translate(${Math.min(1250 - w, Math.max(160, x - w / 2))}px, ${y - 92}px)`;
+  });
+  leave("#s4", T5 - 0.25);
+
+  rise("#wm", T2 + 0.2, { y: 12 });
+  leave("#wm-out", T5 - 0.3);
+
+  // 5. Outro
+  rise("#s5 .logo", T5, { y: 0, scale: 1.2, blur: 16 });
+  rise("#s5 .tag", T5 + 0.12);
+  rise("#s5 .facts", T5 + 0.22);
+  rise("#s5 .url", T5 + 0.32, { scale: 0.9 });
+  const ping = (k) => ({ boxShadow: `0 0 0 ${k * 22}px rgba(82, 224, 122, ${0.5 * (1 - k)})` });
+  track("#s5 .url", [[T5 + 2 * B, ping(0), "ease-out"], [T5 + 2 * B + 0.7, ping(1)], [T5 + 4 * B, ping(0), "ease-out"], [T5 + 4 * B + 0.7, ping(1)]]);
+  leave("#s5", TOTAL - 0.35, 0.3);
+}
+
+function render(t) {
+  for (const a of document.getAnimations()) {
+    a.pause();
+    a.currentTime = t * 1000;
+  }
+  for (const u of updaters) u(t);
+}
+
+async function start() {
+  await Promise.all([
+    document.fonts.load('600 76px "Geist"'), document.fonts.load('400 32px "Geist"'), document.fonts.load('500 24px "Geist Mono"'),
+  ]);
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+  build();
+  window.render = render;
+  window.TOTAL = TOTAL;
+  window.CUES = CUES;
+  const q = new URLSearchParams(location.search);
+  if (q.has("capture")) {
+    render(0);
+    window.ready = true;
+    return;
+  }
+  const fit = () => {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    const st = $("#stage").style;
+    st.transform = `scale(${s})`;
+    st.left = `${(innerWidth - 1920 * s) / 2}px`;
+    st.top = `${(innerHeight - 1080 * s) / 2}px`;
+  };
+  fit();
+  addEventListener("resize", fit);
+  if (q.has("t")) {
+    render(parseFloat(q.get("t")));
+  } else {
+    const t0 = performance.now();
+    const loop = (now) => { render(((now - t0) / 1000) % TOTAL); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+  window.ready = true;
+}
+start();
+</script>
+</body>
+</html>

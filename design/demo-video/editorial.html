@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyperpoint film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block">
+<!-- The calm cut: small type on near-black film grain, grey paper cards that change state in place, and a logo over
+     drifting light. A 1920x1080 composition like demo.html: render.cjs seeks it frame by frame with ?capture, ?t=12.5
+     freezes it, and opened plainly it loops. Sound cues are collected in window.CUES for music.cjs. -->
+<style>
+:root {
+  --bg: #0d0d0d; --fg: #ececea; --dim: #8a8a88; --faint: #4a4a48;
+  --paper: #d5d5d3; --ink: #141414; --ink-2: #4a4a48; --ink-3: #868684; --rule: #b2b2b0;
+  --accent: #52e07a; --accent-ink: #178a43;
+  --sys: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+#stage {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0;
+  background: var(--bg); color: var(--fg); font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: "Geist Mono", monospace; }
+#grain { position: absolute; inset: 0; opacity: 0.09; pointer-events: none; }
+
+/* Floating tokens and posters, in one perspective space */
+.space { position: absolute; inset: 0; perspective: 1100px; perspective-origin: 50% 50%; }
+.space > * { position: absolute; left: 50%; top: 50%; will-change: transform, opacity; }
+.tok { font-family: "Geist Mono", monospace; font-size: 22px; white-space: nowrap; color: var(--dim); transform-origin: 0 0; }
+.tok.w { color: var(--fg); }
+.tok.g { color: var(--accent); }
+.poster { width: 180px; height: 240px; margin: -120px 0 0 -90px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+.poster img { width: 18px; height: 18px; }
+.poster p { margin: 0; font-size: 15px; line-height: 18px; font-weight: 500; letter-spacing: -0.01em; }
+.poster p span { display: block; opacity: 0.55; }
+.poster.paper { background: var(--paper); color: var(--ink); }
+.poster.ink { background: #161616; color: var(--fg); box-shadow: inset 0 0 0 1px #3a3a38; }
+.poster.green { background: var(--accent); color: #0b2a15; }
+.poster .glyph { font-family: var(--sys); font-size: 34px; letter-spacing: 0.04em; }
+
+/* Centered title lines */
+.title { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.title p { margin: 0; font-size: 34px; line-height: 42px; font-weight: 500; letter-spacing: -0.02em; }
+.title p.d { color: var(--dim); }
+
+/* A paper card with its stack peeking above, and a caption under it */
+.deck { position: absolute; left: 420px; top: 210px; width: 1080px; }
+.sl { position: absolute; height: 10px; }
+.sl.s1 { left: 18px; right: 18px; top: -10px; background: #8c8c8a; }
+.sl.s2 { left: 40px; right: 40px; top: -20px; background: #555553; }
+.card { position: relative; height: 600px; background: var(--paper); color: var(--ink); overflow: hidden; }
+.paper-grain { position: absolute; inset: 0; mix-blend-mode: multiply; opacity: 0.5; pointer-events: none; }
+.hd { position: absolute; left: 36px; right: 36px; top: 0; height: 66px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); font-family: "Geist Mono", monospace; font-size: 17px; }
+.hd .l { color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.hd .r { position: relative; width: 420px; height: 66px; color: var(--ink); }
+.hd .r span { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; }
+.body { position: absolute; inset: 66px 0 0 0; }
+.hl { position: absolute; left: 36px; bottom: 30px; font-size: 56px; line-height: 58px; font-weight: 500; letter-spacing: -0.045em; }
+.hl b { display: block; font-weight: 500; color: var(--ink); }
+.hl span { display: block; color: var(--ink-3); }
+.cap { position: absolute; left: 0; top: 626px; display: flex; gap: 16px; font-size: 23px; white-space: nowrap; }
+.cap b { font-weight: 400; color: var(--fg); }
+.cap span { color: var(--dim); }
+.glyphs { font-family: var(--sys); letter-spacing: 0.02em; }
+
+/* Hyper key card: line-drawn keys on paper */
+.k { position: absolute; left: 50%; top: 168px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 14px; color: var(--ink); font-family: var(--sys); }
+.k.caps, .k.hyper { width: 260px; height: 124px; margin: -62px 0 0 -130px; }
+.k.caps .led { position: absolute; left: 20px; top: 18px; width: 38px; height: 10px; border-radius: 5px; border: 2px solid var(--ink); }
+.k .lbl { position: absolute; left: 20px; bottom: 14px; font-family: "Geist", sans-serif; font-size: 21px; }
+.k.mod { width: 104px; height: 104px; margin: -52px 0 0 -52px; font-size: 44px; }
+.k.mod.ctrl { padding-top: 18px; }
+.k.hyper { background: var(--ink); }
+.k.hyper .star { font-size: 60px; line-height: 1; color: var(--accent); margin-top: -12px; }
+.k.hyper .lbl { color: #8c8c8a; }
+.ring { position: absolute; left: 50%; top: 168px; width: 300px; height: 300px; margin: -150px 0 0 -150px; border-radius: 50%; border: 1.5px solid var(--ink); }
+.note { position: absolute; left: 0; right: 0; top: 278px; height: 24px; font-family: "Geist Mono", monospace; font-size: 18px; color: var(--ink-3); }
+.note > span { position: absolute; left: 0; right: 0; text-align: center; }
+.rows { position: absolute; left: 36px; right: 36px; top: 26px; }
+.row { position: relative; height: 76px; display: flex; align-items: center; border-bottom: 1px solid var(--rule); font-size: 28px; letter-spacing: -0.015em; }
+.row .kb { flex: 1; }
+.row .mode { position: relative; width: 160px; height: 30px; margin-right: 26px; font-family: "Geist Mono", monospace; font-size: 19px; color: var(--ink-2); }
+.row .mode span { position: absolute; right: 0; top: 0; bottom: 0; display: flex; align-items: center; }
+.tg { position: relative; width: 62px; height: 34px; border-radius: 17px; border: 2px solid var(--ink); }
+.tg i { position: absolute; left: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); }
+
+/* Buttons card: the rules table */
+.tbl { position: absolute; left: 36px; right: 36px; top: 22px; }
+.th, .tr { position: relative; display: grid; grid-template-columns: 330px 300px 1fr; align-items: center; }
+.th { height: 34px; font-family: "Geist Mono", monospace; font-size: 15px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.tr { height: 52px; border-top: 1px solid var(--rule); font-size: 23px; letter-spacing: -0.01em; }
+.tr span + span { color: var(--ink-2); }
+.tr .tint { position: absolute; inset: 0 -12px; background: rgba(23, 138, 67, 0.13); }
+.tr .typed { position: relative; }
+.pill { position: absolute; left: 36px; top: 322px; padding: 8px 18px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 19px; }
+.listen { position: absolute; left: 36px; right: 36px; top: 318px; height: 46px; display: flex; align-items: center; gap: 14px; font-size: 22px; }
+.listen .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent-ink); }
+.listen .grow { flex: 1; }
+.listen .secs { font-family: "Geist Mono", monospace; font-size: 17px; color: var(--ink-3); }
+#cursor { position: absolute; left: 0; top: 0; width: 30px; height: 45px; transform-origin: 0 0; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
+
+/* Scrolling card: drawn graphs */
+.graph { position: absolute; left: 36px; top: 20px; width: 1008px; height: 330px; overflow: visible; }
+.graph text { font-family: "Geist Mono", monospace; font-size: 15px; fill: var(--ink-3); }
+.readout { position: absolute; left: 0; top: 0; padding: 6px 12px; background: var(--paper); border: 1.5px solid var(--ink); font-family: "Geist Mono", monospace; font-size: 18px; white-space: nowrap; color: var(--ink); }
+.readout b { font-weight: 500; color: var(--accent-ink); }
+
+/* The ending: a physical Caps Lock keycap that turns into the app icon, over drifting light. Every face is placed
+   per frame; nothing above the keycap may set opacity or filter, or Chrome flattens its 3D. */
+#smoke { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+.kc-space { position: absolute; inset: 0; perspective: 1400px; perspective-origin: 50% 46%; }
+.kc { position: absolute; left: 960px; top: 500px; width: 0; height: 0; transform-style: preserve-3d; }
+.kc > * { position: absolute; left: 0; top: 0; }
+.kc-shadow { background: #000; filter: blur(24px); }
+.kc-top { overflow: hidden; background: linear-gradient(180deg, #303034, #1c1c1f); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.14), inset 0 -3px 8px rgba(0, 0, 0, 0.45); }
+.pool { position: absolute; left: 410px; top: 170px; width: 1100px; height: 660px; background: radial-gradient(closest-side, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0)); }
+.kc-legend { position: absolute; left: 26px; bottom: 20px; font-family: var(--sys); font-size: 22px; color: #d9d9db; }
+/* The symbol, drawn at logo size with its arrow's center on the stage's center; build() sets the size. One copy rides
+   the key in 3D; a flat copy takes over once it is a cursor, so it rasterizes crisp at every size. */
+.cur { position: absolute; left: 960px; top: 500px; overflow: visible; }
+.cripple { position: absolute; left: 960px; top: 500px; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(82, 224, 122, 0.8); opacity: 0; }
+
+.wordmark { position: absolute; left: 822.8px; top: 460px; width: 421.9px; height: 93.75px; }
+.url { position: absolute; left: 0; right: 0; top: 612px; text-align: center; font-family: "Geist Mono", monospace; font-size: 22px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="space" id="space"></div>
+
+  <!-- Intro -->
+  <section class="title" id="intro">
+    <p>Replace Logi Options+.</p>
+    <p class="d">Hyper key included.</p>
+  </section>
+
+  <!-- Hyper key -->
+  <div class="deck" id="d1">
+    <i class="sl s2"></i><i class="sl s1"></i>
+    <div class="card">
+      <div class="hd"><span class="l">Hyper key</span><span class="r"><span id="h1a">Caps Lock</span><span id="h1b">per keyboard</span></span></div>
+      <div class="body" id="b1a">
+        <i class="ring" id="ring"></i>
+        <div class="caps-out"><div class="k caps" id="caps"><i class="led" id="led"></i><span class="lbl">caps lock</span></div></div>
+        <span class="k mod">⌘</span><span class="k mod">⌥</span><span class="k mod">⇧</span><span class="k mod ctrl">⌃</span>
+        <div class="k hyper" id="hk"><span class="star">✦</span><span class="lbl">hyper</span></div>
+        <div class="note"><span id="n1">keyDown(capsLock)</span><span id="n2">holds <span class="glyphs">⌘ ⌥ ⇧ ⌃</span></span><span id="n3"><span class="glyphs">⌘⌥⇧⌃</span> = ✦ hyper</span></div>
+      </div>
+      <div class="body" id="b1b">
+        <div class="rows">
+          <div class="row" id="r1"><span class="kb">Desk keyboard</span><span class="mode"><span id="m1a">caps lock</span><span id="m1b">hyper</span></span><span class="tg" id="tg1"><i id="kn1"></i></span></div>
+          <div class="row" id="r2"><span class="kb">MacBook keyboard</span><span class="mode"><span>caps lock</span></span><span class="tg"><i></i></span></div>
+        </div>
+      </div>
+      <div class="hl" id="hl1a"><b>Unlock infinite shortcuts</b><span>with a hyper key</span></div>
+      <div class="hl" id="hl1b"><b>Per keyboard.</b><span>Your laptop keeps Caps Lock.</span></div>
+      <div class="paper-grain"></div>
+    </div>
+    <div class="cap" id="c1a"><b>Hold it</b><span>It holds <span class="glyphs">⌘⌥⇧⌃</span>, so any key is a shortcut no app has taken.</span></div>
+    <div class="cap" id="c1b"><b>Pick keyboards</b><span>Turn it on for the keyboards you choose.</span></div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="deck" id="d2">
+    <i class="sl s2"></i><i class="sl s1"></i>
+    <div class="card">
+      <div class="hd"><span class="l">Buttons</span><span class="r"><span>MX Master 3</span></span></div>
+      <div class="body">
+        <div class="tbl">
+          <div class="th"><span>Button</span><span>When</span><span>Do</span></div>
+          <div class="tr"><span>Gesture button</span><span>Click</span><span>Mission Control</span></div>
+          <div class="tr"><span>Gesture button</span><span>Hold, move down</span><span>App Exposé</span></div>
+          <div class="tr"><span>Top button</span><span>Click</span><span>Shortcut <span class="glyphs">⇧⌘4</span></span></div>
+          <div class="tr"><span>Thumb wheel</span><span>Scroll</span><span>Horizontal scroll</span></div>
+          <div class="tr" id="newrow"><i class="tint" id="tint"></i><span class="typed" id="ty1"></span><span class="typed" id="ty2"></span><span class="typed" id="ty3"></span></div>
+        </div>
+        <div class="pill" id="pill">+ Add rule</div>
+        <div class="listen" id="listen"><i class="dot" id="ldot"></i><span>Press a button on MX Master 3</span><span class="grow"></span><span class="secs">10 s</span></div>
+      </div>
+      <div class="hl" id="hl2"><b>Customize each button</b><span>on your mouse</span></div>
+      <div class="paper-grain"></div>
+    </div>
+    <div class="cap" id="c2"><b>Press it</b><span>Click Add rule, press the button, pick what it does.</span></div>
+  </div>
+
+  <!-- Scrolling -->
+  <div class="deck" id="d3">
+    <i class="sl s2"></i><i class="sl s1"></i>
+    <div class="card">
+      <div class="hd"><span class="l">Scrolling</span><span class="r"><span id="h3a">eased pulses</span><span id="h3b">speed curve</span></span></div>
+      <div class="body" id="b3a">
+        <svg class="graph" viewBox="0 0 1008 330" aria-hidden="true">
+          <defs><clipPath id="reveal"><rect id="revealRect" x="0" y="0" width="0" height="330"/></clipPath></defs>
+          <text x="1008" y="18" text-anchor="end">v(t) = Σ pulse(t − tᵢ)</text>
+          <text x="0" y="318">wheel steps</text>
+          <line x1="0" y1="262" x2="1008" y2="262" stroke="#b2b2b0" stroke-width="1"/>
+          <g id="ticks"></g>
+          <g clip-path="url(#reveal)"><g id="pulses"></g><path id="sum" fill="none" stroke="#141414" stroke-width="2.5"/></g>
+          <line id="head" x1="0" y1="30" x2="0" y2="262" stroke="#141414" stroke-width="1" stroke-dasharray="3 4"/>
+          <circle id="headDot" r="7" fill="#141414"/>
+        </svg>
+      </div>
+      <div class="body" id="b3b">
+        <svg class="graph" viewBox="0 0 1008 330" aria-hidden="true">
+          <g id="grid"></g>
+          <polyline id="curve" fill="none" stroke="#141414" stroke-width="2.5"/>
+          <g id="pts"></g>
+          <circle id="knob" r="9" fill="#141414"/>
+        </svg>
+        <div class="readout" id="readout"><span id="ro-s">1</span> steps/s → <b id="ro-v">29</b> pt/s</div>
+      </div>
+      <div class="hl" id="hl3"><b>Smooth scrolling,</b><span>tuned to your liking</span></div>
+      <div class="paper-grain"></div>
+    </div>
+    <div class="cap" id="c3a"><b>Glide</b><span>Each wheel step becomes an eased pulse, not a jump.</span></div>
+    <div class="cap" id="c3b"><b>Shape it</b><span>Drag the curve. Faster spins travel further.</span></div>
+  </div>
+
+  <!-- One app -->
+  <section class="title" id="oneapp">
+    <p>One app.</p>
+    <p class="d">Nothing fights over your keys.</p>
+  </section>
+
+  <!-- Outro -->
+  <section id="outro">
+    <canvas id="smoke" width="960" height="540"></canvas>
+    <i class="pool" id="pool"></i>
+    <div class="kc-space">
+      <i class="ripple"></i><i class="ripple"></i><i class="ripple"></i>
+      <div class="kc" id="kc">
+        <i class="kc-shadow" id="kcShadow"></i>
+        <div class="kc-top" id="kcTop">
+          <span class="kc-legend" id="kcLegend">caps lock</span>
+        </div>
+      </div>
+      <svg class="cur" id="cur" viewBox="0 0 256 256" aria-hidden="true"><path class="cbar" fill="#3a3a3e" d="M112.14 199.63L186.32 169.67A8 8 0 0 1 196.73 174.09L200.48 183.36A8 8 0 0 1 196.06 193.77L121.88 223.74A8 8 0 0 1 111.47 219.32L107.72 210.05A8 8 0 0 1 112.14 199.63Z"/><path fill="#FFFFFF" fill-rule="evenodd" d="M82.12 39.54A11 11 0 0 1 96.71 33.64L209.41 83.02A11 11 0 0 1 209.12 103.29L172.96 117.9L183.07 142.94A11 11 0 0 1 176.99 157.26L110.23 184.23A11 11 0 0 1 95.91 178.15L85.8 153.12L49.64 167.73A11 11 0 0 1 35.34 153.35ZM98.19 58.31L176.65 92.68L154.52 101.63A11 11 0 0 0 148.44 115.95L158.55 140.98L112.19 159.71L102.08 134.68A11 11 0 0 0 87.76 128.6L65.63 137.54Z"/></svg>
+    </div>
+    <i class="cripple"></i><i class="cripple"></i><i class="cripple"></i>
+    <svg class="wordmark" id="wordmark" viewBox="0 0 675 150" role="img" aria-label="Hyperpoint"><path fill="#FFFFFF" d="M15.989261744966445 112.0H32.99865771812081V70.37852348993289H77.26174496644296V112.0H94.33557046979867V15.999999999999986H77.26174496644296V55.6241610738255H32.99865771812081V15.999999999999986H15.989261744966445ZM109.08993288590605 138.93154362416107H119.72080536912752C129.57852348993288 138.93154362416107 136.2791946308725 133.84161073825504 140.33825503355706 123.21073825503356L170.7489932885906 43.96241610738254H153.73959731543624L141.3046979865772 79.3986577181208C139.56510067114095 84.4241610738255 137.9543624161074 89.4496644295302 136.40805369127517 94.4751677852349C134.86174496644296 89.4496644295302 133.18657718120807 84.4241610738255 131.51140939597315 79.3986577181208L119.01208053691276 43.96241610738254H101.80939597315437L128.03221476510066 111.61342281879195L125.51946308724833 118.18523489932886C123.58657718120806 123.53288590604026 121.5248322147651 125.72348993288591 117.14362416107383 125.72348993288591H109.08993288590605ZM177.96510067114096 138.93154362416107H194.2013422818792V101.75570469798657H194.39463087248322C198.6469798657718 109.48724832214765 205.7986577181208 113.35302013422819 214.68993288590605 113.35302013422819C232.47248322147652 113.35302013422819 244.13422818791946 99.11409395973155 244.13422818791946 77.91677852348994C244.13422818791946 56.977181208053686 232.2791946308725 42.60939597315435 214.7543624161074 42.60939597315435C205.9275167785235 42.60939597315435 198.38926174496646 46.21744966442952 194.13691275167787 53.43355704697986H193.94362416107384V43.96241610738254H177.96510067114096ZM210.88859060402686 99.75838926174497C200.25771812080538 99.75838926174497 193.2993288590604 91.18926174496644 193.2993288590604 77.91677852348994C193.2993288590604 64.70872483221476 200.25771812080538 56.075167785234896 210.88859060402686 56.075167785234896C220.93959731543626 56.075167785234896 227.7046979865772 63.87114093959731 227.7046979865772 77.91677852348994C227.7046979865772 92.02684563758389 220.93959731543626 99.75838926174497 210.88859060402686 99.75838926174497ZM284.6604026845638 113.54630872483222C300.5744966442953 113.54630872483222 313.20268456375845 104.33288590604027 315.7798657718121 90.99597315436242H300.5744966442953C298.70604026845643 96.79463087248322 293.2295302013423 100.7248322147651 285.04697986577185 100.7248322147651C274.09395973154363 100.7248322147651 267.7798657718121 93.31543624161074 267.3932885906041 82.23355704697985H316.61744966442956V77.78791946308723C316.61744966442956 56.91275167785234 303.60268456375843 42.41610738255032 284.0161073825504 42.41610738255032C264.94496644295305 42.41610738255032 251.4791946308725 57.36375838926174 251.4791946308725 78.04563758389261C251.4791946308725 98.66308724832214 264.23624161073826 113.54630872483222 284.6604026845638 113.54630872483222ZM267.5221476510067 71.0228187919463C268.61744966442956 61.293959731543616 274.86711409395974 55.30201342281879 284.27382550335574 55.30201342281879C293.68053691275173 55.30201342281879 299.99463087248324 61.293959731543616 301.0255033557047 71.0228187919463ZM326.861744966443 112.0H343.09798657718125V73.47114093959732C343.09798657718125 62.84026845637583 349.0899328859061 57.49261744966442 356.82147651006716 57.49261744966442C360.0429530201343 57.49261744966442 363.26442953020137 57.81476510067114 364.4885906040269 58.008053691275165V43.575838926174484C363.20000000000005 43.44697986577181 361.3959731543625 43.31812080536912 359.20536912751686 43.31812080536912C350.44295302013427 43.31812080536912 345.22416107382554 47.44161073825502 342.7114093959732 55.237583892617444H342.51812080536916V43.96241610738254H326.861744966443ZM372.54228187919466 138.93154362416107H388.7785234899329V101.75570469798657H388.97181208053695C393.22416107382554 109.48724832214765 400.37583892617454 113.35302013422819 409.2671140939598 113.35302013422819C427.04966442953025 113.35302013422819 438.7114093959732 99.11409395973155 438.7114093959732 77.91677852348994C438.7114093959732 56.977181208053686 426.8563758389262 42.60939597315435 409.3315436241611 42.60939597315435C400.50469798657724 42.60939597315435 392.9664429530202 46.21744966442952 388.7140939597316 53.43355704697986H388.5208053691276V43.96241610738254H372.54228187919466ZM405.46577181208056 99.75838926174497C394.83489932885914 99.75838926174497 387.87651006711417 91.18926174496644 387.87651006711417 77.91677852348994C387.87651006711417 64.70872483221476 394.83489932885914 56.075167785234896 405.46577181208056 56.075167785234896C415.51677852348996 56.075167785234896 422.2818791946309 63.87114093959731 422.2818791946309 77.91677852348994C422.2818791946309 92.02684563758389 415.51677852348996 99.75838926174497 405.46577181208056 99.75838926174497ZM479.6241610738256 113.54630872483222C499.661744966443 113.54630872483222 513.1919463087249 99.17852348993289 513.1919463087249 78.04563758389261C513.1919463087249 56.91275167785234 499.661744966443 42.41610738255032 479.6241610738256 42.41610738255032C459.5865771812081 42.41610738255032 446.0563758389262 56.91275167785234 446.0563758389262 78.04563758389261C446.0563758389262 99.17852348993289 459.5865771812081 113.54630872483222 479.6241610738256 113.54630872483222ZM479.6241610738256 99.951677852349C469.12214765100674 99.951677852349 462.4859060402685 91.64026845637584 462.4859060402685 78.04563758389261C462.4859060402685 64.38657718120805 469.1865771812081 56.01073825503355 479.6241610738256 56.01073825503355C489.99731543624165 56.01073825503355 496.69798657718127 64.45100671140939 496.69798657718127 78.04563758389261C496.69798657718127 91.5758389261745 490.061744966443 99.951677852349 479.6241610738256 99.951677852349ZM523.6295302013424 112.0H539.8657718120807V43.96241610738254H523.6295302013424ZM531.7476510067115 33.8469798657718C537.2885906040269 33.8469798657718 541.4765100671142 29.852348993288587 541.4765100671142 24.569127516778508C541.4765100671142 19.350335570469795 537.2885906040269 15.355704697986567 531.7476510067115 15.355704697986567C526.206711409396 15.355704697986567 522.0187919463087 19.350335570469795 522.0187919463087 24.569127516778508C522.0187919463087 29.852348993288587 526.206711409396 33.8469798657718 531.7476510067115 33.8469798657718ZM569.7610738255034 73.53557046979866C569.7610738255034 61.93825503355704 576.1395973154363 56.848322147651004 584.6442953020135 56.848322147651004C593.3422818791947 56.848322147651004 598.3677852348994 62.067114093959724 598.3677852348994 72.05369127516778V112.0H614.668456375839V69.47651006711409C614.668456375839 52.01610738255033 604.6174496644296 42.60939597315435 590.378523489933 42.60939597315435C581.0362416107383 42.60939597315435 574.1422818791947 46.732885906040266 569.503355704698 54.39999999999999V43.96241610738254H553.5248322147652V112.0H569.7610738255034ZM664.2147651006711 43.96241610738254H650.3624161073826V25.406711409395967H634.0617449664429V43.96241610738254H622.206711409396V57.04161073825503H634.0617449664429V94.86174496644296C634.0617449664429 106.52348993288591 640.5691275167785 112.0 654.4214765100671 112.0H664.2147651006711V98.92080536912752H657.2563758389261C651.9731543624162 98.92080536912752 650.3624161073826 97.31006711409395 650.3624161073826 92.47785234899328V57.04161073825503H664.2147651006711Z"/></svg>
+    <div class="url" id="url">hyperpoint.progremir.dev</div>
+  </section>
+
+  <svg id="cursor" viewBox="0 0 24 36" aria-hidden="true"><path d="M1.5 1.5V27.5L7.8 21.6L12.2 31.8L16.6 29.9L12.3 20H21.2Z" fill="#141414" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+  <div id="grain"></div>
+</div>
+
+<script>
+const E = "cubic-bezier(0.16, 1, 0.3, 1)";
+const IO = "cubic-bezier(0.65, 0, 0.35, 1)";
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const updaters = [];
+
+// Cues sit on a 100 BPM grid (B is one beat, a bar is 2.4 s) so the score's phrases turn with the scenes, and the
+// music's lift lands on the logo. Sounds are placed as cues here and synthesized by music.cjs.
+const BPM = 100, B = 60 / BPM, BAR = 4 * B;
+const C1 = 2 * BAR, C2 = 7 * BAR, C3 = 11 * BAR, ONE = 14 * BAR, KEY = 15 * BAR, LIFT = 17 * BAR, TOTAL = 19 * BAR;
+const sfx = [];
+const cue = (t, kind, gain = 1) => sfx.push({ t, kind, gain });
+const CUES = { score: "editorial", BPM, TOTAL, LIFT, sfx };
+
+// One property track on absolute seconds: [[t, {props}, easing to the next key], ...]. Holds its first value
+// before and its last after, so tracks never fight as long as each element has one per property.
+function track(el, keys) {
+  if (typeof el === "string") el = $(el);
+  const t0 = keys[0][0];
+  const dur = Math.max(0.001, keys[keys.length - 1][0] - t0);
+  const frames = keys.map(([t, p, e]) => ({ ...p, offset: Math.min(1, (t - t0) / dur), easing: e || "linear" }));
+  if (frames.length === 1) frames.push({ ...frames[0], offset: 1 });
+  el.animate(frames, { delay: t0 * 1000, duration: dur * 1000, fill: "both" });
+}
+
+function fade(el, keys, easing = "ease-in-out") {
+  track(el, keys.map(([t, o]) => [t, { opacity: o }, easing]));
+}
+
+// In at a, out at b (or never), as one track so an element can come and go.
+function inout(el, a, b, { y = 18, blur = 8, d = 0.9, d2 = 0.5 } = {}) {
+  const hide = (yy) => ({ opacity: 0, transform: `translateY(${yy}px)`, filter: `blur(${blur}px)` });
+  const show = { opacity: 1, transform: "translateY(0px)", filter: "blur(0px)" };
+  const keys = [[a, hide(y), E], [a + d, show]];
+  if (b != null) keys.push([b, show, IO], [b + d2, hide(-y * 0.6)]);
+  track(el, keys);
+}
+
+// Types text into el from t0, one tick cue per character.
+function type(el, text, t0, cps = 30, gain = 0.7) {
+  if (typeof el === "string") el = $(el);
+  [...text].forEach((ch, i) => ch !== " " && cue(t0 + i / cps, "type", gain * (0.75 + 0.25 * Math.sin(i * 12.9898))));
+  updaters.push((t) => { el.textContent = text.slice(0, Math.max(0, Math.min(text.length, Math.floor((t - t0) * cps + 1)))); });
+}
+
+function rng(seed) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+}
+
+// Things that drift toward the camera: tokens in the intro, posters before the logo.
+function drift(items, t0, t1, { speed = 160, fadeIn = 0.8, fadeOut = 0.6 } = {}) {
+  const space = $("#space");
+  for (const it of items) space.appendChild(it.el);
+  updaters.push((t) => {
+    const scene = Math.min(1, Math.max(0, (t - t0) / fadeIn)) * Math.min(1, Math.max(0, (t1 - t) / fadeOut));
+    for (const it of items) {
+      const z = it.z + speed * (t - t0) * it.v;
+      const near = Math.min(1, Math.max(0, (it.near - z) / 300));
+      const far = Math.min(1, Math.max(0, (z + 1800) / 900));
+      it.el.style.opacity = (scene * near * far * it.o).toFixed(3);
+      it.el.style.transform = `translate3d(${it.x}px, ${it.y}px, ${z}px) rotateY(${it.ry || 0}deg)`;
+    }
+  });
+}
+
+function build() {
+  // Film grain, and paper grain on the cards: one noise tile each, shifted every frame.
+  const tile = (light) => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const g = c.getContext("2d"), img = g.createImageData(256, 256), r = rng(light ? 7 : 3);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = r();
+      if (light) { const k = 205 + v * 50; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255; }
+      else { img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = v * 255; }
+    }
+    g.putImageData(img, 0, 0);
+    return `url(${c.toDataURL()})`;
+  };
+  $("#grain").style.backgroundImage = tile(false);
+  const pg = tile(true);
+  $$(".paper-grain").forEach((el) => (el.style.backgroundImage = pg));
+  updaters.push((t) => {
+    const f = Math.floor(t * 30), r = rng(f + 11);
+    $("#grain").style.backgroundPosition = `${Math.floor(r() * 256)}px ${Math.floor(r() * 256)}px`;
+  });
+
+  // Intro: composed on frame 0, with tokens of what the app handles drifting past.
+  const words = [
+    ["⌘⌥⇧⌃", "g"], ["kVK_CapsLock", ""], ["button 5", "w"], ["cid 0x00C3", ""], ["deltaY +3", ""], ["HID++ 2.0", ""],
+    ["MX Master 3", "w"], ["flags 0x1E0000", ""], ["Mission Control", ""], ["App Exposé", ""], ["Space →", "w"],
+    ["thumb wheel", ""], ["gesture button", ""], ["✦ hyper", "g"], ["steps/s 12", ""], ["pt/s 640", ""], ["hold + move", ""],
+    ["vendor 0x046D", ""], ["product 0xB023", ""], ["click", "w"], ["eased pulse", "g"], ["⇧⌘4", ""], ["scroll +1", ""],
+    ["keyDown", ""], ["per keyboard", "w"], ["config.json", ""], ["menu bar", ""], ["1.2 MB", "g"],
+  ];
+  const r = rng(42);
+  const toks = words.map(([w, cls], i) => {
+    const el = document.createElement("span");
+    el.className = `tok ${cls}`;
+    el.textContent = w;
+    const a = (i / words.length) * Math.PI * 2 + r() * 0.5;
+    const rad = 380 + r() * 520;
+    // Kept out of the band the title sits in, and gone before they get close enough to loom.
+    const y = Math.sin(a) * rad * 0.62;
+    return { el, x: Math.cos(a) * rad * 1.35 - 60, y: Math.abs(y) < 110 ? Math.sign(y || 1) * (110 + r() * 60) : y, z: -1300 + r() * 1300, v: 0.6 + r() * 0.8, o: 0.55 + r() * 0.45, near: 250 };
+  });
+  drift(toks, -1.2, C1 + 0.3, { speed: 170, fadeIn: 0.001, fadeOut: 0.9 });
+  inout("#intro", -1, C1 - 0.7, { d2: 0.6 });
+
+  // 1. Hyper key
+  inout("#d1", C1, C2 - 0.7, { y: 30, d: 1.0, d2: 0.6 });
+  const DOWN = C1 + 2 * B, SPLIT = C1 + 3 * B, HIT = C1 + 7 * B, MERGE = HIT - 0.6, SB = C1 + 12 * B;
+  inout("#c1a", C1 + 0.35, SB - 0.3);
+  inout("#c1b", SB + 0.2, null);
+  inout("#h1a", C1, SB - 0.3, { y: 6, blur: 4 });
+  inout("#h1b", SB, null, { y: 6, blur: 4 });
+  track("#caps", [[DOWN, { transform: "translateY(0px)" }, E], [DOWN + 0.08, { transform: "translateY(4px)" }]]);
+  track("#led", [[DOWN, { backgroundColor: "rgba(23, 138, 67, 0)", borderColor: "#141414" }, E], [DOWN + 0.15, { backgroundColor: "rgba(23, 138, 67, 1)", borderColor: "#178a43" }]]);
+  cue(DOWN, "keydown");
+  const ghost = (tf, o, b) => ({ transform: tf, opacity: o, filter: `blur(${b}px)` });
+  track(".caps-out", [[SPLIT, ghost("scale(1)", 1, 0), E], [SPLIT + 0.5, ghost("scale(0.94)", 0, 6)]]);
+  $$(".k.mod").forEach((m, i) => {
+    const x = (i - 1.5) * 128;
+    track(m, [
+      [SPLIT, ghost(`translateX(${x * 0.1}px) scale(0.85)`, 0, 6), E],
+      [SPLIT + 0.9, ghost(`translateX(${x}px) scale(1)`, 1, 0)],
+      [MERGE, ghost(`translateX(${x}px) scale(1)`, 1, 0), IO],
+      [HIT - 0.12, ghost("translateX(0px) scale(0.9)", 1, 2)],
+      [HIT + 0.05, ghost("translateX(0px) scale(0.9)", 0, 4)],
+    ]);
+    const on = SPLIT + 0.45 + i * 0.14;
+    track(m, [[on, { backgroundColor: "rgba(20, 20, 20, 0)", color: "#141414" }, E], [on + 0.2, { backgroundColor: "rgba(20, 20, 20, 1)", color: "#ececea" }]]);
+    cue(on, "tick", 0.8);
+  });
+  track("#hk", [[HIT - 0.1, ghost("scale(0.94)", 0, 6), E], [HIT + 0.7, ghost("scale(1)", 1, 0)]]);
+  track("#ring", [[HIT - 0.01, { opacity: 0, transform: "scale(0.45)" }], [HIT, { opacity: 0.6, transform: "scale(0.45)" }, E], [HIT + 1.4, { opacity: 0, transform: "scale(1.5)" }]]);
+  cue(HIT - 0.05, "chime");
+  inout("#n1", DOWN - 0.1, SPLIT + 0.2, { y: 8, blur: 4, d: 0.5, d2: 0.3 });
+  inout("#n2", SPLIT + 0.7, MERGE, { y: 8, blur: 4, d: 0.5, d2: 0.3 });
+  inout("#n3", HIT + 0.4, null, { y: 8, blur: 4, d: 0.6 });
+  inout("#hl1a", HIT + 0.5, SB - 0.3, { y: 22 });
+  fade("#b1a", [[SB - 0.3, 1], [SB + 0.1, 0]]);
+  fade("#b1b", [[SB, 0], [SB + 0.4, 1]]);
+  inout("#r1", SB + 0.2, null, { y: 12 });
+  inout("#r2", SB + 0.35, null, { y: 12 });
+  cue(SB + 0.2, "tick", 0.5);
+  cue(SB + 0.35, "tick", 0.5);
+  const FLIP = C1 + 14 * B;
+  track("#tg1", [[FLIP, { backgroundColor: "rgba(20, 20, 20, 0)" }, E], [FLIP + 0.25, { backgroundColor: "rgba(20, 20, 20, 1)" }]]);
+  track("#kn1", [[FLIP, { transform: "translateX(0px)", backgroundColor: "#141414" }, E], [FLIP + 0.3, { transform: "translateX(28px)", backgroundColor: "#52e07a" }]]);
+  fade("#m1a", [[FLIP, 1], [FLIP + 0.2, 0]]);
+  inout("#m1b", FLIP + 0.1, null, { y: 8, blur: 3, d: 0.5 });
+  cue(FLIP, "tap");
+  inout("#hl1b", FLIP + 0.6, null, { y: 22 });
+
+  // 2. Buttons: click Add rule, press the mouse's right button, and the rule writes itself.
+  inout("#d2", C2, C3 - 0.7, { y: 30, d: 1.0, d2: 0.6 });
+  inout("#c2", C2 + 0.35, null);
+  const CLICK = C2 + 4 * B, PRESS = C2 + 6 * B, ROW = PRESS + 0.35;
+  const pill = [420 + 36 + 70, 210 + 66 + 322 + 20];
+  const at = (x, y, s = 1) => `translate(${x}px, ${y}px) scale(${s})`;
+  track("#cursor", [
+    [C2 + 0.9, { opacity: 0, transform: at(1040, 760) }, IO],
+    [C2 + 1.1, { opacity: 1, transform: at(1000, 740) }, IO],
+    [CLICK - 0.05, { opacity: 1, transform: at(...pill) }],
+    [CLICK, { opacity: 1, transform: at(...pill, 0.88) }, E],
+    [CLICK + 0.12, { opacity: 1, transform: at(...pill) }],
+    [CLICK + 0.5, { opacity: 1, transform: at(...pill) }, IO],
+    [CLICK + 1.1, { opacity: 0, transform: at(pill[0] + 60, pill[1] + 70) }],
+  ]);
+  cue(CLICK, "click");
+  fade("#pill", [[CLICK + 0.05, 1], [CLICK + 0.2, 0]]);
+  track("#listen", [[CLICK + 0.1, { opacity: 0 }], [CLICK + 0.3, { opacity: 1 }], [PRESS + 0.1, { opacity: 1 }], [PRESS + 0.35, { opacity: 0 }]]);
+  $("#ldot").animate([{ opacity: 1 }, { opacity: 0.25 }], { duration: 600, iterations: Infinity, direction: "alternate", easing: "ease-in-out" });
+  cue(PRESS, "click", 1.3);
+  fade("#newrow", [[ROW - 0.05, 0], [ROW + 0.15, 1]]);
+  fade("#tint", [[ROW, 0], [ROW + 0.2, 1], [ROW + 2.4, 1], [ROW + 3.2, 0]]);
+  type("#ty1", "Right button", ROW, 32);
+  type("#ty2", "Hold and move", ROW + 0.55, 32);
+  type("#ty3", "Scroll", ROW + 1.1, 32);
+  inout("#hl2", C2 + 10 * B, null, { y: 22 });
+
+  // 3. Scrolling. First what a wheel step becomes, then the curve that sizes it.
+  inout("#d3", C3, ONE - 0.5, { y: 30, d: 1.0, d2: 0.5 });
+  const SA = C3 + 2 * B, SA_D = 4 * B, SBB = C3 + 6.5 * B;
+  inout("#c3a", C3 + 0.35, SBB - 0.3);
+  inout("#c3b", SBB + 0.2, null);
+  inout("#h3a", C3, SBB - 0.3, { y: 6, blur: 4 });
+  inout("#h3b", SBB, null, { y: 6, blur: 4 });
+  const ticks = [70, 150, 212, 262, 302, 338, 372, 520, 574, 760];
+  const BASE = 262, TAU = 46, AMP = 100, W = 1008;
+  const pulse = (x, x0) => (x < x0 ? 0 : AMP * ((x - x0) / TAU) * Math.exp(1 - (x - x0) / TAU));
+  const ns = "http://www.w3.org/2000/svg";
+  for (const x0 of ticks) {
+    const tk = document.createElementNS(ns, "line");
+    Object.entries({ x1: x0, x2: x0, y1: 270, y2: 290, stroke: "#141414", "stroke-width": 2 }).forEach(([k, v]) => tk.setAttribute(k, v));
+    $("#ticks").appendChild(tk);
+    const p = document.createElementNS(ns, "path");
+    let d = "";
+    for (let x = x0; x < Math.min(W, x0 + 9 * TAU); x += 4) d += `${d ? "L" : "M"}${x} ${BASE - pulse(x, x0)}`;
+    Object.entries({ d, fill: "none", stroke: "#868684", "stroke-width": 1.2 }).forEach(([k, v]) => p.setAttribute(k, v));
+    $("#pulses").appendChild(p);
+  }
+  const sumAt = (x) => ticks.reduce((s, x0) => s + pulse(x, x0), 0) * 0.7;
+  let sd = "";
+  for (let x = 0; x <= W; x += 3) sd += `${sd ? "L" : "M"}${x} ${BASE - sumAt(x)}`;
+  $("#sum").setAttribute("d", sd);
+  const headX = (t) => W * Math.min(1, Math.max(0, (t - SA) / SA_D));
+  for (const x0 of ticks) cue(SA + (x0 / W) * SA_D, "detent", 0.9);
+  updaters.push((t) => {
+    const x = headX(t);
+    $("#revealRect").setAttribute("width", x);
+    $("#head").setAttribute("x1", x);
+    $("#head").setAttribute("x2", x);
+    $("#headDot").setAttribute("cx", x);
+    $("#headDot").setAttribute("cy", BASE - sumAt(x));
+  });
+  fade("#head", [[SA - 0.2, 0], [SA, 1], [SA + SA_D, 1], [SA + SA_D + 0.4, 0]]);
+  fade("#headDot", [[SA - 0.2, 0], [SA, 1], [SA + SA_D, 1], [SA + SA_D + 0.4, 0]]);
+  inout("#hl3", C3 + 4 * B, null, { y: 22 });
+  fade("#b3a", [[SBB - 0.3, 1], [SBB + 0.1, 0]]);
+  fade("#b3b", [[SBB, 0], [SBB + 0.4, 1]]);
+
+  // The speed curve, read off the real Scrolling tab: points in its 1280-wide snapshot, steps/s on a log x axis
+  // from 1 to 150, points/s on a log y axis.
+  const P = [[183.5, 999.3], [543.8, 839.5], [741.4, 788.5], [904.5, 713.3], [1190.3, 608.1]];
+  const gx = (x) => 40 + ((x - P[0][0]) / (P[4][0] - P[0][0])) * 900;
+  const gy = (y) => 270 - ((P[0][1] - y) / (P[0][1] - P[4][1])) * 210;
+  $("#curve").setAttribute("points", P.map(([x, y]) => `${gx(x)},${gy(y)}`).join(" "));
+  for (const [x, y] of P) {
+    const c = document.createElementNS(ns, "circle");
+    Object.entries({ cx: gx(x), cy: gy(y), r: 6, fill: "#d5d5d3", stroke: "#141414", "stroke-width": 2 }).forEach(([k, v]) => c.setAttribute(k, v));
+    $("#pts").appendChild(c);
+  }
+  [[1, P[0][0]], [10, P[0][0] + (P[4][0] - P[0][0]) / Math.log10(150)], [100, P[0][0] + (2 * (P[4][0] - P[0][0])) / Math.log10(150)]].forEach(([label, x]) => {
+    const l = document.createElementNS(ns, "line");
+    Object.entries({ x1: gx(x), x2: gx(x), y1: 40, y2: 290, stroke: "#b2b2b0", "stroke-width": 1, "stroke-dasharray": "2 5" }).forEach(([k, v]) => l.setAttribute(k, v));
+    $("#grid").appendChild(l);
+    const tx = document.createElementNS(ns, "text");
+    Object.entries({ x: gx(x), y: 318, "text-anchor": "middle" }).forEach(([k, v]) => tx.setAttribute(k, v));
+    tx.textContent = `${label}`;
+    $("#grid").appendChild(tx);
+  });
+  const axis = document.createElementNS(ns, "text");
+  Object.entries({ x: 1008, y: 318, "text-anchor": "end" }).forEach(([k, v]) => axis.setAttribute(k, v));
+  axis.textContent = "steps/s";
+  $("#grid").appendChild(axis);
+  const SWEEP = SBB + 0.5, SWEEP_D = 2.0;
+  const seg = P.slice(1).map((p, i) => Math.hypot(p[0] - P[i][0], p[1] - P[i][1]));
+  const total = seg.reduce((a, b) => a + b);
+  const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const round = (v) => (v < 100 ? Math.round(v) : v < 1000 ? Math.round(v / 10) * 10 : Math.round(v / 100) * 100);
+  updaters.push((t) => {
+    let d = ease(Math.min(1, Math.max(0, (t - SWEEP) / SWEEP_D))) * total;
+    let i = 0;
+    while (i < seg.length - 1 && d > seg[i]) d -= seg[i++];
+    const f = Math.min(1, d / seg[i]);
+    const x = P[i][0] + (P[i + 1][0] - P[i][0]) * f;
+    const y = P[i][1] + (P[i + 1][1] - P[i][1]) * f;
+    $("#knob").setAttribute("cx", gx(x));
+    $("#knob").setAttribute("cy", gy(y));
+    const steps = Math.pow(10, ((x - P[0][0]) / (P[4][0] - P[0][0])) * Math.log10(150));
+    $("#ro-s").textContent = steps < 10 ? steps.toFixed(1).replace(/\.0$/, "") : Math.round(steps);
+    $("#ro-v").textContent = round(10 * Math.pow(10, (1061 - y) / 134.2)).toLocaleString("en-US");
+    const ro = $("#readout"), w = ro.offsetWidth;
+    ro.style.transform = `translate(${Math.min(1044 - w, Math.max(36, 36 + gx(x) - w / 2))}px, ${20 + gy(y) - 62}px)`;
+  });
+  for (let k = 1; k < P.length; k++) {
+    const along = seg.slice(0, k).reduce((a, b) => a + b, 0) / total;
+    let lo = 0, hi = 1;
+    for (let n = 0; n < 30; n++) { const mid = (lo + hi) / 2; ease(mid) < along ? (lo = mid) : (hi = mid); }
+    cue(SWEEP + lo * SWEEP_D, "tick", 0.6);
+  }
+
+  // 4. One app, with every feature as a poster drifting past.
+  const posters = [
+    ["paper", "Hyper key", "⌘⌥⇧⌃ in one"], ["ink", "Buttons", "set by pressing"], ["green", "Wheel", "that glides"],
+    ["paper", "Per keyboard", "you choose"], ["ink", "1.2 MB", "menu bar app"], ["paper", "Hold and move", "to scroll"],
+    ["green", "Gestures", "and Spaces"], ["ink", "No network", "code"], ["paper", "One JSON", "file"], ["ink", "Signed", "and notarized"],
+  ];
+  const pr = rng(9);
+  const cards = posters.map(([kind, a, b], i) => {
+    const el = document.createElement("div");
+    el.className = `poster ${kind}`;
+    el.innerHTML = `<img src="../logo/svg/hyperpoint-symbol-${kind === "ink" ? "white" : "black"}.svg" alt=""><p>${a}<span>${b}</span></p>`;
+    const side = i % 2 ? 1 : -1;
+    return { el, x: side * (460 + pr() * 460), y: (pr() - 0.5) * 760, z: -1500 + pr() * 1100, v: 0.7 + pr() * 0.6, o: 1, ry: side * -(8 + pr() * 14), near: 700 };
+  });
+  drift(cards, ONE - 0.6, KEY + 0.3, { speed: 330, fadeIn: 0.8, fadeOut: 0.6 });
+  inout("#oneapp", ONE, KEY - 0.45, { d2: 0.4 });
+
+  // 5. The ending. The logo is the Caps Lock glyph ⇪ tipped over like a cursor, so the key's ⇪ is the Hyperpoint
+  // symbol stood upright: the arrow over the Caps Lock light. The key is pressed and the light turns green. The
+  // symbol lifts off, tilts into a cursor, clicks, glides and double-clicks, then settles where the logo puts it on
+  // the music's lift, and the wordmark joins.
+  const KDOWN = KEY + 1.5 * B, DET = KEY + 2 * B, CLICKS = [KEY + 4 * B, KEY + 6 * B, KEY + 6 * B + 0.16];
+  const ARRIVE = LIFT - 0.2;
+  cue(KDOWN, "keydown", 1.3);
+  cue(DET + 0.12, "tick", 0.7);
+  CLICKS.forEach((c) => cue(c, "click", 1.3));
+  cue(LIFT - 0.03, "chime", 0.8);
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const outExpo = (u) => (u >= 1 ? 1 : 1 - Math.pow(2, -10 * u));
+  const inOut = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const mix = (c0, c1, u) => `rgb(${c0.map((c, i) => Math.round(lerp(c, c1[i], u))).join(", ")})`;
+  const dip = (t, c) => (t < c ? 0 : t < c + 0.06 ? (t - c) / 0.06 : Math.max(0, 1 - (t - c - 0.06) / 0.14));
+
+  // The logo as hyperpoint-horizontal lays it out: a 256-unit symbol box, here 160 px, at the left of a 927-unit row
+  // centered on the stage. The wordmark's CSS position comes from the same numbers.
+  const SYM = 160, unit = SYM / 256, LOGO = [960 - (927 * unit) / 2, 500 - SYM / 2];
+  const AC = [122, 109];
+  const HOME = [LOGO[0] + AC[0] * unit - 960, LOGO[1] + AC[1] * unit - 500];
+  // On the key the symbol box is 104 px at the top left, turned 22 degrees upright, which puts the bar level under
+  // the arrow: the key's ⇪ and its light.
+  const G = 104 / 256, KEYW = 340, KEYH = 190;
+  const GA = [14 + AC[0] * G - KEYW / 2, 8 + AC[1] * G - KEYH / 2];
+  // The cursor's path in stage pixels from the center, [t, x, y]: a click where it lands, a glide, a double-click,
+  // then home.
+  const PATH = [
+    [DET + 0.9, 60, -40], [CLICKS[0] + 0.15, 60, -40], [CLICKS[1] - 0.15, -300, 110],
+    [CLICKS[2] + 0.2, -300, 110], [ARRIVE, HOME[0], HOME[1]],
+  ];
+  const onPath = (t) => {
+    if (t <= PATH[0][0]) return PATH[0].slice(1);
+    for (let i = 1; i < PATH.length; i++) {
+      if (t <= PATH[i][0]) {
+        const [t0, ...p0] = PATH[i - 1], [t1, ...p1] = PATH[i];
+        const u = inOut((t - t0) / (t1 - t0));
+        return p0.map((v, k) => lerp(v, p1[k], u));
+      }
+    }
+    return PATH[PATH.length - 1].slice(1);
+  };
+  const N = 14, kc = $("#kc"), layers = [];
+  for (let i = 0; i < N; i++) {
+    const el = document.createElement("i");
+    kc.insertBefore(el, $("#kcTop"));
+    layers.push(el);
+  }
+  const top = $("#kcTop"), shadow = $("#kcShadow"), cur3 = $("#cur"), cur2 = cur3.cloneNode(true);
+  cur2.id = "cur2";
+  $("#outro").appendChild(cur2);
+  for (const el of [cur3, cur2]) {
+    Object.assign(el.style, {
+      width: `${SYM}px`, height: `${SYM}px`, margin: `${-AC[1] * unit}px 0 0 ${-AC[0] * unit}px`,
+      transformOrigin: `${AC[0] * unit}px ${AC[1] * unit}px`,
+    });
+  }
+  const bars = [cur3, cur2].map((el) => el.querySelector(".cbar"));
+  const cripples = $$(".cripple");
+  updaters.push((t) => {
+    const end = clamp((TOTAL - t) / 0.6);
+    const a = outExpo(clamp((t - KEY) / 1.1)) * (t >= KEY ? 1 : 0);
+    const pressed = dip(t, KDOWN), lit = clamp((t - KDOWN) / 0.1);
+    // It stands up off the key first (d), then flies to where the cursor starts (dp).
+    const d = inOut(clamp((t - DET) / 0.6)), dp = inOut(clamp((t - DET - 0.3) / 0.6));
+    const gone = inOut(clamp((t - DET - 0.15) / 0.7));
+    const rx = lerp(58, 44, a), rz = lerp(-24, -15, a), k = 1.45, z0 = lerp(-700, 0, a);
+    const depth = 42, topZ = depth * (1 - 0.4 * pressed);
+    kc.style.transform = `translate3d(0px, 0px, ${z0 - 300 * gone}px) rotateX(${rx}deg) rotateZ(${rz}deg) scale(${k})`;
+    const face = (el, ww, hh, zz, dx = 0, dy = 0) => {
+      el.style.width = `${ww}px`;
+      el.style.height = `${hh}px`;
+      el.style.borderRadius = `${26 * (ww / KEYW)}px`;
+      el.style.transform = `translate3d(${-ww / 2 + dx}px, ${-hh / 2 + dy}px, ${zz}px)`;
+    };
+    const keyOn = a * (1 - gone);
+    layers.forEach((el, i) => {
+      const f = i / N, grow = 1 + 0.04 * (1 - f);
+      face(el, KEYW * grow, KEYH * grow, topZ * f);
+      // Dark at the base, catching light at the rim.
+      el.style.background = mix([8, 8, 9], f > 0.85 ? [44, 44, 48] : [24, 24, 26], f);
+      el.style.opacity = keyOn;
+    });
+    face(top, KEYW, KEYH, topZ);
+    top.style.opacity = keyOn;
+    face(shadow, KEYW + 40, KEYH + 40, -2, 14, 30);
+    shadow.style.opacity = 0.75 * keyOn;
+
+    // The bar is the Caps Lock light: dark until the press, then green, glowing while it is a light and a cursor,
+    // settling to the logo's flat green after the lift.
+    const glow = lit * (8 + 12 * pressed) * (1 - clamp((t - LIFT) / 1.0));
+    for (const el of bars) {
+      el.style.fill = mix([58, 58, 62], [82, 224, 122], lit);
+      el.style.filter = glow > 0.1 ? `drop-shadow(0 0 ${glow}px rgba(82, 224, 122, 0.8))` : "none";
+    }
+    const [px, py] = onPath(t);
+    const grow = inOut(clamp((t - (CLICKS[2] + 0.2)) / (ARRIVE - CLICKS[2] - 0.2)));
+    const cs = lerp(0.75, 1, grow) * (1 - 0.12 * Math.max(...CLICKS.map((c) => dip(t, c))));
+    const flat = d >= 1 && dp >= 1;
+    if (!flat) {
+      // On the key it rides the key's tilt, upright and small; lifting off, it turns to face the screen.
+      const onKey = (104 / SYM) * k;
+      cur3.style.transform = `translate3d(${lerp(0, px, dp)}px, ${lerp(0, py, dp)}px, ${lerp(z0, 0, dp) + 140 * Math.sin(Math.PI * d)}px) ` +
+        `rotateX(${lerp(rx, 0, d)}deg) rotateZ(${lerp(rz, 0, d)}deg) translate3d(${lerp(k * GA[0], 0, dp)}px, ${lerp(k * GA[1], 0, dp)}px, ${lerp(topZ + 0.6, 0, d)}px) ` +
+        `rotateZ(${lerp(22, 0, d)}deg) scale(${lerp(onKey, cs, d)})`;
+    }
+    cur2.style.transform = `translate(${px}px, ${py}px) scale(${cs})`;
+    cur3.style.opacity = flat ? 0 : a;
+    cur2.style.opacity = flat ? end : 0;
+    // A ripple where each click lands, at the arrow's tip (89, 36 in symbol units).
+    cripples.forEach((el, i) => {
+      const c = CLICKS[i], age = (t - c) / 0.6;
+      if (age < 0 || age > 1) { el.style.opacity = 0; return; }
+      const [cx, cy] = onPath(c);
+      el.style.opacity = (0.8 * (1 - age)).toFixed(3);
+      el.style.transform = `translate(${cx + (89 - AC[0]) * unit * cs}px, ${cy + (36 - AC[1]) * unit * cs}px) scale(${lerp(0.3, 1.2, outExpo(age))})`;
+    });
+  });
+  track("#wordmark", [[LIFT + 0.15, { opacity: 0, transform: "translateX(-20px)", filter: "blur(8px)" }, E], [LIFT + 1.15, { opacity: 1, transform: "translateX(0px)", filter: "blur(0px)" }], [TOTAL - 0.6, { opacity: 1, transform: "translateX(0px)", filter: "blur(0px)" }, IO], [TOTAL, { opacity: 0, transform: "translateX(0px)", filter: "blur(6px)" }]]);
+  inout("#url", LIFT + 0.6, TOTAL - 0.6, { y: 10, blur: 6, d: 1.0, d2: 0.6 });
+
+  // Drifting light behind the logo, drawn at half size and scaled up.
+  fade("#smoke", [[LIFT - 0.4, 0], [LIFT + 1.6, 0.45], [TOTAL - 0.6, 0.45], [TOTAL, 0]]);
+  fade("#pool", [[KEY, 0], [KEY + 1.0, 1], [KEY + 2.6 * B, 1], [KEY + 4 * B, 0]]);
+  const sm = $("#smoke").getContext("2d");
+  const strands = [0, 1, 2, 3, 4, 5].map((i) => ({ p: i * 1.7, w: 1 + (i % 3) * 0.8, a: 0.2 + (i % 2) * 0.16 }));
+  updaters.push((t) => {
+    if (t < LIFT - 0.5 || t > TOTAL) return;
+    const s = t - LIFT;
+    sm.clearRect(0, 0, 960, 540);
+    sm.globalCompositeOperation = "lighter";
+    for (const st of strands) {
+      const q = (k) => Math.sin(s * 0.35 + st.p * k);
+      const x0 = 480 + q(1.3) * 380, x1 = 480 + q(2.1) * 450, x2 = 480 + q(0.7) * 430, x3 = 480 + q(1.9) * 380;
+      for (const [lw, al, blur] of [[st.w * 18, 0.025, 30], [st.w, st.a, 8]]) {
+        sm.beginPath();
+        sm.moveTo(x0, 600);
+        sm.bezierCurveTo(x1, 380, x2, 150, x3, -50);
+        sm.lineWidth = lw;
+        sm.strokeStyle = `rgba(235, 235, 235, ${al})`;
+        sm.shadowColor = "rgba(255, 255, 255, 0.5)";
+        sm.shadowBlur = blur;
+        sm.stroke();
+      }
+    }
+    sm.globalCompositeOperation = "destination-out";
+    sm.shadowBlur = 0;
+    const v = sm.createRadialGradient(480, 250, 60, 480, 250, 520);
+    v.addColorStop(0, "rgba(0, 0, 0, 0)");
+    v.addColorStop(1, "rgba(0, 0, 0, 0.95)");
+    sm.fillStyle = v;
+    sm.fillRect(0, 0, 960, 540);
+    sm.globalCompositeOperation = "source-over";
+  });
+}
+
+function render(t) {
+  for (const a of document.getAnimations()) {
+    a.pause();
+    a.currentTime = t * 1000;
+  }
+  for (const u of updaters) u(t);
+}
+
+async function start() {
+  await Promise.all([
+    document.fonts.load('500 56px "Geist"'), document.fonts.load('400 23px "Geist"'), document.fonts.load('400 18px "Geist Mono"'),
+  ]);
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+  build();
+  window.render = render;
+  window.TOTAL = TOTAL;
+  window.CUES = CUES;
+  const q = new URLSearchParams(location.search);
+  if (q.has("capture")) {
+    render(0);
+    window.ready = true;
+    return;
+  }
+  const fit = () => {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    const st = $("#stage").style;
+    st.transform = `scale(${s})`;
+    st.left = `${(innerWidth - 1920 * s) / 2}px`;
+    st.top = `${(innerHeight - 1080 * s) / 2}px`;
+  };
+  fit();
+  addEventListener("resize", fit);
+  if (q.has("t")) {
+    render(parseFloat(q.get("t")));
+  } else {
+    const t0 = performance.now();
+    const loop = (now) => { render(((now - t0) / 1000) % TOTAL); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+}
+start();
+</script>
+</body>
+</html>
