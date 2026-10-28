@@ -118,7 +118,7 @@
 
   function startStories() {
     // Offset so attention travels around the grid in reading order.
-    const offsets = { reconnect: 1.4, hyper: 2.3, curve: 3.2, rules: 4.1 };
+    const offsets = { profiles: 1.4, hyper: 2.3, curve: 3.2, rules: 4.1 };
     for (const card of cards) {
       const s = makers[card.dataset.story](card);
       s.start = offsets[card.dataset.story];
@@ -127,32 +127,44 @@
     setRunning(bentoVisible && !document.hidden);
   }
 
-  // Fades text out, swaps it, fades it back in, as two cues.
-  function swap(cues, t, el, text) {
-    cues.push([t, () => el.classList.add("swap")], [t + 0.2, () => { el.textContent = text; el.classList.remove("swap"); }]);
-  }
-
   const makers = {
-    // The mouse sleeps, loses its setup, reconnects, and every setting is written back.
-    reconnect(card) {
-      const state = card.querySelector(".state");
-      const text = card.querySelector(".state-text");
-      const checks = [...card.querySelectorAll(".chk")];
-      const time = card.querySelector(".foot time");
-      const times = ["11:07", "13:26", "16:52", "9:41"];
-      let n = 0;
+    // The panel steps through the devices on the owner's desk, each with its own rules and starting point.
+    profiles(card) {
+      const icon = card.querySelector(".dev-head .icon");
+      const name = card.querySelector(".dev-head .name");
+      const dots = [...card.querySelectorAll(".pager i")];
+      const list = card.querySelector(".profile");
+      const proto = list.firstElementChild;
+      const src = card.querySelector(".foot .src");
+      const devices = [
+        ["i-mouse-simple", "MX Master 3", "Set up from the ", "MX Master 3 preset",
+          [["Gesture button", "Mission Control"], ["Top button", "⇧⌘4"], ["Thumb wheel", "Reversed"]]],
+        ["i-mouse-simple", "2.4G Mouse", "Set up from the ", "2.4G mouse preset",
+          [["Escape key", "Right Option while held"], ["Return key", "⌥⇧S"]]],
+        ["i-keyboard", "Magic Keyboard", "Set up as a copy of ", "Built-in Keyboard",
+          [["Caps Lock", "Hyper key"]]],
+      ];
+      const show = ([sym, title, lead, from, rows], i) => {
+        icon.querySelector("use").setAttribute("href", "#" + sym);
+        name.textContent = title;
+        src.replaceChildren(lead, Object.assign(document.createElement("b"), { textContent: from }), ".");
+        list.replaceChildren(...rows.map(([lbl, det], k) => {
+          const li = proto.cloneNode(true);
+          li.querySelector(".lbl").textContent = lbl;
+          li.querySelector(".det").textContent = det;
+          li.style.setProperty("--k", k);
+          return li;
+        }));
+        dots.forEach((d, j) => d.classList.toggle("on", j === i));
+      };
       const cues = [];
-      cues.push([1.0, () => { state.dataset.s = "off"; state.classList.remove("ring"); }]);
-      swap(cues, 0.9, text, "Not connected");
-      checks.forEach((c, i) => cues.push([1.3 + i * 0.06, () => c.classList.add("off")]));
-      cues.push([2.5, () => { state.dataset.s = "busy"; }]);
-      swap(cues, 2.4, text, "Applying…");
-      checks.forEach((c, i) => cues.push([3.0 + i * 0.16, () => c.classList.remove("off")]));
-      cues.push([4.0, () => { state.dataset.s = "on"; state.classList.add("ring"); }]);
-      swap(cues, 3.9, text, "Connected");
-      cues.push([4.1, () => time.classList.add("swap")]);
-      cues.push([4.3, () => { time.textContent = times[n++ % times.length]; time.classList.remove("swap"); }]);
-      return story(card, 8, cues);
+      [1, 2, 0].forEach((i, n) => {
+        const t = 2.6 + n * 3.2;
+        cues.push([t, () => { list.classList.add("out"); for (const el of [icon, name, src]) el.classList.add("swap"); }]);
+        cues.push([t + 0.3, () => { show(devices[i], i); for (const el of [icon, name, src]) el.classList.remove("swap"); }]);
+        cues.push([t + 0.36, () => list.classList.remove("out")]);
+      });
+      return story(card, 10, cues);
     },
 
     // Caps Lock goes down, the four modifiers light, T sends the full chord, everything lets go.

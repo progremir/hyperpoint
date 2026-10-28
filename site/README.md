@@ -55,21 +55,23 @@ npx cf r2 objects put latest --bucket-name hyperpoint-releases --body Hyperpoint
 ## The brief
 
 **One offer, one audience, one action.** Hyperpoint for Mac users who run Logi Options+ for the mouse and a separate
-remapper for Caps Lock, and want one app that nothing conflicts with and that keeps the setup through every reconnect.
-The one action is *Download for Mac*.
+remapper for Caps Lock, and want one app that nothing conflicts with. The one action is *Download for Mac*.
 
 **Layout: A, classic hero plus sections.** The product reads at a glance from its menu bar menu, so the hero shows
-that menu with real device rows and the reconnect note.
+that menu with real device rows.
 
 **Hero.** *Replace Logi Options+. Hyper key included.* The subheadline says what it does and why one app beats two:
-nothing to clash with, no account, and every setting back on after a reconnect. The CTA downloads, and the proof line
+nothing to clash with, no account, and a profile for every mouse and keyboard. The CTA downloads, and the proof line
 says it is notarized, its size and what it runs on.
+
+**Not a pitch.** Hyperpoint puts a device's settings back when it wakes or reconnects, but that works around other
+apps' and devices' behavior, so the page never sells it. Lead with what the app does.
 
 **Order.** Hero, problem to solution (before and after), tagline reveal, four benefit cards with stories, three
 smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (13 questions with
 FAQ schema), final CTA with risk reversal, footer.
 
-**Benefits.** Settings that survive sleep. A hyper key on Caps Lock. A wheel that glides. Change a button by pressing
+**Benefits.** A profile for every device. A hyper key on Caps Lock. A wheel that glides. Change a button by pressing
 it.
 
 **Steps.** Install and allow two permissions. Set up each device. Press a button to add a rule.
@@ -99,7 +101,7 @@ as `FAQPage`.
 |---|---|
 | Hero menu | The desk, menu bar and menu stay; their rows load in order |
 | Cards | Rise in when 30% visible, then each visual tells its story on a loop, paused off screen |
-| Settings card | The mouse disconnects, its checks clear, it reconnects, each setting is written back, the time updates |
+| Profiles card | The panel steps from MX Master 3 to 2.4G Mouse to Magic Keyboard, and the rules and where they came from change with it |
 | Hyper key card | Caps Lock goes down, the four modifiers light, T sends ⌃⌥⇧⌘T, everything lets go |
 | Wheel card | A dot rides the real speed curve from a slow turn to a flick and back while the readout counts |
 | Rules card | Add Rule listens, a press lands as a new rule on top, the others step down |
@@ -107,6 +109,6 @@ as `FAQPage`.
 | Text sections | Fade up from blur as they enter the viewport |
 
 The card and curve data come from the app: the menu strings from `StatusMenu.swift` and `MenuPresentation.swift`, the
-rules from the MX Master 3 preset, and the curve and measured wheel bands from `SpeedCurve.swift` and
+rules and profiles from the presets in `Presets.swift`, and the curve and measured wheel bands from `SpeedCurve.swift` and
 `CurveGraph.swift`. Update the page when those change. The sizes (1.2 MB download, 3.3 MB installed) are measured from
 the v0.1.1 DMG and the app inside it, so check them on each release.
