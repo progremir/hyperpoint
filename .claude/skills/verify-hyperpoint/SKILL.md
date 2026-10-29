@@ -19,7 +19,7 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
 
 Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
-`hyper-check`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
+`hyper-check`, `hyper-letters`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
 wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
 `verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
 with `verify.sh unlock` at the end of the run. A lock idle for 20 minutes (`HYPERPOINT_LOCK_STALE`) is taken over by
@@ -53,7 +53,8 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 | Command | What it does | Needs |
 | --- | --- | --- |
 | `verify.sh state` | `hidutil` key maps for the built-in and Magic keyboards and both 2.4G mouse services, and read-only HID++ state of the MX (`helpers/hidpp-state.swift`, get requests only) | the MX connected; this shell able to open the device |
-| `verify.sh hyper-check [n]` | posts F18 then F16 at the HID tap n times; counts ⌘⌃⌥⇧F16 Carbon hotkey fires and modifier state left held | `HyperpointProbe.app` with Accessibility |
+| `verify.sh hyper-check [n] [secure]` | posts Right Control (hyper's key as a hyper keyboard sends it) then F16 at the HID tap n times; counts ⌘⌃⌥⇧F16 Carbon hotkey fires and modifier state left held. `secure` holds secure input meanwhile (`helpers/secure-input.swift`), as a terminal's hidden prompt does, so the tap sees no keys | `HyperpointProbe.app` with Accessibility |
+| `verify.sh hyper-letters [secure]` | brings the probe's own window forward (with Accessibility when macOS will not) and posts Right Control with the backtick, then Left Control with it. Hyper must reach a ⌘⌃⌥⇧ hotkey and type nothing; Left Control must reach the window as ⌃. `secure` holds secure input in that window. It posts nothing unless its window has the keyboard | `HyperpointProbe.app` with Accessibility |
 | `verify.sh record posted` | 40 s of scroll events Hyperpoint posts: per-frame points, fixed-point value, `NSEvent.scrollingDeltaY`, phase, frame gaps, leaked line events | the user scrolling the MX wheel |
 | `verify.sh record wheel` | 45 s of raw wheel input: sender id, raw detents per event, macOS's accelerated lines | the user scrolling |
 | `verify.sh record senders` | 90 s of pointer event sender ids grouped every 2 s | the user using each pointer device |
@@ -87,7 +88,7 @@ The app's own log says what it attempted. The read-backs say what the device hol
 
 ## Cleanup
 
-- Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
+- Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to Right Control and the MX buttons diverted until the next launch clears them.
 - End every run with the build under test **running**: `verify.sh launch` after any quit. The user depends on it.
   Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.

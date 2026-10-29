@@ -5,6 +5,12 @@ import CoreGraphics
 // Throwaway probe. Modes: overlay | real | senders | posted | wheel | hold | keys | held.
 // overlay, real: posts F18 down, F16 down/up, F18 up at the HID tap. A rewriting tap turns F18 into hyper using
 // the chosen strategy. A Carbon hotkey for cmd+ctrl+opt+shift+F16 and a later listen-only tap report what apps see.
+// none: no tap of its own. Posts hyper's key as a hyper keyboard sends it, Right Control, around F16 for Hyperpoint.
+// letters[-secure]: brings its own window to the front, and with -secure holds secure input there as a terminal's
+// hidden prompt does. Posts Right Control with the backtick, a character key with no hyper shortcut of the owner (hyper
+// T brought Ghostty forward), then Left Control with it. Hyper must reach a cmd+ctrl+opt+shift hotkey and type nothing; Left
+// Control must reach the window as itself. PASS or FAIL per case.
+// It posts nothing unless its window has the keyboard, so a miss never types into another app.
 // senders: logs the IOHIDEvent sender id of every pointer event for 40 s, grouped every 2 s.
 // hold: 45 s of what apps receive while a button scrolls: posted scrolls on both axes with their phases, right and
 // other button events, and where the pointer is at each.
@@ -33,6 +39,7 @@ fflush(stdout)
 
 nonisolated(unsafe) var hyperHeld = false
 nonisolated(unsafe) var hotkeyFired = 0
+nonisolated(unsafe) var letterHotkeys: [UInt32: Int] = [:]
 nonisolated(unsafe) var observed: [String] = []
 nonisolated(unsafe) var senderCounts: [String: Int] = [:]
 
@@ -180,8 +187,17 @@ func install(_ tap: CGEventTapLocation, _ place: CGEventTapPlacement, _ options:
 
 func bit(_ t: CGEventType) -> CGEventMask { 1 << CGEventMask(t.rawValue) }
 
+final class LetterLog: NSView {
+    var downs: [String] = []
+    override var acceptsFirstResponder: Bool { true }
+    override func keyDown(with event: NSEvent) {
+        let hyper = event.modifierFlags.contains([.command, .option, .shift]) ? "cmd+opt+shift+" : ""
+        downs.append("\(hyper)\(event.modifierFlags.contains(.control) ? "ctrl+" : "")\(event.keyCode)")
+    }
+}
+
 let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
+app.setActivationPolicy(variant == "letters" ? .regular : .accessory)
 
 if variant == "posted" {
     let posted: CGEventTapCallBack = { _, type, event, _ in
@@ -337,6 +353,111 @@ if variant == "posted" {
         fflush(stdout)
         exit(0)
     }
+} else if variant == "letters" {
+    let secure = arg.hasSuffix("-secure")
+    let window = NSWindow(
+        contentRect: NSRect(x: 60, y: 60, width: 260, height: 60), styleMask: [.titled], backing: .buffered, defer: false)
+    window.title = "Hyperpoint letters check"
+    let view = LetterLog(frame: window.contentLayoutRect)
+    window.contentView = view
+    var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+    InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+        var id = EventHotKeyID()
+        GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+            MemoryLayout<EventHotKeyID>.size, nil, &id)
+        letterHotkeys[id.id, default: 0] += 1
+        return noErr
+    }, 1, &spec, nil, nil)
+    let grave: CGKeyCode = 50
+    var ref: EventHotKeyRef?
+    let registered = RegisterEventHotKey(
+        UInt32(grave), UInt32(cmdKey | controlKey | optionKey | shiftKey), EventHotKeyID(signature: 0x4859504C, id: UInt32(grave)),
+        GetApplicationEventTarget(), 0, &ref)
+    print("secure=\(secure) hotkeys registered=\(registered)")
+    let source = CGEventSource(stateID: .privateState)
+    let control = CGEventFlags.maskControl.rawValue
+    // A side's change, then the key with the side's flags as the hardware sets them, then the side let go, as a hand
+    // does it, 50 ms apart.
+    func chord(side: CGKeyCode, sideFlag: UInt64, key: CGKeyCode, then done: @escaping () -> Void) {
+        func change(_ down: Bool) {
+            let e = CGEvent(keyboardEventSource: source, virtualKey: side, keyDown: down)!
+            e.type = .flagsChanged
+            e.flags = CGEventFlags(rawValue: down ? control | sideFlag : 0)
+            e.post(tap: .cghidEventTap)
+        }
+        func press(_ down: Bool) {
+            let e = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: down)!
+            e.flags.formUnion(CGEventFlags(rawValue: control | sideFlag))
+            e.post(tap: .cghidEventTap)
+        }
+        change(true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { press(true) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { press(false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { change(false) }
+        // Hyperpoint checks for released keys every 100 ms.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: done)
+    }
+    let cases: [(name: String, side: CGKeyCode, flag: UInt64, key: CGKeyCode, fired: Int, typed: [String])] = [
+        ("hyper backtick", 62, 0x2000, grave, 1, []),
+        ("left control backtick", 59, 0x0001, grave, 0, ["ctrl+50"]),
+        ("hyper backtick again", 62, 0x2000, grave, 1, []),
+    ]
+    var index = 0
+    var failures = 0
+    func finish(_ code: Int32) {
+        DisableSecureEventInput()
+        fflush(stdout)
+        exit(code)
+    }
+    func next() {
+        guard index < cases.count else {
+            let stuck = !CGEventSource.flagsState(.combinedSessionState).intersection(hyperFlags).isEmpty
+            if stuck { failures += 1 }
+            print("\(stuck ? "FAIL" : "PASS") modifiers clear afterwards")
+            return finish(failures == 0 ? 0 : 1)
+        }
+        guard NSApp.isActive, window.isKeyWindow else {
+            print("FAIL the window lost the keyboard to \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"); stopped posting")
+            return finish(1)
+        }
+        let c = cases[index]
+        letterHotkeys = [:]
+        view.downs = []
+        chord(side: c.side, sideFlag: c.flag, key: c.key) {
+            let count = letterHotkeys[UInt32(c.key)] ?? 0
+            let pass = count == c.fired && view.downs == c.typed
+            if !pass { failures += 1 }
+            print("\(pass ? "PASS" : "FAIL") \(c.name): hotkey fired \(count) (want \(c.fired)), window got \(view.downs) (want \(c.typed))")
+            index += 1
+            next()
+        }
+    }
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(view)
+    app.activate()
+    var waited = 0
+    Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+        waited += 1
+        if waited == 5, !NSApp.isActive {
+            // macOS gives way to the app the user is in; Accessibility can still bring this one forward.
+            let raised = AXUIElementSetAttributeValue(
+                AXUIElementCreateApplication(getpid()), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            print("brought forward with Accessibility: \(raised == .success)")
+        }
+        if NSApp.isActive, window.isKeyWindow {
+            timer.invalidate()
+            if secure { EnableSecureEventInput() }
+            // Hyperpoint notices secure input within 100 ms.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("window has the keyboard; secure input on: \(IsSecureEventInputEnabled())")
+                next()
+            }
+        } else if waited >= 30 {
+            timer.invalidate()
+            print("FAIL the window never got the keyboard (front: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")); nothing posted")
+            finish(1)
+        }
+    }
 } else if variant == "wheel" {
     let wheel: CGEventTapCallBack = { _, type, event, _ in
         guard type == .scrollWheel, event.getIntegerValueField(.eventSourceUserData) != marker else { return Unmanaged.passUnretained(event) }
@@ -377,13 +498,26 @@ if variant == "posted" {
     let mods = UInt32(cmdKey | controlKey | optionKey | shiftKey)
     let reg = !withHotkey ? -1 : RegisterEventHotKey(UInt32(f16), mods, EventHotKeyID(signature: 0x48595052, id: 1), GetApplicationEventTarget(), 0, &hotKeyRef)
     print("RegisterEventHotKey status=\(reg)")
+    // Hyperpoint's hyper key arrives as Right Control, whose side flag the hardware puts on every key meanwhile.
+    let rightControl: CGKeyCode = 62
+    let rightControlHeld = CGEventFlags(rawValue: CGEventFlags.maskControl.rawValue | 0x2000)
+    func hyperKey(_ down: Bool) {
+        if variant == "none" { post(rightControl, down, flags: down ? rightControlHeld : [], type: .flagsChanged) }
+        else { post(f18, down) }
+    }
+    func hyperChord(_ code: CGKeyCode, _ down: Bool) {
+        guard variant == "none" else { return post(code, down) }
+        let e = CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey: code, keyDown: down)!
+        e.flags.formUnion(rightControlHeld)
+        e.post(tap: .cghidEventTap)
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        post(f18, true)
+        hyperKey(true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            post(f16, true)
-            post(f16, false)
+            hyperChord(f16, true)
+            hyperChord(f16, false)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                post(f18, false)
+                hyperKey(false)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     let after = CGEventSource.flagsState(.combinedSessionState).intersection(hyperFlags)
                     print(observed.isEmpty ? "observer saw no F16 keyDown" : observed.joined(separator: "\n"))
