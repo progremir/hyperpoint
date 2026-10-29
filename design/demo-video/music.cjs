@@ -311,6 +311,21 @@ function detent(m, t0, gain = 1) {
     { gain: 0.3 * gain, pan: -0.1 });
 }
 
+// A soft linear switch bottoming out on a dampened plate: a muffled low thock with no click on top. Each key is
+// tuned a little differently, so a run of them sounds like a keyboard rather than one sample.
+function softKey(m, t0, gain = 1) {
+  const n = noise(Math.round(t0 * 1013)), f = new SVF(), g = new SVF(), h = new SVF();
+  const tune = 0.88 + 0.12 * (n() + 1);
+  let ph = 0;
+  m.voice(t0, 0.09, (t) => {
+    ph += ((165 + 110 * Math.exp(-t / 0.005)) * tune) / SR;
+    const body = Math.sin(TAU * ph) * Math.exp(-t / 0.016);
+    const felt = f.band(g.lp(n(), 1500, 0.7), 720 * tune, 1.1) * Math.exp(-t / 0.007) * 2.4;
+    const grain = h.band(n(), 2300 * tune, 1.4) * Math.exp(-t / 0.0018) * 0.5;
+    return (body + felt + grain) * Math.min(1, t / 0.0018);
+  }, { gain: 0.4 * gain, rv: 0.1, pan: Math.sin(t0 * 53) * 0.25 });
+}
+
 // A small bell for the hyper key: inharmonic partials over a soft thump.
 function chime(m, t0, gain = 1) {
   const f = mtof(84);
@@ -634,7 +649,7 @@ function keycaps(c) {
   stab(m, c.MOUSE, KC.Dm9.pad.map((n) => n + 12), 0.45);
   chime(m, c.SWAP, 0.45);
 
-  const play = { clack, tick, click: mouseClick, detent };
+  const play = { key: softKey, click: mouseClick, detent };
   for (const { t, kind, gain } of c.sfx) play[kind](m, t, gain);
   return master(m, 0.75 * B, { room: 0.84, wet: 2.8, drive: 1.05 });
 }
