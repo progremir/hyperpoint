@@ -269,10 +269,9 @@ final class SettingsModel {
         refreshLoginItem()
     }
 
-    func requestPermission(_ permission: Permission) {
-        Permissions.request(permission)
-        NSWorkspace.shared.open(Permissions.settingsURL(for: permission))
-    }
+    func requestPermission(_ permission: Permission) { PermissionGuide.shared.open(permission) }
+
+    func showPermission(_ permission: Permission) { NSWorkspace.shared.open(Permissions.settingsURL(for: permission)) }
 
     func openPrivacySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!)
