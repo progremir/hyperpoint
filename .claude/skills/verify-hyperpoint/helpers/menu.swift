@@ -26,19 +26,22 @@ func fail(_ message: String) -> Never {
 guard CommandLine.arguments.count == 2 else { fail("usage: menu \"<item title>\"") }
 let wanted = CommandLine.arguments[1]
 guard AXIsProcessTrusted() else { fail("this shell lacks Accessibility") }
-guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint").first
-else { fail("Hyperpoint is not running") }
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint.dev").first
+else { fail("Hyperpoint Dev is not running") }
 let element = AXUIElementCreateApplication(app.processIdentifier)
 guard let bar = attribute(element, "AXExtrasMenuBar"), let status = children(bar as! AXUIElement).first
 else { fail("no menu bar item") }
 AXUIElementPerformAction(status, kAXPressAction as CFString)
 usleep(300_000)
+// Cancel goes to the open menu: sent to the status item it leaves the menu open, and the app then answers no Apple
+// event, quit included, until someone closes it.
+func close() { children(status).forEach { AXUIElementPerformAction($0, kAXCancelAction as CFString) } }
 guard let item = descendants(status).first(where: { title($0) == wanted }) else {
-    AXUIElementPerformAction(status, kAXCancelAction as CFString)
+    close()
     fail("no menu item \"\(wanted)\"")
 }
 guard attribute(item, kAXEnabledAttribute) as? Bool ?? false else {
-    AXUIElementPerformAction(status, kAXCancelAction as CFString)
+    close()
     fail("menu item \"\(wanted)\" is disabled")
 }
 let checked = (attribute(item, "AXMenuItemMarkChar") as? String).map { !$0.isEmpty } ?? false

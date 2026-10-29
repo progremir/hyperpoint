@@ -56,13 +56,14 @@ Requires Swift 6.2 or later.
 scripts/bundle.sh
 ```
 
-This builds a release, signs it and installs `~/Applications/Hyperpoint.app`. It signs with a stable identity
-(`SIGN_IDENTITY`, an Apple Development certificate by default) and refuses an ad-hoc signature, because macOS ties the
-Accessibility and Input Monitoring grants to the signature, and an ad-hoc one would reset them on every build.
-A build from source has no update feed and no **Check for Updates…**: a release would replace its signature with
-Developer ID, which macOS treats as a different app, so the grants would stop working.
+This builds **Hyperpoint Dev**, signs it and installs `~/Applications/Hyperpoint Dev.app`. It is a separate app from
+a release, with its own bundle identifier, so it never replaces an installed `Hyperpoint.app`, and opening either one
+quits the other. It signs with a stable identity (`SIGN_IDENTITY`, an Apple Development certificate by default) and
+refuses an ad-hoc signature, because macOS ties the Accessibility and Input Monitoring grants to the signature, and an
+ad-hoc one would reset them on every build. Hyperpoint Dev has no update feed and no **Check for Updates…**, so it
+never turns into a release.
 
-On first launch, grant Hyperpoint **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
+On first launch, grant Hyperpoint (or Hyperpoint Dev) **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
 Until then the menu shows *Needs attention* and nothing is applied. **Allow…** in Settings › General, or the notice in
 the menu, opens the right pane with a small panel under it holding Hyperpoint's icon: drag it into the list to add
 the app, which also works when the list has no entry for it.
@@ -186,8 +187,8 @@ It builds, signs, checks and packs the app the same way, then verifies `dist/Hyp
 its SHA-256. An ad-hoc signature changes on every build, which drops the Accessibility and Input Monitoring grants,
 so open this DMG to look at the installer, not to install.
 
-The release's Developer ID signature differs from a `bundle.sh` build's Apple Development one, so switching between
-the two asks for the Accessibility and Input Monitoring grants again.
+A release and a `bundle.sh` build are different apps to macOS, so each has its own Accessibility and Input Monitoring
+grants, and switching between them keeps both.
 
 ## Design
 

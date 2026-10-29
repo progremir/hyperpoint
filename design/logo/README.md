@@ -18,6 +18,7 @@ terminal, website, app icon, browser tab, sticker).
 | Wordmark only | `svg/hyperpoint-wordmark-{…}.svg` |
 | macOS app icon | `macos/AppIcon.icns` (from `svg/hyperpoint-app-icon.svg`, Apple's 824/1024 grid) |
 | Menu-bar icon | `macos/MenuBarTemplate.png` + `@2x`, or `macos/hyperpoint-menubar-template.svg` |
+| Hyperpoint Dev (builds from source): arrow filled in and a violet LED; in the menu bar, the arrow cut out of a filled square | `macos/AppIcon-Dev.icns`, `macos/MenuBarTemplate-Dev.png` + `@2x` |
 | Web | `web/`: favicon.ico/svg, PNG icons, `site.webmanifest`, `head-snippet.html` |
 | PNG masters | `png/` (1024 px symbols, 1200 px lockups, transparent) |
 

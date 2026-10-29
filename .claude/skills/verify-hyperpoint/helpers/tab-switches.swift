@@ -60,8 +60,8 @@ func fail(_ message: String) -> Never {
 }
 
 guard AXIsProcessTrusted() else { fail("this shell lacks Accessibility") }
-guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint").first
-else { fail("Hyperpoint is not running") }
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint.dev").first
+else { fail("Hyperpoint Dev is not running") }
 let element = AXUIElementCreateApplication(app.processIdentifier)
 
 func settingsWindow() -> AXUIElement? {

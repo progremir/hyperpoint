@@ -11,11 +11,11 @@ Design doc (source of truth for scope, phases, risks): https://claude.ai/artifac
 - 2.4G mouse: vendor 0x1EA7 (7847), product 0x2. Its upper buttons send Escape / Return from a keyboard interface.
 - Current Karabiner rules: `~/.config/karabiner/karabiner.json` (Caps Lock → ⌘⌃⌥⇧ hold, no tap action; 2.4G Escape → Right Option, Return → ⌥⇧S).
 - Current BetterMouse settings: `defaults export com.naotanhaocan.BetterMouse -` (values under `mice`, `appitems` are nested binary plists).
-- Signing identity for stable TCC grants: "Apple Development: Emir Amanbekov (KGBFPV5MVR)".
+- Builds from source (`scripts/bundle.sh`, `verify.sh build`) install as a separate app, Hyperpoint Dev (`dev.emir.hyperpoint.dev`, `~/Applications/Hyperpoint Dev.app`), signed "Apple Development: Emir Amanbekov (KGBFPV5MVR)", with its own TCC grants and no update feed. Releases (`scripts/release.sh`) are `dev.emir.hyperpoint`, signed "Developer ID Application: Emir Amanbekov (ZZ2G9658MN)"; the owner runs one from `~/Applications/Hyperpoint.app`, updated by Sparkle. Opening either quits the other.
 - Toolchain: Swift 6.4, macOS 27.0.1, arm64.
 - Do not decompile BetterMouse; HID++ 2.0 is documented by Solaar and logiops.
 
 ## Tools
 
 - `tools/taps.swift`: lists system event taps (owner, active/listen-only, enabled, mask). Run with `swift tools/taps.swift`.
-- `open ~/Applications/Hyperpoint.app --args -snapshotSettings <dir>` (with the app quit first): writes a PNG of every settings pane and tab, and of the panel that asks for each permission. The app draws its own window, so it needs no Screen Recording grant, but the glass sidebar comes out blank.
+- `open ~/Applications/Hyperpoint\ Dev.app --args -snapshotSettings <dir>` (with Hyperpoint Dev quit first): writes a PNG of every settings pane and tab, and of the panel that asks for each permission. The app draws its own window, so it needs no Screen Recording grant, but the glass sidebar comes out blank.

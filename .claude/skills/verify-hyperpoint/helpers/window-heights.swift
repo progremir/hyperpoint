@@ -9,7 +9,10 @@ var last = -1.0
 while Date() < deadline {
     let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
     let heights = windows
-        .filter { $0[kCGWindowOwnerName as String] as? String == "Hyperpoint" && $0[kCGWindowLayer as String] as? Int == 0 }
+        .filter {
+            ["Hyperpoint", "Hyperpoint Dev"].contains($0[kCGWindowOwnerName as String] as? String)
+                && $0[kCGWindowLayer as String] as? Int == 0
+        }
         .compactMap { ($0[kCGWindowBounds as String] as? [String: Any])?["Height"] as? Double }
     if let height = heights.max(), height != last {
         print(String(format: "%.3f %.0f", Date().timeIntervalSince1970, height))

@@ -16,9 +16,11 @@ export HYPERPOINT_VERIFY_RUN=hyper-$(date +%H%M%S)
 
 ## One instance only
 
-Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. If another session builds during your run, build again from your worktree and repeat every check made after its build. Verification replaces the user's running instance with the build under test, then leaves that build running so their hyper key and mouse keep working. Tell the user before you quit their instance.
+Hyperpoint drives shared hardware: the user's keyboards, their mouse and the system event stream. Two instances would fight over the same HID++ controls and both rewrite keys. Never start a second copy, and never run a build from `.build/` directly. If another session builds during your run, build again from your worktree and repeat every check made after its build.
 
-Every worktree's sessions share that one install, so a run holds the **verify lock**. `build`, `launch`, `quit`,
+Builds from source are a separate app, **Hyperpoint Dev** (`dev.emir.hyperpoint.dev`, `~/Applications/Hyperpoint Dev.app`), so they never replace the release the user runs day to day, `~/Applications/Hyperpoint.app` (`dev.emir.hyperpoint`, Developer ID, updated by Sparkle). Hyperpoint Dev has no update feed, so it never offers or installs an update. Opening Hyperpoint Dev quits the release and waits for it to put the devices back; `verify.sh restore` hands them back to the release at the end. Releases up to 0.3.1 do not yet quit Hyperpoint Dev when opened, so never open the release by hand while Hyperpoint Dev runs: use `restore`. Tell the user before you launch, since their release stops for the run.
+
+Every worktree's sessions share the one Hyperpoint Dev install, so a run holds the **verify lock**. `build`, `launch`, `quit`, `restore`,
 `hyper-check`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
 wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
 `verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
@@ -29,10 +31,10 @@ Conflicting apps change results: Karabiner-Elements seizes keyboards (so `hiduti
 
 ## Launch
 
-1. `verify.sh build` quits Hyperpoint through its own quit path, then runs `scripts/bundle.sh`. That runs the layer check, builds release, signs with the Apple Development identity and installs `~/Applications/Hyperpoint.app`. It refuses an ad-hoc signature, because a cdhash requirement resets the permission grants on every build.
-2. `verify.sh launch` opens the app and waits for a settled menu line from this pid (`state=Active` or `state=Needs attention`, not `Applying…`). Ready means every present device has finished its first apply.
+1. `verify.sh build` quits Hyperpoint Dev through its own quit path, then runs `scripts/bundle.sh`. That runs the layer check, builds release, signs with the Apple Development identity and installs `~/Applications/Hyperpoint Dev.app`. It refuses an ad-hoc signature, because a cdhash requirement resets the permission grants on every build. The release keeps running through the build.
+2. `verify.sh launch` opens Hyperpoint Dev, which quits the release first, and waits for a settled menu line from this pid (`state=Active` or `state=Needs attention`, not `Applying…`). Ready means every present device has finished its first apply.
 
-First launch on a fresh Mac needs the user to grant Accessibility and Input Monitoring to `~/Applications/Hyperpoint.app` in System Settings › Privacy & Security. Grants survive rebuilds because the designated requirement has no cdhash. Without them the menu shows `Needs attention` with a permission notice, and nothing is applied. That is a valid, observable state, not a launch failure.
+Hyperpoint Dev has its own Accessibility and Input Monitoring grants, apart from the release's: the user grants them once to `~/Applications/Hyperpoint Dev.app` in System Settings › Privacy & Security (the menu's notice opens the right list with the app's icon to drag in). Grants survive rebuilds because the designated requirement has no cdhash. Without them the menu shows `Needs attention` with a permission notice, and nothing is applied. That is a valid, observable state, not a launch failure.
 
 The config lives at `~/.config/hyperpoint/config.json`, and a missing file is created with no devices, so every device starts as new and nothing is applied. The feature recipes assume the user's file, which has profiles for their MX Master 3, 2.4G mouse, built-in keyboard and Magic Keyboard. Never edit the user's file to stage a test without telling them. Their profile is real. If a journey needs a different config, save theirs to the evidence directory first and restore it byte for byte afterwards.
 
@@ -88,7 +90,7 @@ The app's own log says what it attempted. The read-backs say what the device hol
 ## Cleanup
 
 - Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
-- End every run with the build under test **running**: `verify.sh launch` after any quit. The user depends on it.
+- End every run with `verify.sh restore`, which quits Hyperpoint Dev and opens the user's release again, unless the user asked to keep trying the build under test. They depend on a running Hyperpoint.
   Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.
 - Leave `.verify-evidence/` in place. It is the proof.
