@@ -14,5 +14,9 @@
     <key>LSUIElement</key><true/>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>SUFeedURL</key><string>https://hyperpoint.progremir.dev/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>a0MwT+Fn1M64BpgiWDyC59giuP77cpvTcRlptJ77x8M=</string>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>
+    <key>SURequireSignedFeed</key><true/>
 </dict>
 </plist>

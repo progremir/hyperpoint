@@ -9,7 +9,7 @@
 
 Hyperpoint is a small macOS menu-bar app that remaps mouse buttons, gestures and the scroll wheel, and turns Caps Lock
 into a hyper key. It's one app instead of a mouse app plus a keyboard remapper, so nothing fights over your keys, and
-it puts your setup back every time a device wakes or reconnects.
+each mouse and keyboard gets its own profile, set up by pressing the buttons you want to change.
 
 ## Features
 
@@ -31,7 +31,7 @@ it puts your setup back every time a device wakes or reconnects.
 - **Mice that send keys.** Some mice send keystrokes from their extra buttons. Those keys can become modifiers or
   shortcuts for that mouse alone. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
-  to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
+  to set up or ignore. The menu shows each device's state, switches the hyper key and pauses everything.
 
 ## Install
 
@@ -41,6 +41,12 @@ Applications.
 
 Releases are signed with Developer ID and notarized by Apple. v0.1.0 predates that: macOS refuses its first open, so
 allow it under System Settings › Privacy & Security › Open Anyway.
+
+Hyperpoint updates itself with [Sparkle](https://sparkle-project.org). On its second launch it asks whether to check
+automatically; if allowed, it reads [hyperpoint.progremir.dev/appcast.xml](https://hyperpoint.progremir.dev/appcast.xml)
+once a day and installs a newer release when you agree. That is its only network request. **Check for Updates…** in
+the menu checks now, and Settings › General turns the daily check, automatic installs and beta versions on or off. A
+copy with no **Check for Updates…** in its menu predates this: download the latest once.
 
 ### From source
 
@@ -53,9 +59,13 @@ scripts/bundle.sh
 This builds a release, signs it and installs `~/Applications/Hyperpoint.app`. It signs with a stable identity
 (`SIGN_IDENTITY`, an Apple Development certificate by default) and refuses an ad-hoc signature, because macOS ties the
 Accessibility and Input Monitoring grants to the signature, and an ad-hoc one would reset them on every build.
+A build from source has no update feed and no **Check for Updates…**: a release would replace its signature with
+Developer ID, which macOS treats as a different app, so the grants would stop working.
 
 On first launch, grant Hyperpoint **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
-Until then the menu shows *Needs attention* and nothing is applied.
+Until then the menu shows *Needs attention* and nothing is applied. **Allow…** in Settings › General, or the notice in
+the menu, opens the right pane with a small panel under it holding Hyperpoint's icon: drag it into the list to add
+the app, which also works when the list has no entry for it.
 
 ## Set up a device
 
@@ -125,6 +135,16 @@ Publishing also uploads to Cloudflare R2, so install the site's tools and sign i
 npm ci && npx cf auth login
 ```
 
+Installed copies update from a Sparkle appcast signed with an EdDSA key. Its public half is `SUPublicEDKey` in
+`Support/Info.plist`, and its private half lives in the login keychain of the Mac that publishes. Export a backup and
+keep it somewhere safe, since a lost key means updates can only be signed through Sparkle's key rotation:
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/hyperpoint-sparkle-key.txt
+```
+
+On another Mac, import it with `generate_keys -f <file>` after `swift package resolve`.
+
 Then:
 
 ```bash
@@ -133,10 +153,27 @@ scripts/release.sh 0.2.0 --publish
 
 This builds `dist/Hyperpoint-0.2.0.dmg`, signs the app and the DMG with Developer ID, notarizes and staples the DMG,
 tags the pushed HEAD `v0.2.0` and publishes the DMG with its SHA-256 to a GitHub release and to the
-`hyperpoint-releases` R2 bucket, where the site's `/download` serves it to anyone. A prerelease is uploaded but
-`/download` stays on the last release. It refuses to publish without Developer ID, with uncommitted changes, with an
-unpushed HEAD or without access to the bucket. Drop `--publish` to build and notarize the DMG without publishing
-it. The installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
+`hyperpoint-releases` R2 bucket, where the site's `/download` serves it to anyone. It adds the release to the
+appcast at `/appcast.xml`, rebuilt from the published one with Sparkle's `generate_appcast`, so installed copies offer
+it. A prerelease is uploaded but `/download` stays on the last release, and the appcast lists it on the `beta` channel,
+which only copies with **Include beta versions** on can see. It refuses to publish without Developer ID, with
+uncommitted changes, with an unpushed HEAD, without access to the bucket or without the signing key. Drop `--publish`
+to build and notarize the DMG without publishing it. The first publish asks for the login keychain password so
+`generate_appcast` can use the key; choose **Always Allow**.
+
+Two settings shape the rollout:
+
+```bash
+NOTES=release-notes.md ROLLOUT_INTERVAL=86400 scripts/release.sh 0.3.0 --publish
+```
+
+`NOTES` is a markdown file, a path from the repository root, shown in the update window. `ROLLOUT_INTERVAL` makes
+Sparkle offer the update to one of seven groups of users every interval in seconds, so 86400 reaches everyone in a
+week; anyone who chooses **Check for Updates…** gets it at once. Without it, every copy sees the update on its next
+daily check. A bad release is stopped by publishing a fixed one with a higher version.
+
+Sparkle compares `CFBundleVersion`, which is the commit count, so release from `main`: a prerelease cut from a
+branch with more commits than `main` would outrank the next release. The installer window is drawn by `design/installer/build.py`; `design/installer/preview.png` shows it mounted.
 
 To check a change to the pipeline (`build-app.sh`, `release.sh`, `dmg-settings.py` or `design/installer/`) before
 merging it, build an ad-hoc DMG. This needs no certificate and skips notarization:

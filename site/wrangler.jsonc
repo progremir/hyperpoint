@@ -12,11 +12,17 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/download", "/download/*"]
+    "run_worker_first": ["/download", "/download/*", "/appcast.xml"]
   },
   "r2_buckets": [{ "binding": "RELEASES", "bucket_name": "hyperpoint-releases" }],
   "workers_dev": false,
   "preview_urls": true,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
   // Previews inherit no bindings. They read the same bucket, since the Worker only reads it and a preview should
   // serve the real releases.
   "previews": {

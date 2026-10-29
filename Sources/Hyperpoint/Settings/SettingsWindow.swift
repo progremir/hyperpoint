@@ -82,19 +82,7 @@ final class SettingsWindow {
         document.scroll(NSPoint(x: 0, y: document.isFlipped ? 0 : document.frame.height))
     }
 
-    private func render(to file: URL) {
-        guard let view = window.contentView?.superview, let layer = view.layer,
-            let image = NSBitmapImageRep(
-                bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * window.backingScaleFactor),
-                pixelsHigh: Int(view.bounds.height * window.backingScaleFactor), bitsPerSample: 8,
-                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
-                bitsPerPixel: 0),
-            let context = NSGraphicsContext(bitmapImageRep: image)?.cgContext
-        else { return }
-        context.scaleBy(x: window.backingScaleFactor, y: window.backingScaleFactor)
-        layer.render(in: context)
-        try? image.representation(using: .png, properties: [:])?.write(to: file)
-    }
+    private func render(to file: URL) { window.renderPNG(to: file) }
 
     private static func slug(_ name: String) -> String { name.lowercased().replacingOccurrences(of: " ", with: "-") }
 
@@ -246,5 +234,23 @@ private struct SettingsTabPage: View {
         case .scrolling: ScrollingTab(model: model)
         case .devices: DevicesTab(model: model)
         }
+    }
+}
+
+extension NSWindow {
+    /// Draws the window's frame view and everything in it, which needs no Screen Recording access. Materials that blur
+    /// what is behind the window come out empty.
+    func renderPNG(to file: URL) {
+        guard let view = contentView?.superview, let layer = view.layer,
+            let image = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * backingScaleFactor),
+                pixelsHigh: Int(view.bounds.height * backingScaleFactor), bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
+                bitsPerPixel: 0),
+            let context = NSGraphicsContext(bitmapImageRep: image)?.cgContext
+        else { return }
+        context.scaleBy(x: backingScaleFactor, y: backingScaleFactor)
+        layer.render(in: context)
+        try? image.representation(using: .png, properties: [:])?.write(to: file)
     }
 }

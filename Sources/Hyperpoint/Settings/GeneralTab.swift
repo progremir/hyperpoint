@@ -36,6 +36,10 @@ struct GeneralTab: View {
             ) {
                 Button("Show Log") { showingLog = true }
             }
+            if let updates = model.updates, updates.available {
+                Divider()
+                UpdatesRow(updates: updates)
+            }
         }
         .sheet(isPresented: $showingLog) { LogSheet() }
         .onAppear { model.refreshLoginItem() }
@@ -58,10 +62,14 @@ struct GeneralTab: View {
             }
         }
         FormRow(label: "Accessibility", detail: "Lets the hyper key and smooth scrolling change keys and scrolls as they happen.") {
-            PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) }
+            PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) } show: {
+                model.showPermission(.accessibility)
+            }
         }
         FormRow(label: "Input Monitoring", detail: "Lets Hyperpoint set up the buttons on Logitech mice.") {
-            PermissionStatus(grant: permissions.inputMonitoring) { model.requestPermission(.inputMonitoring) }
+            PermissionStatus(grant: permissions.inputMonitoring) { model.requestPermission(.inputMonitoring) } show: {
+                model.showPermission(.inputMonitoring)
+            }
         }
     }
 
@@ -96,13 +104,48 @@ private struct Step<Content: View>: View {
     }
 }
 
+private struct UpdatesRow: View {
+    let updates: Updates
+
+    var body: some View {
+        FormRow(label: "Updates", detail: detail) {
+            Toggle(
+                "Check for updates automatically",
+                isOn: Binding(get: { updates.automaticallyChecks }, set: { updates.setAutomaticallyChecks($0) }))
+            Toggle(
+                "Download and install them automatically",
+                isOn: Binding(get: { updates.automaticallyDownloads }, set: { updates.setAutomaticallyDownloads($0) })
+            )
+            .disabled(!updates.allowsAutomaticDownloads)
+            Toggle("Include beta versions", isOn: Binding(get: { updates.beta }, set: { updates.beta = $0 }))
+            Button("Check Now") { updates.check() }
+                .disabled(!updates.canCheck)
+                .padding(.top, 3)
+        }
+    }
+
+    private var detail: String {
+        let schedule =
+            updates.automaticallyChecks
+            ? "Once a day Hyperpoint asks hyperpoint.progremir.dev for the latest version, and sends nothing else."
+            : "Hyperpoint checks only when you ask."
+        let last = updates.lastCheck.map { " Last checked \($0.formatted(.relative(presentation: .named)))." } ?? ""
+        return "You have version \(Updates.version). \(schedule)\(last)"
+    }
+}
+
+/// A granted permission keeps a way into its System Settings list, where it can be checked or removed.
 private struct PermissionStatus: View {
     let grant: PermissionState.Grant
     let allow: () -> Void
+    let show: () -> Void
 
     var body: some View {
         if grant == .granted {
-            Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            HStack {
+                Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Button("Show in System Settings", action: show)
+            }
         } else {
             HStack {
                 Text(grant == .denied ? "Not allowed" : "Not asked yet").foregroundStyle(.orange)
