@@ -2,6 +2,8 @@ import CoreGraphics
 
 struct TapRules: Equatable, Sendable {
     var carriers: [KeyCode: CarrierMeaning]
+    /// Some keyboard's hyper key arrives as Right Control, so every Right Control is hyper.
+    var hyper: Bool
     var smoothScroll: [SenderID: SmoothScroll]
     var buttons: [ButtonKey: ControlBehavior]
     var listen: TapListen?
@@ -9,10 +11,11 @@ struct TapRules: Equatable, Sendable {
     static let empty = TapRules(carriers: [:], smoothScroll: [:])
 
     init(
-        carriers: [KeyCode: CarrierMeaning], smoothScroll: [SenderID: SmoothScroll],
+        carriers: [KeyCode: CarrierMeaning], hyper: Bool = false, smoothScroll: [SenderID: SmoothScroll],
         buttons: [ButtonKey: ControlBehavior] = [:]
     ) {
         self.carriers = carriers
+        self.hyper = hyper
         self.smoothScroll = smoothScroll
         self.buttons = buttons
     }
@@ -22,11 +25,13 @@ struct TapRules: Equatable, Sendable {
         for route in routes {
             if case .carrier(let carrier, let meaning) = route.target { carriers[carrier.keyCode] = meaning }
         }
-        self.init(carriers: carriers, smoothScroll: smoothScroll, buttons: buttons)
+        self.init(
+            carriers: carriers, hyper: routes.contains { $0.target == .hyper }, smoothScroll: smoothScroll,
+            buttons: buttons)
     }
 
     /// A listen alone installs the tap.
-    var isEmpty: Bool { carriers.isEmpty && smoothScroll.isEmpty && buttons.isEmpty && listen == nil }
+    var isEmpty: Bool { carriers.isEmpty && !hyper && smoothScroll.isEmpty && buttons.isEmpty && listen == nil }
 }
 
 struct TapListen: Equatable, Sendable {
@@ -110,10 +115,7 @@ struct TapPipeline {
     var holdsPointer: Bool { buttons.holdsPointer }
 
     @discardableResult
-    mutating func reset() -> ButtonStage.Release {
-        carriers.reset()
-        return buttons.reset()
-    }
+    mutating func reset() -> ButtonStage.Release { buttons.reset() }
 }
 
 /// Takes one press from the device listened to and keeps it, its drags, repeats and release from apps and from every
@@ -372,46 +374,36 @@ struct ScrollStage {
 }
 
 struct CarrierStage {
-    static let interests: [CGEventType] = [.keyDown, .keyUp]
+    static let interests: [CGEventType] = [.keyDown, .keyUp, .flagsChanged]
 
     private static let leftCommandKeyCode: Int64 = 55
 
     let rules: TapRules
-    private var held: [KeyCode: Modifiers] = [:]
 
-    init(rules: TapRules) { self.rules = rules }
-
-    private var heldFlags: CGEventFlags { held.values.reduce([]) { $0.union($1.cgFlags) } }
-
-    mutating func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
+    /// Only press carriers reach the tap's rules, so a carrier's other meaning passes.
+    func process(_ type: CGEventType, _ event: CGEvent) -> TapVerdict {
+        if rules.hyper { Self.hyper(type, event) }
         guard type == .keyDown || type == .keyUp else { return .pass }
         let code = KeyCode(rawValue: UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode)))
-        guard let meaning = rules.carriers[code] else {
-            if !held.isEmpty { event.flags.formUnion(heldFlags) }
-            return .pass
-        }
-        switch meaning {
-        case .holdModifiers(let modifiers):
-            if type == .keyDown {
-                guard held[code] == nil else { return .drop }
-                held[code] = modifiers
-                event.flags.formUnion(modifiers.cgFlags)
-            } else {
-                held[code] = nil
-                event.flags.subtract(modifiers.cgFlags.subtracting(heldFlags))
-            }
-            event.type = .flagsChanged
-            event.setIntegerValueField(.keyboardEventKeycode, value: Self.leftCommandKeyCode)
-            // F-key events carry Fn, and a flagsChanged event with it marks Fn held.
-            event.flags.remove(.maskSecondaryFn)
-            return .pass
-        case .press(let action):
-            guard type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return .drop }
-            return .perform(action)
-        }
+        guard case .press(let action) = rules.carriers[code] else { return .pass }
+        guard type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return .drop }
+        return .perform(action)
     }
 
-    mutating func reset() { held = [:] }
+    /// The hardware gives every key event made while Right Control is held its side flag, whatever the tap did to
+    /// Right Control's own change, so that flag alone says hyper is held, and a tap that missed the press, as in
+    /// secure input, still sees it. It becomes ⌃⌥⇧⌘, and Right Control's change becomes Left Command's, so neither
+    /// apps nor shortcut recorders see Right Control on its own.
+    private static func hyper(_ type: CGEventType, _ event: CGEvent) {
+        let rightControl = HeldModifier.rightControl
+        if type == .flagsChanged,
+            event.getIntegerValueField(.keyboardEventKeycode) == Int64(rightControl.virtualKeyCode)
+        {
+            event.setIntegerValueField(.keyboardEventKeycode, value: leftCommandKeyCode)
+        }
+        guard event.flags.rawValue & rightControl.deviceFlag != 0 else { return }
+        event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~rightControl.deviceFlag).union(Modifiers.hyper.cgFlags)
+    }
 }
 
 extension Modifiers {

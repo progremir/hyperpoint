@@ -12,6 +12,9 @@ public final class Engine {
     /// Heard presses, in order, each once, for the settings window.
     public nonisolated let heard: AsyncStream<LearnedPress>
     private nonisolated let heardSink: AsyncStream<LearnedPress>.Continuation
+    /// What the tap does with keys, latest wins, for `CarrierHotkeys` on the main actor. None while there is no tap.
+    nonisolated let carrierPlans: AsyncStream<CarrierPlan>
+    private nonisolated let carrierPlanSink: AsyncStream<CarrierPlan>.Continuation
     private nonisolated let tapOrders: AsyncStream<TapOrder>
     private nonisolated let tapOrderSink: AsyncStream<TapOrder>.Continuation
     private nonisolated let tapSignals: AsyncStream<TapSignal>
@@ -46,6 +49,7 @@ public final class Engine {
         (statuses, statusSink) = AsyncStream.makeStream(of: EngineStatus.self, bufferingPolicy: .bufferingNewest(1))
         (actions, actionSink) = AsyncStream.makeStream(of: Action.self)
         (heard, heardSink) = AsyncStream.makeStream(of: LearnedPress.self)
+        (carrierPlans, carrierPlanSink) = AsyncStream.makeStream(of: CarrierPlan.self, bufferingPolicy: .bufferingNewest(1))
         (tapOrders, tapOrderSink) = AsyncStream.makeStream(of: TapOrder.self, bufferingPolicy: .bufferingNewest(1))
         (tapSignals, tapSignalSink) = AsyncStream.makeStream(of: TapSignal.self)
         (holdScrolls, holdScrollSink) = AsyncStream.makeStream(of: HoldScrollEvent.self)
@@ -298,6 +302,7 @@ public final class Engine {
         let order = TapOrder(install: tapAvailable && !intent.tap.isEmpty, rules: intent.tap)
         if resendTapOrder || order != sentTapOrder {
             tapOrderSink.yield(order)
+            carrierPlanSink.yield(order.install ? CarrierPlan(order.rules) : .none)
             sentTapOrder = order
         }
     }

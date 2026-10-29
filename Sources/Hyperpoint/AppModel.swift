@@ -6,6 +6,7 @@ final class AppModel {
     private let store = ConfigStore()
     private let engine = Engine()
     private let performer = ActionPerformer()
+    private lazy var carrierHotkeys = CarrierHotkeys(performer: performer)
     private let settings: SettingsModel
     private lazy var settingsWindow = SettingsWindow(model: settings)
     private var menu: StatusMenu?
@@ -32,6 +33,7 @@ final class AppModel {
         Task { [engine, performer] in
             for await action in engine.actions { performer.perform(action) }
         }
+        Task { [engine, carrierHotkeys] in await carrierHotkeys.follow(engine) }
         Task { [engine, settings] in
             for await press in engine.heard { settings.learned(press) }
         }

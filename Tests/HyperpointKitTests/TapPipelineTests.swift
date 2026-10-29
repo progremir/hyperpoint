@@ -2,45 +2,57 @@ import CoreGraphics
 @testable import HyperpointKit
 import Testing
 
-private let f18: CGKeyCode = 79
+private let rightControl: CGKeyCode = 62
 private let r: CGKeyCode = 15
 private let hyperFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+/// Control with Right Control's side flag, as the hardware sets it on every key event while Right Control is held.
+private let rightControlHeld = CGEventFlags(rawValue: CGEventFlags.maskControl.rawValue | 0x2000)
+private let leftControlHeld = CGEventFlags(rawValue: CGEventFlags.maskControl.rawValue | 0x0001)
 /// A nil source copies the live session's modifiers, so a held Fn on this Mac would leak into every test event. Tests
 /// only build events from it and never post them, so sharing it across tests is safe.
 nonisolated(unsafe) private let source = CGEventSource(stateID: .privateState)
 
-private func key(_ code: CGKeyCode, down: Bool, marked: Bool = false) -> CGEvent {
+private func key(_ code: CGKeyCode, down: Bool, flags: CGEventFlags = [], marked: Bool = false) -> CGEvent {
     let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)!
+    event.flags.formUnion(flags)
     if marked { event.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker) }
     return event
 }
 
+private func change(_ code: CGKeyCode, flags: CGEventFlags) -> CGEvent {
+    let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true)!
+    event.type = .flagsChanged
+    event.flags = flags
+    return event
+}
+
 private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.keyboardEventKeycode) }
+
+private func sides(_ event: CGEvent) -> UInt64 { event.flags.rawValue & 0x3FFF }
 
 @Suite struct TapPipelineTests {
     var pipeline = TapPipeline(
         rules: Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap, origin: { _ in nil })
 
     @Test mutating func hyperHeldIsAModifierChangeAndKeysCarryIt() {
-        let down = key(f18, down: true)
-        #expect(pipeline.process(.keyDown, down) == .pass)
-        #expect(down.type == .flagsChanged)
-        #expect(keyCode(down) == 55)
+        let down = change(rightControl, flags: rightControlHeld)
+        #expect(pipeline.process(.flagsChanged, down) == .pass)
+        #expect(down.type == .flagsChanged && keyCode(down) == 55, "Right Control's change becomes Left Command's")
         #expect(down.flags.isSuperset(of: hyperFlags))
+        #expect(sides(down) == 0, "no side flag is left to say Right Control")
 
-        let rDown = key(r, down: true)
+        let rDown = key(r, down: true, flags: rightControlHeld)
         #expect(pipeline.process(.keyDown, rDown) == .pass)
         #expect(rDown.type == .keyDown && keyCode(rDown) == Int64(r))
-        #expect(rDown.flags.isSuperset(of: hyperFlags))
+        #expect(rDown.flags.isSuperset(of: hyperFlags) && sides(rDown) == 0)
 
-        let rUp = key(r, down: false)
+        let rUp = key(r, down: false, flags: rightControlHeld)
         #expect(pipeline.process(.keyUp, rUp) == .pass)
         #expect(rUp.flags.isSuperset(of: hyperFlags))
 
-        let up = key(f18, down: false)
-        up.flags = hyperFlags.union(.maskAlphaShift)
-        #expect(pipeline.process(.keyUp, up) == .pass)
-        #expect(up.type == .flagsChanged)
+        let up = change(rightControl, flags: .maskAlphaShift)
+        #expect(pipeline.process(.flagsChanged, up) == .pass)
+        #expect(up.type == .flagsChanged && keyCode(up) == 55)
         #expect(up.flags.isDisjoint(with: hyperFlags), "the release clears the hyper modifiers")
         #expect(up.flags.contains(.maskAlphaShift), "the release keeps modifiers hyper does not own")
 
@@ -49,18 +61,26 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
         #expect(after.flags.isDisjoint(with: hyperFlags), "keys after release are plain")
     }
 
-    @Test mutating func carrierModifierChangesNeverMarkFnHeld() {
-        let down = key(f18, down: true)
-        down.flags = .maskSecondaryFn
-        #expect(pipeline.process(.keyDown, down) == .pass)
-        #expect(down.type == .flagsChanged && down.flags.isSuperset(of: hyperFlags))
-        #expect(!down.flags.contains(.maskSecondaryFn), "the press does not mark Fn held")
+    @Test mutating func hyperNeedsNoPressSeen() {
+        let rDown = key(r, down: true, flags: rightControlHeld)
+        #expect(pipeline.process(.keyDown, rDown) == .pass)
+        #expect(rDown.flags.isSuperset(of: hyperFlags), "as when secure input ended while Caps Lock was held")
+    }
 
-        let up = key(f18, down: false)
-        up.flags = hyperFlags.union(.maskSecondaryFn)
-        #expect(pipeline.process(.keyUp, up) == .pass)
-        #expect(up.type == .flagsChanged && up.flags.isDisjoint(with: hyperFlags))
-        #expect(!up.flags.contains(.maskSecondaryFn), "the release does not leave Fn held")
+    @Test mutating func leftControlStaysControl() {
+        let down = change(59, flags: leftControlHeld)
+        #expect(pipeline.process(.flagsChanged, down) == .pass)
+        #expect(keyCode(down) == 59 && down.flags == leftControlHeld)
+
+        let rDown = key(r, down: true, flags: leftControlHeld)
+        #expect(pipeline.process(.keyDown, rDown) == .pass)
+        #expect(rDown.flags.rawValue & hyperFlags.rawValue == CGEventFlags.maskControl.rawValue)
+    }
+
+    @Test mutating func otherModifierChangesUnderHyperKeepHyper() {
+        let shift = change(56, flags: CGEventFlags(rawValue: rightControlHeld.rawValue | CGEventFlags.maskShift.rawValue | 0x2))
+        #expect(pipeline.process(.flagsChanged, shift) == .pass)
+        #expect(keyCode(shift) == 56 && shift.flags.isSuperset(of: hyperFlags))
     }
 
     @Test func aFreshKeyEventCarriesNoModifiers() {
@@ -72,74 +92,37 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
     }
 
     @Test mutating func keysUnderHyperKeepTheirOwnFn() {
-        _ = pipeline.process(.keyDown, key(f18, down: true))
-
         let f5: CGKeyCode = 96
-        let fKey = key(f5, down: true)
-        fKey.flags = .maskSecondaryFn
+        let fKey = key(f5, down: true, flags: rightControlHeld.union(.maskSecondaryFn))
         #expect(pipeline.process(.keyDown, fKey) == .pass)
         #expect(fKey.type == .keyDown && keyCode(fKey) == Int64(f5))
         #expect(fKey.flags.isSuperset(of: hyperFlags.union(.maskSecondaryFn)), "an F-key keeps Fn and gains hyper")
 
-        let rDown = key(r, down: true)
+        let rDown = key(r, down: true, flags: rightControlHeld)
         #expect(pipeline.process(.keyDown, rDown) == .pass)
         #expect(!rDown.flags.contains(.maskSecondaryFn), "a key without Fn does not gain it")
     }
 
-    @Test mutating func autoRepeatOfTheHeldCarrierIsDropped() {
-        _ = pipeline.process(.keyDown, key(f18, down: true))
-        let repeated = pipeline.process(.keyDown, key(f18, down: true))
-        #expect(repeated == .drop)
-    }
-
     @Test mutating func markedEventsPassUntouched() {
-        let marked = key(f18, down: true, marked: true)
-        #expect(pipeline.process(.keyDown, marked) == .pass)
-        #expect(marked.type == .keyDown && keyCode(marked) == Int64(f18))
-        #expect(marked.flags.isDisjoint(with: hyperFlags))
+        let marked = change(rightControl, flags: rightControlHeld)
+        marked.setIntegerValueField(.eventSourceUserData, value: TapPipeline.syntheticMarker)
+        #expect(pipeline.process(.flagsChanged, marked) == .pass)
+        #expect(keyCode(marked) == Int64(rightControl) && marked.flags == rightControlHeld)
 
-        let rDown = key(r, down: true)
-        _ = pipeline.process(.keyDown, rDown)
-        #expect(rDown.flags.isDisjoint(with: hyperFlags), "a marked carrier does not hold hyper")
-
-        _ = pipeline.process(.keyDown, key(f18, down: true))
-        let markedR = key(r, down: true, marked: true)
+        let markedR = key(r, down: true, flags: rightControlHeld, marked: true)
         _ = pipeline.process(.keyDown, markedR)
-        #expect(markedR.flags.isDisjoint(with: hyperFlags), "marked keys get no overlay while hyper is held")
+        #expect(markedR.flags.rawValue & hyperFlags.rawValue == CGEventFlags.maskControl.rawValue, "no overlay")
     }
 
-    @Test mutating func resetForgetsHeldHyper() {
-        _ = pipeline.process(.keyDown, key(f18, down: true))
-        pipeline.reset()
-
-        let rDown = key(r, down: true)
-        _ = pipeline.process(.keyDown, rDown)
-        #expect(rDown.flags.isDisjoint(with: hyperFlags))
-
-        let lateUp = key(f18, down: false)
-        lateUp.flags = hyperFlags
-        #expect(pipeline.process(.keyUp, lateUp) == .pass)
-        #expect(lateUp.type == .flagsChanged && lateUp.flags.isDisjoint(with: hyperFlags), "a late key-up still clears")
-
-        let again = key(f18, down: true)
-        #expect(pipeline.process(.keyDown, again) == .pass, "hyper can be pressed again after a reset")
-        #expect(again.flags.isSuperset(of: hyperFlags))
-    }
-
-    @Test mutating func newRulesForgetHeldHyper() {
-        _ = pipeline.process(.keyDown, key(f18, down: true))
-        pipeline.replaceRules(Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac).tap)
-        let rDown = key(r, down: true)
-        _ = pipeline.process(.keyDown, rDown)
-        #expect(rDown.flags.isDisjoint(with: hyperFlags))
-    }
-
-    @Test mutating func withoutRulesF18IsAnOrdinaryKey() {
+    @Test mutating func withoutHyperRightControlIsItself() {
         pipeline.replaceRules(.empty)
-        let down = key(f18, down: true)
-        #expect(pipeline.process(.keyDown, down) == .pass)
-        #expect(down.type == .keyDown && keyCode(down) == Int64(f18))
-        #expect(down.flags.isDisjoint(with: hyperFlags))
+        let down = change(rightControl, flags: rightControlHeld)
+        #expect(pipeline.process(.flagsChanged, down) == .pass)
+        #expect(keyCode(down) == Int64(rightControl) && down.flags == rightControlHeld)
+
+        let rDown = key(r, down: true, flags: rightControlHeld)
+        #expect(pipeline.process(.keyDown, rDown) == .pass)
+        #expect(!rDown.flags.contains(.maskCommand))
     }
 
     @Test func theMouseReturnCarrierSendsItsShortcutOncePerPress() {
@@ -161,7 +144,7 @@ private func keyCode(_ event: CGEvent) -> Int64 { event.getIntegerValueField(.ke
     }
 
     @Test func theTapListensForKeysAndScrolls() {
-        for type in [CGEventType.keyDown, .keyUp, .scrollWheel] {
+        for type in [CGEventType.keyDown, .keyUp, .flagsChanged, .scrollWheel] {
             #expect(TapPipeline.mask & (1 << CGEventMask(type.rawValue)) != 0, "\(type.rawValue)")
         }
     }

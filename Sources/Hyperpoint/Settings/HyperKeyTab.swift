@@ -57,9 +57,9 @@ struct HyperKeyTab: View {
                 .disabled(!model.editable)
                 Divider()
                 FormRow(label: "How it works") {
-                    Text("Hyperpoint turns the key into F18 on the keyboards ticked above, then holds ⌃⌥⇧⌘ while you hold F18.")
+                    Text("Hyperpoint turns the key into Right Control on the keyboards ticked above, then holds ⌃⌥⇧⌘ while you hold it.")
                         .fixedSize(horizontal: false, vertical: true)
-                    Explanation("In password fields macOS keeps typing away from other apps, so the hyper key does nothing there.")
+                    Explanation("Right Control on any keyboard is the hyper key too. Hyper shortcuts work in password fields as well.")
                 }
             }
         }

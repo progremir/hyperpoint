@@ -102,10 +102,11 @@ A 0x1D4B notification with the reconfigure flag, a config save, a permission gra
 
 ### Call site 3. Caps Lock is held and R is pressed
 
-1. When a keyboard whose profile has `"hyper": true` appears, its slot sets `UserKeyMapping` on that keyboard's service only. Caps Lock (usage 0x39) becomes F18 (0x6D). The OS never sees Caps Lock, so there is no LED toggle and no caps delay.
-2. F18 key-down reaches the event tap on the tap thread. `CarrierStage` finds F18 in `TapRules.carriers` as `.holdModifiers(⌘⌃⌥⇧)` and rewrites the event in place into a `flagsChanged` event with ⌘⌃⌥⇧ set. The system's modifier state now shows hyper held.
-3. R key-down gets ⌘⌃⌥⇧ added to its flags.
-4. F18 key-up is rewritten in place into a `flagsChanged` event with the four modifiers cleared, so the system's modifier state goes back to normal. A tap timeout or a keyboard disappearing also clears the hyper state, so hyper can never stay stuck on.
+1. When a keyboard whose profile has `"hyper": true` appears, its slot sets `UserKeyMapping` on that keyboard's service only. Caps Lock (usage 0x39) becomes Right Control (0xE4). The OS never sees Caps Lock, so there is no LED toggle and no caps delay.
+2. Right Control's `flagsChanged` reaches the event tap on the tap thread. `TapRules.hyper` is set, so `CarrierStage` rewrites it in place into Left Command's change, with ⌘⌃⌥⇧ set and Right Control's side flag cleared. The system's modifier state now shows hyper held.
+3. R key-down carries Right Control's side flag, which the hardware puts on every key event while Right Control is held. The stage swaps it for ⌘⌃⌥⇧. The flag is the whole state, so a tap that missed the press still gives hyper, and nothing in the tap can stay stuck.
+4. Right Control's release passes with the hardware's flags, which no longer hold Control, so the system's modifier state goes back to normal.
+5. In secure input (a password field, a terminal's hidden prompt) the tap sees no keys, but macOS still matches hotkeys for keys held with ⌘ or ⌃, and only for those among character keys (measured). `CarrierHotkeys` checks every 100 ms and, while secure input is on, takes every key with Control as a Carbon hotkey. One that fires with Right Control's side flag in the system's flags goes on with ⌘⌃⌥⇧, posted from a fresh event source. One without it came with the other Control key: its hotkey is given back and the press is posted again as ⌃ alone, so ⌃C still reaches the prompt. Because of this, every Right Control is hyper, whichever keyboard it is on.
 
 The hyper prototype chose this strategy ([Appendix B](#appendix-b-prototype-results)).
 
@@ -168,7 +169,7 @@ This design is candidate B of a two-model architect arena, with grafts from cand
 | `HoldScrollPlan` | Page points per unit of the control's movement, signed for the direction, and the release glide, or nil without momentum. |
 | `HoldScrollEvent` | `.began(plan)`, `.moved(dx, dy)` in page points, `.ended`. What both recognizers send `HoldScrollAnimator`. |
 | `KeyRoute` | One remap, from a source usage to `.native(usage)` or `.carrier(Carrier, CarrierMeaning)`. The hidutil JSON and the tap's carrier rules both derive from the same `[KeyRoute]`. |
-| `Carrier` | A reserved F13 to F20 key. Hyper is F18. Each shortcut that a key rule clicks gets one carrier from the rest of the pool, in file order, so a device that connects or leaves never moves another device's carrier. A rule past the seventh shortcut is skipped. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
+| `Carrier` | A reserved F13 to F20 key. Each shortcut that a key rule clicks gets one carrier from the pool, in file order, so a device that connects or leaves never moves another device's carrier. A rule past the eighth shortcut is skipped. The pool is the only place these numbers exist, as a HID usage and a virtual key code side by side. |
 | `TapRules` | Carrier meanings, plus per-sender smooth scrolling and per-sender plain-button behaviors (`[ButtonKey: ControlBehavior]`, a sender id and a button number), keyed by the HID service ids of the devices whose profiles enable them. While a listen is armed, its id and the listened device's senders. |
 | `Listener` | The engine's one listen, which is idle, armed with an id, a device and a deadline, or ended with its reason. Every exit is a transition, and a report for a listen that already ended names nothing armed. |
 | `ListenPlan` | The compiled side of a listen. It names a press as a `Control`, through the carrier routes the listen cleared for a key pressed before the clear landed. |
@@ -341,7 +342,7 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 - We accept private API in three places (CGS symbolic hotkeys, `IOHIDEventGetSenderID`, and `CGEventSetHIDEvent` if v2 ever wants follow-the-finger swipes), in exchange for honouring the user's own Mission Control shortcuts and per-device pointer settings.
 - We accept spawning `/usr/bin/hidutil` on device appearance and config change, in exchange for a documented interface instead of private SPI.
 - We accept a read-only settings window while the file is invalid, in exchange for never overwriting a hand edit in progress.
-- We accept that a crash leaves diverted buttons dead and Caps Lock as F18 until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch. A crash while a button holds keys leaves them down until that key is pressed and released.
+- We accept that a crash leaves diverted buttons dead and Caps Lock as Right Control until relaunch, in exchange for no helper process. Launch at login plus a relaunch converges everything. A relaunch knows a key map is Hyperpoint's by its carriers and by a key mapped to Right Control, so a map with only modifier routes, such as Escape → Right Option alone, stays until the device reconnects if its rule is removed before the relaunch. A crash while a button holds keys leaves them down until that key is pressed and released.
 - We accept that an older app cannot read a newer file, in exchange for unknown keys being errors.
 
 ## Alternatives considered
@@ -355,7 +356,7 @@ The arena ran two runners on the same brief, one on Opus and one on Sonnet, and 
 
 Each of these is settled by a prototype before the code that depends on it, not by asking.
 
-1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock to F18 mapping, which needs Karabiner quit.
+1. **Hyper key against real apps.** The prototype proved the strategy with a Carbon hotkey, the mechanism global hotkey apps use. A check against the real Raycast hyper bindings comes when Hyperpoint first runs with the real Caps Lock mapping, which needs Karabiner quit.
 2. **The 2.4G mouse's sender id.** The MX and the trackpad attribute correctly. The 2.4G mouse's pointer interface owns event service 0x10005214e, which `DeviceHub` now records, but no pointer event has been logged with that sender id yet.
 3. **Device classification.** The MX reports keyboard as its primary usage, and the built-in keyboard also exposes a pointer. What decides whether a device appears as a mouse or a keyboard in the settings window? Today a device with a keyboard interface takes its kind from that interface (a keyboard unless the interface also has a pointer collection or the device is built in), and any other device is a mouse. Trackpads, the built-in one included, are not listed. So the 2.4G mouse, whose keys come from an interface of their own (measured), shows as a keyboard. Its pointer interface looks like a keyboard's mouse-keys interface, so the structure cannot tell them apart. A profile's `kind` overrides this, and the 2.4G preset sets it to mouse.
 4. **The 2.4G dongle's services.** Measured on 2026-10-25, see Appendix A. Its keys and its pointer are separate interfaces, each with one event service.
@@ -391,6 +392,9 @@ Measured on this Mac or sourced from Solaar, logiops, Mac Mouse Fix, LinearMouse
 | IOHIDManager ignores the `Built-In` matching key, and an unopened manager still delivers matching callbacks. | measured |
 | Seizing a keyboard device is refused by TCC even for root. | sourced |
 | Secure input disables keyboard event taps. | sourced |
+| In secure input a Carbon hotkey still fires for a key that types no character (space, arrows, F-keys) and for any key held with ⌘ or ⌃, posted or from another process. A character key with neither, such as T or ⌥⇧S, goes to the focused field. | measured |
+| A `CGEventSource` gives each new event the flags of the last event posted from it, modifiers and Fn alike. A fresh source gives a key its own defaults only, such as Fn on F-keys. | measured |
+| At a hotkey's press, `CGEventSource.flagsState(.hidSystemState)` holds the side flags of the key that fired it, so Right Control and Left Control can be told apart in secure input. | measured |
 | A listen-only event tap receives nothing without Input Monitoring. An active pass-through tap works with Accessibility alone. | measured |
 | After a BLE reconnect the MX's `AppleUserHIDEventService` is published after its IOHIDDevice matches, so a walk down from the device at match time finds no event service. A first-match notification for `IOHIDEventService` reports it, and its registry ancestors include the IOHIDDevice's service. | measured |
 | CG converts a one-line wheel event to 10 points. A pixel-unit scroll event is continuous, and setting one of its delta fields rewrites the others. | measured |

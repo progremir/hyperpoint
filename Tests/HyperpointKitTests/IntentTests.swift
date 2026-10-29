@@ -35,9 +35,9 @@ import Testing
         let setup = KeyMapSetup(routes: [.hyper(from: capsLock)])
         #expect(
             setup.userKeyMappingJSON
-                == #"{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x70000006D}]}"#
+                == #"{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x7000000E4}]}"#
         )
-        #expect(setup.pairs == [KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_006D)])
+        #expect(setup.pairs == [KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_00E4)])
     }
 
     @Test func neutralClearsTheWholeProperty() {
@@ -55,13 +55,17 @@ import Testing
 }
 
 @Suite struct RecoveredKeyMapTests {
+    let capsLockToRightControl = KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_00E4)
     let capsLockToF18 = KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_006D)
     let escapeToF13 = KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_0068)
     let escapeToRightOption = KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_00E6)
     let returnToF21 = KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0070)
 
-    @Test func aCarrierDestinationMakesTheMapOurs() {
-        #expect(KeyMapSetup.hyperpointLeftover(in: [capsLockToF18])?.carriesHyper == true)
+    @Test func hypersOrACarriersDestinationMakesTheMapOurs() {
+        #expect(KeyMapSetup.hyperpointLeftover(in: [capsLockToRightControl])?.carriesHyper == true)
+        #expect(
+            KeyMapSetup.hyperpointLeftover(in: [capsLockToF18])?.carriesHyper == false,
+            "hyper on F18, from before, is ours to rewrite")
         #expect(KeyMapSetup.hyperpointLeftover(in: [escapeToF13]) != nil, "every carrier in the pool counts")
         #expect(KeyMapSetup.hyperpointLeftover(in: [capsLockToF18, escapeToRightOption]) != nil)
     }
@@ -107,10 +111,11 @@ import Testing
 @Suite struct IntentTests {
     let hyperMap = KeyMapSetup(routes: [.hyper(from: capsLock)])
 
-    @Test func hyperKeyboardsMapCapsLockToTheHyperCarrier() {
+    @Test func hyperKeyboardsMapCapsLockToRightControl() {
         let intent = Intent.compile(.example, paused: false, tapAvailable: true, present: thisMac)
         #expect(thisMac.map { intent.setup(for: $0.id).keyMap } == [hyperMap, hyperMap, .neutral, .neutral])
-        #expect(intent.tap == TapRules(carriers: [Carrier.hyper.keyCode: .holdModifiers(.hyper)], smoothScroll: [:]))
+        #expect(hyperMap.pairs == [KeyMapSetup.Pair(source: 0x7_0000_0039, destination: 0x7_0000_00E4)])
+        #expect(intent.tap == TapRules(carriers: [:], hyper: true, smoothScroll: [:]))
     }
 
     @Test func pausedIsNeutralEverywhere() {
@@ -158,7 +163,7 @@ import Testing
         var config = Config.example
         config.hyper.key = HIDUsage(name: "grave")!
         let intent = Intent.compile(config, paused: false, tapAvailable: true, present: thisMac)
-        #expect(intent.setup(for: thisMac[1].id).keyMap.pairs == [.init(source: 0x7_0000_0035, destination: 0x7_0000_006D)])
+        #expect(intent.setup(for: thisMac[1].id).keyMap.pairs == [.init(source: 0x7_0000_0035, destination: 0x7_0000_00E4)])
     }
 
     @Test func theBuiltInKeyboardKeepsItsHyperKeyWhicheverInterfaceComesFirst() {
@@ -537,11 +542,8 @@ import Testing
                 KeyMapSetup.Pair(source: 0x7_0000_0029, destination: 0x7_0000_00E6),
                 KeyMapSetup.Pair(source: 0x7_0000_0028, destination: 0x7_0000_0068),
             ])
-        #expect(
-            intent.tap.carriers == [
-                Carrier.hyper.keyCode: CarrierMeaning.holdModifiers(.hyper), Carrier.f13.keyCode: .press(Self.optShiftS),
-            ],
-            "Right Option needs no tap rule")
+        #expect(intent.tap.carriers == [Carrier.f13.keyCode: .press(Self.optShiftS)], "Right Option needs no tap rule")
+        #expect(intent.tap.hyper)
     }
 
     @Test func theModifiersAreTheKeyboardPagesLastEight() {
@@ -581,7 +583,7 @@ import Testing
         #expect(alone.tap.carriers == [Carrier.f13.keyCode: .press(Self.optShiftS)])
     }
 
-    @Test func keyRulesShareACarrierPerActionAndNeverTakeHypers() {
+    @Test func keyRulesShareACarrierPerAction() {
         var config = Config.example
         let other = DeviceMatch(identifying: HIDProperties(bag: Bags.magicKeyboard))
         let clicks = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"].map {
@@ -598,9 +600,8 @@ import Testing
         #expect(routes.first == .hyper(from: capsLock))
         let carriers = routes.dropFirst().map(\.destination)
         #expect(carriers.first == Carrier.f13.usage, "the same action as the mouse's Return")
-        #expect(!carriers.contains(Carrier.hyper.usage), "F18 is hyper's alone")
         #expect(Set(carriers).count == carriers.count)
-        #expect(intent.skipped[magic.id] == [clicks[6], clicks[7]], "seven carriers, the first for opt+shift+s")
+        #expect(intent.skipped[magic.id] == [clicks[7]], "eight carriers, the first for opt+shift+s")
     }
 
     @Test func aKeyRuleOnTheHyperKeyIsSkipped() {
