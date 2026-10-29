@@ -9,7 +9,7 @@
 
 Hyperpoint is a small macOS menu-bar app that remaps mouse buttons, gestures and the scroll wheel, and turns Caps Lock
 into a hyper key. It's one app instead of a mouse app plus a keyboard remapper, so nothing fights over your keys, and
-it puts your setup back every time a device wakes or reconnects.
+each mouse and keyboard gets its own profile, set up by pressing the buttons you want to change.
 
 ## Features
 
@@ -31,7 +31,7 @@ it puts your setup back every time a device wakes or reconnects.
 - **Mice that send keys.** Some mice send keystrokes from their extra buttons. Those keys can become modifiers or
   shortcuts for that mouse alone. A modifier is mapped at the HID layer, so it holds in password fields too.
 - **Settings window and menu.** Every device Hyperpoint has seen, its rules and the scroll curve, with new devices
-  to set up or ignore. The menu shows each device's state, re-applies on demand and pauses everything.
+  to set up or ignore. The menu shows each device's state, switches the hyper key and pauses everything.
 
 ## Install
 

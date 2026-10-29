@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hyperpoint · The Logi Options+ alternative with a hyper key, for macOS</title>
-<meta name="description" content="Hyperpoint is a small macOS menu bar app that replaces Logi Options+ and adds a hyper key. Remap mouse buttons and gestures, make the scroll wheel glide and turn Caps Lock into ⌘⌃⌥⇧, with no second remapper to conflict with. Every setting goes back on when a device wakes or reconnects.">
+<meta name="description" content="Hyperpoint is a small macOS menu bar app that replaces Logi Options+ and adds a hyper key. Remap mouse buttons and gestures, make the scroll wheel glide and turn Caps Lock into ⌘⌃⌥⇧, with no second remapper to conflict with. Each mouse and keyboard gets its own profile, started from a preset.">
 <link rel="canonical" href="https://hyperpoint.progremir.dev/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://hyperpoint.progremir.dev/">
 <meta property="og:site_name" content="Hyperpoint">
 <meta property="og:title" content="Hyperpoint: replace Logi Options+, hyper key included">
-<meta property="og:description" content="Mouse buttons, gestures, smooth scrolling and a hyper key in one macOS app, so nothing conflicts, put back the moment a device wakes or reconnects.">
+<meta property="og:description" content="Mouse buttons, gestures, smooth scrolling and a hyper key in one macOS app, so nothing conflicts. Change a button by pressing it.">
 <meta property="og:image" content="https://hyperpoint.progremir.dev/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -37,7 +37,7 @@
   "softwareVersion": "0.1.1",
   "fileSize": "2.3 MB",
   "downloadUrl": "https://hyperpoint.progremir.dev/download",
-  "description": "A macOS menu bar app that replaces Logi Options+ and adds a hyper key: it remaps mouse buttons and gestures, makes the scroll wheel glide and turns Caps Lock into a hyper key, and puts every setting back when a device reconnects."
+  "description": "A macOS menu bar app that replaces Logi Options+ and adds a hyper key: it remaps mouse buttons and gestures, makes the scroll wheel glide and turns Caps Lock into a hyper key, with a profile for each mouse and keyboard."
 }
 </script>
 <script type="application/ld+json">
@@ -71,10 +71,10 @@
     },
     {
       "@type": "Question",
-      "name": "My Logitech mouse forgets its buttons after sleep. Does this fix it?",
+      "name": "Can a mouse button hold a key down?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again."
+        "text": "Yes. Pick Hold under When, and the button holds a modifier or a shortcut down for as long as you hold it. Hold Back as ⌘ and click to ⌘-click, or hold a button as Right Option for push-to-talk dictation."
       }
     },
     {
@@ -162,7 +162,7 @@
 </script>
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" class="sr-only" aria-hidden="true" focusable="false"><symbol id="i-mouse-simple" viewBox="0 0 256 256"><path d="M144,16H112A64.07,64.07,0,0,0,48,80v96a64.07,64.07,0,0,0,64,64h32a64.07,64.07,0,0,0,64-64V80A64.07,64.07,0,0,0,144,16Zm48,160a48.05,48.05,0,0,1-48,48H112a48.05,48.05,0,0,1-48-48V80a48.05,48.05,0,0,1,48-48h32a48.05,48.05,0,0,1,48,48ZM136,64v48a8,8,0,0,1-16,0V64a8,8,0,0,1,16,0Z"/></symbol><symbol id="i-command" viewBox="0 0 256 256"><path d="M180,144H160V112h20a36,36,0,1,0-36-36V96H112V76a36,36,0,1,0-36,36H96v32H76a36,36,0,1,0,36,36V160h32v20a36,36,0,1,0,36-36ZM160,76a20,20,0,1,1,20,20H160ZM56,76a20,20,0,0,1,40,0V96H76A20,20,0,0,1,56,76ZM96,180a20,20,0,1,1-20-20H96Zm16-68h32v32H112Zm68,88a20,20,0,0,1-20-20V160h20a20,20,0,0,1,0,40Z"/></symbol><symbol id="i-arrows-down-up" viewBox="0 0 256 256"><path d="M117.66,170.34a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L72,188.69V48a8,8,0,0,1,16,0V188.69l18.34-18.35A8,8,0,0,1,117.66,170.34Zm96-96-32-32a8,8,0,0,0-11.32,0l-32,32a8,8,0,0,0,11.32,11.32L168,67.31V208a8,8,0,0,0,16,0V67.31l18.34,18.35a8,8,0,0,0,11.32-11.32Z"/></symbol><symbol id="i-plugs-connected" viewBox="0 0 256 256"><path d="M237.66,18.34a8,8,0,0,0-11.32,0l-52.4,52.41-5.37-5.38a32.05,32.05,0,0,0-45.26,0L100,88.69l-6.34-6.35A8,8,0,0,0,82.34,93.66L88.69,100,65.37,123.31a32,32,0,0,0,0,45.26l5.38,5.37-52.41,52.4a8,8,0,0,0,11.32,11.32l52.4-52.41,5.37,5.38a32,32,0,0,0,45.26,0L156,167.31l6.34,6.35a8,8,0,0,0,11.32-11.32L167.31,156l23.32-23.31a32,32,0,0,0,0-45.26l-5.38-5.37,52.41-52.4A8,8,0,0,0,237.66,18.34Zm-116.29,161a16,16,0,0,1-22.62,0L76.69,157.25a16,16,0,0,1,0-22.62L100,111.31,144.69,156Zm57.94-57.94L156,144.69,111.31,100l23.32-23.31a16,16,0,0,1,22.62,0l22.06,22A16,16,0,0,1,179.31,121.37ZM88.57,35A8,8,0,0,1,103.43,29l8,20A8,8,0,0,1,96.57,55ZM24.57,93A8,8,0,0,1,35,88.57l20,8A8,8,0,0,1,49,111.43l-20-8A8,8,0,0,1,24.57,93ZM231.43,163a8,8,0,0,1-10.4,4.46l-20-8A8,8,0,1,1,207,144.57l20,8A8,8,0,0,1,231.43,163Zm-64,58.06A8,8,0,0,1,152.57,227l-8-20A8,8,0,0,1,159.43,201Z"/></symbol><symbol id="i-download-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></symbol><symbol id="i-shield-check" viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></symbol><symbol id="i-file-code" viewBox="0 0 256 256"><path d="M181.66,146.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L164.69,152l-18.35-18.34a8,8,0,0,1,11.32-11.32Zm-72-24a8,8,0,0,0-11.32,0l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L91.31,152l18.35-18.34A8,8,0,0,0,109.66,122.34ZM216,88V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31Zm40,136V96H152a8,8,0,0,1-8-8V40H56V216H200Z"/></symbol><symbol id="i-arrow-clockwise" viewBox="0 0 256 256"><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/></symbol><symbol id="i-hand-grabbing" viewBox="0 0 256 256"><path d="M188,80a27.79,27.79,0,0,0-13.36,3.4,28,28,0,0,0-46.64-11A28,28,0,0,0,80,92v20H68a28,28,0,0,0-28,28v12a88,88,0,0,0,176,0V108A28,28,0,0,0,188,80Zm12,72a72,72,0,0,1-144,0V140a12,12,0,0,1,12-12H80v24a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V108a12,12,0,0,1,24,0Z"/></symbol><symbol id="i-keyboard" viewBox="0 0 256 256"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224V192Zm-16-64a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,128Zm0-32a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,96ZM72,160a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16h8A8,8,0,0,1,72,160Zm96,0a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,160Zm40,0a8,8,0,0,1-8,8h-8a8,8,0,0,1,0-16h8A8,8,0,0,1,208,160Z"/></symbol><symbol id="i-pause" viewBox="0 0 256 256"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol><symbol id="i-lock-key" viewBox="0 0 256 256"><path d="M128,112a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Zm80-72H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></symbol><symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol><symbol id="i-check" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></symbol><symbol id="i-github-logo" viewBox="0 0 256 256"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></symbol><symbol id="i-power" viewBox="0 0 256 256"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></symbol><symbol id="i-cursor-click" viewBox="0 0 256 256"><path d="M88,24V16a8,8,0,0,1,16,0v8a8,8,0,0,1-16,0ZM16,104h8a8,8,0,0,0,0-16H16a8,8,0,0,0,0,16ZM124.42,39.16a8,8,0,0,0,10.74-3.58l8-16a8,8,0,0,0-14.31-7.16l-8,16A8,8,0,0,0,124.42,39.16Zm-96,81.69-16,8a8,8,0,0,0,7.16,14.31l16-8a8,8,0,1,0-7.16-14.31ZM219.31,184a16,16,0,0,1,0,22.63l-12.68,12.68a16,16,0,0,1-22.63,0L132.7,168,115,214.09c0,.1-.08.21-.13.32a15.83,15.83,0,0,1-14.6,9.59l-.79,0a15.83,15.83,0,0,1-14.41-11L32.8,52.92A16,16,0,0,1,52.92,32.8L213,85.07a16,16,0,0,1,1.41,29.8l-.32.13L168,132.69ZM208,195.31,156.69,144h0a16,16,0,0,1,4.93-26l.32-.14,45.95-17.64L48,48l52.2,159.86,17.65-46c0-.11.08-.22.13-.33a16,16,0,0,1,11.69-9.34,16.72,16.72,0,0,1,3-.28,16,16,0,0,1,11.3,4.69L195.31,208Z"/></symbol></svg>
+<svg xmlns="http://www.w3.org/2000/svg" class="sr-only" aria-hidden="true" focusable="false"><symbol id="i-mouse-simple" viewBox="0 0 256 256"><path d="M144,16H112A64.07,64.07,0,0,0,48,80v96a64.07,64.07,0,0,0,64,64h32a64.07,64.07,0,0,0,64-64V80A64.07,64.07,0,0,0,144,16Zm48,160a48.05,48.05,0,0,1-48,48H112a48.05,48.05,0,0,1-48-48V80a48.05,48.05,0,0,1,48-48h32a48.05,48.05,0,0,1,48,48ZM136,64v48a8,8,0,0,1-16,0V64a8,8,0,0,1,16,0Z"/></symbol><symbol id="i-command" viewBox="0 0 256 256"><path d="M180,144H160V112h20a36,36,0,1,0-36-36V96H112V76a36,36,0,1,0-36,36H96v32H76a36,36,0,1,0,36,36V160h32v20a36,36,0,1,0,36-36ZM160,76a20,20,0,1,1,20,20H160ZM56,76a20,20,0,0,1,40,0V96H76A20,20,0,0,1,56,76ZM96,180a20,20,0,1,1-20-20H96Zm16-68h32v32H112Zm68,88a20,20,0,0,1-20-20V160h20a20,20,0,0,1,0,40Z"/></symbol><symbol id="i-arrows-down-up" viewBox="0 0 256 256"><path d="M117.66,170.34a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L72,188.69V48a8,8,0,0,1,16,0V188.69l18.34-18.35A8,8,0,0,1,117.66,170.34Zm96-96-32-32a8,8,0,0,0-11.32,0l-32,32a8,8,0,0,0,11.32,11.32L168,67.31V208a8,8,0,0,0,16,0V67.31l18.34,18.35a8,8,0,0,0,11.32-11.32Z"/></symbol><symbol id="i-download-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></symbol><symbol id="i-shield-check" viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></symbol><symbol id="i-file-code" viewBox="0 0 256 256"><path d="M181.66,146.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L164.69,152l-18.35-18.34a8,8,0,0,1,11.32-11.32Zm-72-24a8,8,0,0,0-11.32,0l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L91.31,152l18.35-18.34A8,8,0,0,0,109.66,122.34ZM216,88V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31Zm40,136V96H152a8,8,0,0,1-8-8V40H56V216H200Z"/></symbol><symbol id="i-arrow-clockwise" viewBox="0 0 256 256"><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/></symbol><symbol id="i-hand-grabbing" viewBox="0 0 256 256"><path d="M188,80a27.79,27.79,0,0,0-13.36,3.4,28,28,0,0,0-46.64-11A28,28,0,0,0,80,92v20H68a28,28,0,0,0-28,28v12a88,88,0,0,0,176,0V108A28,28,0,0,0,188,80Zm12,72a72,72,0,0,1-144,0V140a12,12,0,0,1,12-12H80v24a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V108a12,12,0,0,1,24,0Z"/></symbol><symbol id="i-keyboard" viewBox="0 0 256 256"><path d="M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224V192Zm-16-64a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,128Zm0-32a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16H200A8,8,0,0,1,208,96ZM72,160a8,8,0,0,1-8,8H56a8,8,0,0,1,0-16h8A8,8,0,0,1,72,160Zm96,0a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,160Zm40,0a8,8,0,0,1-8,8h-8a8,8,0,0,1,0-16h8A8,8,0,0,1,208,160Z"/></symbol><symbol id="i-pause" viewBox="0 0 256 256"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol><symbol id="i-lock-key" viewBox="0 0 256 256"><path d="M128,112a28,28,0,0,0-8,54.83V184a8,8,0,0,0,16,0V166.83A28,28,0,0,0,128,112Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,128,152Zm80-72H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></symbol><symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol><symbol id="i-check" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></symbol><symbol id="i-github-logo" viewBox="0 0 256 256"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></symbol><symbol id="i-power" viewBox="0 0 256 256"><path d="M120,128V48a8,8,0,0,1,16,0v80a8,8,0,0,1-16,0Zm60.37-78.7a8,8,0,0,0-8.74,13.4C194.74,77.77,208,101.57,208,128a80,80,0,0,1-160,0c0-26.43,13.26-50.23,36.37-65.3a8,8,0,0,0-8.74-13.4C47.9,67.38,32,96.06,32,128a96,96,0,0,0,192,0C224,96.06,208.1,67.38,180.37,49.3Z"/></symbol><symbol id="i-cursor-click" viewBox="0 0 256 256"><path d="M88,24V16a8,8,0,0,1,16,0v8a8,8,0,0,1-16,0ZM16,104h8a8,8,0,0,0,0-16H16a8,8,0,0,0,0,16ZM124.42,39.16a8,8,0,0,0,10.74-3.58l8-16a8,8,0,0,0-14.31-7.16l-8,16A8,8,0,0,0,124.42,39.16Zm-96,81.69-16,8a8,8,0,0,0,7.16,14.31l16-8a8,8,0,1,0-7.16-14.31ZM219.31,184a16,16,0,0,1,0,22.63l-12.68,12.68a16,16,0,0,1-22.63,0L132.7,168,115,214.09c0,.1-.08.21-.13.32a15.83,15.83,0,0,1-14.6,9.59l-.79,0a15.83,15.83,0,0,1-14.41-11L32.8,52.92A16,16,0,0,1,52.92,32.8L213,85.07a16,16,0,0,1,1.41,29.8l-.32.13L168,132.69ZM208,195.31,156.69,144h0a16,16,0,0,1,4.93-26l.32-.14,45.95-17.64L48,48l52.2,159.86,17.65-46c0-.11.08-.22.13-.33a16,16,0,0,1,11.69-9.34,16.72,16.72,0,0,1,3-.28,16,16,0,0,1,11.3,4.69L195.31,208Z"/></symbol></svg>
 <a class="skip" href="#main">Skip to content</a>
 
 <nav class="nav" aria-label="Main">
@@ -202,7 +202,7 @@
     <div class="wrap hero-grid">
       <div class="hero-copy">
         <h1 class="reveal">Replace Logi&nbsp;Options+.<br>Hyper key included.</h1>
-        <p class="sub reveal" style="--rd: 80ms">Hyperpoint remaps your mouse's buttons, gestures and wheel and turns Caps Lock into ⌘⌃⌥⇧, in one small menu bar app. No second remapper to clash with, no account, and every setting goes back on the moment a device wakes or reconnects.</p>
+        <p class="sub reveal" style="--rd: 80ms">Hyperpoint remaps your mouse's buttons, gestures and wheel and turns Caps Lock into ⌘⌃⌥⇧, in one small menu bar app. No second remapper to clash with, no account, and a profile for every mouse and keyboard you use.</p>
         <a class="btn btn-primary btn-lg reveal" style="--rd: 160ms" href="/download">
           <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
         </a>
@@ -215,7 +215,7 @@
         </p>
       </div>
 
-      <figure class="desk" data-intro role="img" aria-label="The Hyperpoint menu open in the macOS menu bar. It reads Active, lists MX Master 3 and 2.4G Mouse as connected, Built-in Keyboard and Magic Keyboard with the hyper key on, and notes that MX Master 3 reconnected at 9:41 and its settings were applied again.">
+      <figure class="desk" data-intro role="img" aria-label="The Hyperpoint menu open in the macOS menu bar. It reads Active, lists MX Master 3 and 2.4G Mouse as connected, and Built-in Keyboard and Magic Keyboard with the hyper key on.">
         <div class="menubar" aria-hidden="true">
           <div class="menubar-apps"><b class="mi">Finder</b><span class="mi">File</span><span class="mi">Edit</span><span class="mi">View</span><span class="mi">Go</span></div>
           <div class="menubar-right">
@@ -234,10 +234,9 @@
             <div class="m-row mi"><span></span><span class="l">2.4G Mouse</span><span class="r">Connected</span></div>
             <div class="m-row mi"><span></span><span class="l">Built-in Keyboard</span><span class="r">Hyper key on</span></div>
             <div class="m-row mi"><span></span><span class="l">Magic Keyboard</span><span class="r">Hyper key on</span></div>
-            <div class="m-note mi">MX Master 3 reconnected at 9:41. Settings re‑applied.</div>
             <div class="m-sep mi"></div>
-            <div class="m-row hl mi"><span></span><span class="l">Re‑apply Settings Now</span><span class="k">⌘R</span></div>
-            <div class="m-row mi"><span class="m-check">✓</span><span class="l">Hyper Key</span><span></span></div>
+            <div class="m-row mi"><span></span><span class="l">Re‑apply Settings Now</span><span class="k">⌘R</span></div>
+            <div class="m-row hl mi"><span class="m-check">✓</span><span class="l">Hyper Key</span><span></span></div>
             <div class="m-row mi"><span></span><span class="l">Pause Hyperpoint</span><span></span></div>
             <div class="m-sep mi"></div>
             <div class="m-row mi"><span></span><span class="l">Settings…</span><span class="k">⌘,</span></div>
@@ -255,14 +254,14 @@
     <div class="wrap">
       <div class="head">
         <p class="eyebrow reveal">Why it exists</p>
-        <h2 class="h2 reveal" id="why-title">Two apps fighting over one desk, and a mouse that forgets</h2>
+        <h2 class="h2 reveal" id="why-title">Two apps fighting over one desk</h2>
       </div>
       <div class="versus">
         <div class="vs-col before reveal">
           <h3><i class="led" aria-hidden="true"></i>Before</h3>
           <ul>
             <li><svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg><span>Logi Options+ for the mouse, a remapper for Caps Lock. Both grab your input, each with its own settings and permissions, and they can step on each other's keys.</span></li>
-            <li><svg class="icon" aria-hidden="true"><use href="#i-plugs-connected"/></svg><span>A mouse's custom buttons last only until it sleeps or reconnects. Miss the reconnect, and they go back to doing nothing.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-cursor-click"/></svg><span>Logi Options+ sets up only Logitech mice. A mouse from another brand needs a tool of its own, or goes without.</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-file-code"/></svg><span>A typo in a settings file can quietly turn a rule off, and nothing tells you.</span></li>
           </ul>
         </div>
@@ -270,7 +269,7 @@
           <h3><i class="led" aria-hidden="true"></i>With Hyperpoint</h3>
           <ul>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>One menu bar app and one file, <code>~/.config/hyperpoint/config.json</code>, for every mouse and keyboard you use. Nothing else to conflict with.</span></li>
-            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>On every connect Hyperpoint writes the whole setup back to the device, and the menu shows when it did.</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>Any mouse or keyboard Hyperpoint sees gets its own profile, started from a preset for its model or from another device's.</span></li>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>A file with a mistake is rejected whole, with the path of the error, and the last good settings keep running.</span></li>
           </ul>
         </div>
@@ -281,7 +280,7 @@
   <!-- Tagline reveal -->
   <section class="section tagline" aria-label="What Hyperpoint does">
     <div class="wrap">
-      <p data-words>Press the button<br>you want to change.<br>Hyperpoint makes the rule<br>and keeps it through<br><span class="g">every sleep and reconnect.</span></p>
+      <p data-words>Press the button<br>you want to change.<br>Hyperpoint makes the rule.<br>You choose<br><span class="g">what it does.</span></p>
     </div>
   </section>
 
@@ -295,28 +294,26 @@
       </div>
 
       <div class="bento" data-intro>
-        <article class="card span-7" data-story="reconnect">
+        <article class="card span-7" data-story="profiles">
           <div class="vis">
             <div class="panel">
               <div class="dev-head up" style="--i: 0">
                 <svg class="icon" aria-hidden="true"><use href="#i-mouse-simple"/></svg>
                 <span class="name">MX Master 3</span>
-                <span class="state" data-s="on"><i class="dot"></i><span class="state-text">Connected</span></span>
+                <span class="pager" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
               </div>
-              <ul class="applied">
-                <li class="up" style="--i: 1"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Gesture button</span><span class="det">Mission Control</span></li>
-                <li class="up" style="--i: 2"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Top button</span><span class="det">⇧⌘4</span></li>
-                <li class="up" style="--i: 3"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Thumb wheel</span><span class="det">Reversed</span></li>
-                <li class="up" style="--i: 4"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Smooth scrolling</span><span class="det">On</span></li>
-                <li class="up" style="--i: 5"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Right button</span><span class="det">Hold to scroll</span></li>
+              <ul class="applied profile up" style="--i: 1">
+                <li style="--k: 0"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Gesture button</span><span class="det">Mission Control</span></li>
+                <li style="--k: 1"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Top button</span><span class="det">⇧⌘4</span></li>
+                <li style="--k: 2"><svg class="icon icon-sm chk" aria-hidden="true"><use href="#i-check"/></svg><span class="lbl">Thumb wheel</span><span class="det">Reversed</span></li>
               </ul>
-              <div class="rule up" style="--i: 6"></div>
-              <p class="foot up" style="--i: 6">Reconnected at <time>9:41</time>. Every setting written back.</p>
+              <div class="rule up" style="--i: 2"></div>
+              <p class="foot up" style="--i: 2"><span class="src">Set up from the <b>MX Master 3 preset</b>.</span></p>
             </div>
           </div>
           <div class="copy">
-            <h3 class="up" style="--i: 7">Settings that survive sleep</h3>
-            <p class="up" style="--i: 8">When a mouse wakes or reconnects, Hyperpoint writes every setting back: its buttons and gestures, the thumb wheel, smooth scrolling and the hyper key. The menu shows when it last did.</p>
+            <h3 class="up" style="--i: 3">A profile for every device</h3>
+            <p class="up" style="--i: 4">Each mouse and keyboard keeps its own buttons, scrolling and hyper key. Start one from a preset for its model, copy another device's profile or start empty.</p>
           </div>
         </article>
 
@@ -421,7 +418,7 @@
         <li class="reveal" style="--rd: 200ms">
           <svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg>
           <h3>Pause from the menu bar</h3>
-          <p>See each device's state, apply settings again, pause everything or open the config file, all from one menu.</p>
+          <p>See each device's state, switch the hyper key, pause everything or open the config file, all from one menu.</p>
         </li>
       </ul>
     </div>
@@ -448,7 +445,7 @@
         <li class="step reveal" style="--rd: 200ms">
           <span class="step-n" aria-hidden="true">3</span>
           <h3>Press a button to add a rule</h3>
-          <p>Click <strong>Add Rule</strong>, press the button on your mouse and choose what it does. From then on, Hyperpoint keeps it in place through every sleep, wake and reconnect.</p>
+          <p>Click <strong>Add Rule</strong>, press the button on your mouse and choose what it does. The rule works the moment you pick it.</p>
         </li>
       </ol>
     </div>
@@ -527,8 +524,8 @@
           <div class="a"><p>Any keyboard or mouse Hyperpoint sees shows up under Devices. Logitech mice that speak HID++ get their gesture button, extra buttons and thumb wheel too. Other mice get their plain buttons and any keys they send. Trackpads stay as macOS has them.</p></div>
         </details>
         <details class="reveal">
-          <summary>My Logitech mouse forgets its buttons after sleep. Does this fix it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
-          <div class="a"><p>That is the problem Hyperpoint was built for. On every wake and reconnect it writes the full setup back to the mouse, and the menu shows when the mouse reconnected and that its settings were applied again.</p></div>
+          <summary>Can a mouse button hold a key down?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+          <div class="a"><p>Yes. Pick <strong>Hold</strong> under <strong>When</strong>, and the button holds a modifier or a shortcut down for as long as you hold it. Hold Back as ⌘ and click to ⌘-click, or hold a button as Right Option for push-to-talk dictation.</p></div>
         </details>
         <details class="reveal">
           <summary>Do I still need Logi Options+?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary>
@@ -579,7 +576,7 @@
     <div class="wrap">
       <div class="cta reveal">
         <div class="cta-copy">
-          <h2 id="cta-title">Set it up once.<br>Keep it through<br>every reconnect.</h2>
+          <h2 id="cta-title">One app for<br>your mouse<br>and your keys.</h2>
           <p class="lead">A fresh install changes nothing until you set up a device, and quitting puts your keys back. Try it on the mouse you already have.</p>
           <a class="btn btn-primary btn-lg" href="/download">
             <svg class="icon" aria-hidden="true"><use href="#i-download-simple"/></svg>Download for Mac
