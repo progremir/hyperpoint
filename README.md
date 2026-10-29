@@ -59,9 +59,13 @@ scripts/bundle.sh
 This builds a release, signs it and installs `~/Applications/Hyperpoint.app`. It signs with a stable identity
 (`SIGN_IDENTITY`, an Apple Development certificate by default) and refuses an ad-hoc signature, because macOS ties the
 Accessibility and Input Monitoring grants to the signature, and an ad-hoc one would reset them on every build.
+A build from source has no update feed and no **Check for Updates…**: a release would replace its signature with
+Developer ID, which macOS treats as a different app, so the grants would stop working.
 
 On first launch, grant Hyperpoint **Accessibility** and **Input Monitoring** in System Settings › Privacy & Security.
-Until then the menu shows *Needs attention* and nothing is applied.
+Until then the menu shows *Needs attention* and nothing is applied. **Allow…** in Settings › General, or the notice in
+the menu, opens the right pane with a small panel under it holding Hyperpoint's icon: drag it into the list to add
+the app, which also works when the list has no entry for it.
 
 ## Set up a device
 

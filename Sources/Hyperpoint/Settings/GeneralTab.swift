@@ -62,10 +62,14 @@ struct GeneralTab: View {
             }
         }
         FormRow(label: "Accessibility", detail: "Lets the hyper key and smooth scrolling change keys and scrolls as they happen.") {
-            PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) }
+            PermissionStatus(grant: permissions.accessibility) { model.requestPermission(.accessibility) } show: {
+                model.showPermission(.accessibility)
+            }
         }
         FormRow(label: "Input Monitoring", detail: "Lets Hyperpoint set up the buttons on Logitech mice.") {
-            PermissionStatus(grant: permissions.inputMonitoring) { model.requestPermission(.inputMonitoring) }
+            PermissionStatus(grant: permissions.inputMonitoring) { model.requestPermission(.inputMonitoring) } show: {
+                model.showPermission(.inputMonitoring)
+            }
         }
     }
 
@@ -130,13 +134,18 @@ private struct UpdatesRow: View {
     }
 }
 
+/// A granted permission keeps a way into its System Settings list, where it can be checked or removed.
 private struct PermissionStatus: View {
     let grant: PermissionState.Grant
     let allow: () -> Void
+    let show: () -> Void
 
     var body: some View {
         if grant == .granted {
-            Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            HStack {
+                Label("Granted", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Button("Show in System Settings", action: show)
+            }
         } else {
             HStack {
                 Text(grant == .denied ? "Not allowed" : "Not asked yet").foregroundStyle(.orange)
