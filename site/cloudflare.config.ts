@@ -1,7 +1,7 @@
 import { bindings, defineConfig } from "cf/config";
 
 // wrangler.config.ts names public/ as the assets. src/index.ts runs only for /download, which serves release DMGs
-// from R2.
+// from R2, and for /appcast.xml, the Sparkle feed beside them.
 export default defineConfig({
   accountId: "dd1171d285218486ca1fb1fcec2a759c",
   worker: {
@@ -15,7 +15,7 @@ export default defineConfig({
     assets: {
       htmlHandling: "auto-trailing-slash",
       notFoundHandling: "404-page",
-      runWorkerFirst: ["/download", "/download/*"],
+      runWorkerFirst: ["/download", "/download/*", "/appcast.xml"],
     },
     env: {
       ASSETS: bindings.assets(),

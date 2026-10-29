@@ -1,12 +1,13 @@
 // Serves the release DMGs that scripts/release.sh uploads to the hyperpoint-releases R2 bucket, so downloading needs
 // no access to the private repository. /download redirects to the release the bucket's `latest` object names, so the
-// saved file carries its version. The Worker runs only for /download paths; everything else is a static asset.
+// saved file carries its version. /appcast.xml is the Sparkle feed installed copies read to update themselves, and
+// its enclosures point back at /download. The Worker runs only for those paths; everything else is a static asset.
 interface Env {
   ASSETS: Fetcher;
   RELEASES: R2Bucket;
 }
 
-// Only release files are served; `latest` and anything else in the bucket stay private.
+// Only release files and the appcast are served; `latest` and anything else in the bucket stay private.
 const RELEASE_FILE = /^Hyperpoint-[0-9A-Za-z.-]+\.dmg(\.sha256)?$/;
 
 export default {
@@ -14,7 +15,18 @@ export default {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
     }
-    const key = new URL(request.url).pathname.replace(/^\/download\/?/, "");
+    const path = new URL(request.url).pathname;
+    if (path === "/appcast.xml") {
+      const appcast = await env.RELEASES.get("appcast.xml");
+      if (appcast === null) return env.ASSETS.fetch(request);
+      const headers = new Headers();
+      appcast.writeHttpMetadata(headers);
+      headers.set("ETag", appcast.httpEtag);
+      // Each release rewrites it, so it is never served from a cache without asking.
+      headers.set("Cache-Control", "no-cache");
+      return new Response(appcast.body, { headers });
+    }
+    const key = path.replace(/^\/download\/?/, "");
     if (key === "") {
       const latest = await env.RELEASES.get("latest");
       if (latest === null) return env.ASSETS.fetch(request);
