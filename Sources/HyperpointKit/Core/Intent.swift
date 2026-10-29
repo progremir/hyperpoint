@@ -88,7 +88,7 @@ struct Intent: Equatable, Sendable {
     /// another device's. Rules past the last carrier get none.
     private static func clickCarriers(_ config: Config) -> [Action: Carrier] {
         var carriers: [Action: Carrier] = [:]
-        var free = Carrier.forKeyRules[...]
+        var free = Carrier.pool[...]
         for rule in config.devices.flatMap({ $0.rules ?? [] }) {
             guard case .key = rule.control, rule.trigger == .click, carriers[rule.action] == nil,
                 let carrier = free.popFirst()

@@ -99,6 +99,8 @@ build_helpers() {
     swiftc -swift-version 5 -O -o "$BIN/set-up" "$SKILL_DIR/helpers/set-up.swift"
   [[ "$BIN/menu" -nt "$SKILL_DIR/helpers/menu.swift" ]] ||
     swiftc -swift-version 5 -O -o "$BIN/menu" "$SKILL_DIR/helpers/menu.swift"
+  [[ "$BIN/secure-input" -nt "$SKILL_DIR/helpers/secure-input.swift" ]] ||
+    swiftc -swift-version 5 -O -o "$BIN/secure-input" "$SKILL_DIR/helpers/secure-input.swift"
   if [[ ! "$PROBE_APP/Contents/MacOS/HyperpointProbe" -nt "$SKILL_DIR/helpers/probe.swift" ]]; then
     swiftc -swift-version 5 -O -framework IOKit -o "$BIN/HyperpointProbe" "$SKILL_DIR/helpers/probe.swift"
     mkdir -p "$PROBE_APP/Contents/MacOS"
@@ -124,7 +126,7 @@ probe() {
 }
 
 case ${1:-help} in
-  build|launch|quit|restore|hyper-check|record|settings-shots|settings-switches|set-up|menu) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
+  build|launch|quit|restore|hyper-check|hyper-letters|record|settings-shots|settings-switches|set-up|menu) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
 esac
 
 case ${1:-help} in
@@ -179,13 +181,29 @@ case ${1:-help} in
     ;;
   hyper-check)
     build_helpers
-    local_runs=${2:-8}; fired=0; stuck=0
+    local_runs=${2:-8}; fired=0; stuck=0; mode=${3:-plain}; secure_pid=
+    if [[ $mode == secure ]]; then
+      "$BIN/secure-input" 120 > "$EVIDENCE/secure-input.txt" & secure_pid=$!
+      trap '[[ -z $secure_pid ]] || kill $secure_pid 2>/dev/null || true' EXIT
+      sleep 0.5
+    fi
     for i in $(seq "$local_runs"); do
-      probe none "$EVIDENCE/hyper-run-$i.txt" || exit $?
-      grep -q 'carbonHotkeyFired=1' "$EVIDENCE/hyper-run-$i.txt" && fired=$((fired + 1))
-      grep -q 'modifiersStuckAfter=true' "$EVIDENCE/hyper-run-$i.txt" && stuck=$((stuck + 1))
+      probe none "$EVIDENCE/hyper-$mode-run-$i.txt" || exit $?
+      grep -q 'carbonHotkeyFired=1' "$EVIDENCE/hyper-$mode-run-$i.txt" && fired=$((fired + 1))
+      grep -q 'modifiersStuckAfter=true' "$EVIDENCE/hyper-$mode-run-$i.txt" && stuck=$((stuck + 1))
     done
-    echo "hyper hotkey fired $fired/$local_runs, modifiers stuck after $stuck/$local_runs" | tee "$EVIDENCE/hyper-check.txt"
+    if [[ -n $secure_pid ]]; then kill $secure_pid; wait $secure_pid 2>/dev/null || true; secure_pid=; fi
+    echo "hyper hotkey ($mode) fired $fired/$local_runs, modifiers stuck after $stuck/$local_runs" |
+      tee "$EVIDENCE/hyper-check-$mode.txt"
+    ;;
+  hyper-letters)
+    build_helpers
+    mode=letters${2:+-$2}
+    probe "$mode" "$EVIDENCE/hyper-$mode.txt" || exit $?
+    /usr/bin/log show --last 1m --style compact \
+      --predicate 'subsystem == "dev.emir.hyperpoint" AND category == "keys"' > "$EVIDENCE/hyper-$mode-log.txt" 2>&1 || true
+    grep -E '^(PASS|FAIL)|secure input on' "$EVIDENCE/hyper-$mode.txt"
+    ! grep -q '^FAIL' "$EVIDENCE/hyper-$mode.txt"
     ;;
   record)
     build_helpers
@@ -253,7 +271,10 @@ verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VER
   restore            quit Hyperpoint Dev and open the release, ~/Applications/Hyperpoint.app, again
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
-  hyper-check [8]    post F18 + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires
+  hyper-check [8] [secure]
+                     post Right Control + F16 N times, count ⌘⌃⌥⇧F16 Carbon hotkey fires; secure holds secure input meanwhile
+  hyper-letters [secure]
+                     hyper with T and space reach ⌘⌃⌥⇧ hotkeys and type nothing, Left Control T reaches the window as itself
   record <mode>      posted | wheel | senders | hold | keys[-seconds] | held[-seconds], needs the user to use the mouse
   settings-shots     relaunch with -snapshotSettings, PNG per tab in light and dark, window heights
   replay [wheel.txt[:more.txt]] ["duration=2 duration=3,easeIn=30"]

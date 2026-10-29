@@ -21,7 +21,7 @@ Hyperpoint drives shared hardware: the user's keyboards, their mouse and the sys
 Builds from source are a separate app, **Hyperpoint Dev** (`dev.emir.hyperpoint.dev`, `~/Applications/Hyperpoint Dev.app`), so they never replace the release the user runs day to day, `~/Applications/Hyperpoint.app` (`dev.emir.hyperpoint`, Developer ID, updated by Sparkle). Hyperpoint Dev has no update feed, so it never offers or installs an update. Opening Hyperpoint Dev quits the release and waits for it to put the devices back; `verify.sh restore` hands them back to the release at the end. Releases up to 0.3.1 do not yet quit Hyperpoint Dev when opened, so never open the release by hand while Hyperpoint Dev runs: use `restore`. Tell the user before you launch, since their release stops for the run.
 
 Every worktree's sessions share the one Hyperpoint Dev install, so a run holds the **verify lock**. `build`, `launch`, `quit`, `restore`,
-`hyper-check`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
+`hyper-check`, `hyper-letters`, `record`, `settings-*`, `set-up` and `menu` take it for this worktree and refresh it. When another worktree holds it they
 wait up to 60 s (`HYPERPOINT_LOCK_WAIT`), then exit 3 without touching anything. To queue for it, run
 `verify.sh lock` in the background: it waits up to 30 minutes and returns once this worktree holds the lock. Release it
 with `verify.sh unlock` at the end of the run. A lock idle for 20 minutes (`HYPERPOINT_LOCK_STALE`) is taken over by
@@ -55,7 +55,8 @@ Drive only when the pid exists, the binary is newer than the commit under test, 
 | Command | What it does | Needs |
 | --- | --- | --- |
 | `verify.sh state` | `hidutil` key maps for the built-in and Magic keyboards and both 2.4G mouse services, and read-only HID++ state of the MX (`helpers/hidpp-state.swift`, get requests only) | the MX connected; this shell able to open the device |
-| `verify.sh hyper-check [n]` | posts F18 then F16 at the HID tap n times; counts ⌘⌃⌥⇧F16 Carbon hotkey fires and modifier state left held | `HyperpointProbe.app` with Accessibility |
+| `verify.sh hyper-check [n] [secure]` | posts Right Control (hyper's key as a hyper keyboard sends it) then F16 at the HID tap n times; counts ⌘⌃⌥⇧F16 Carbon hotkey fires and modifier state left held. `secure` holds secure input meanwhile (`helpers/secure-input.swift`), as a terminal's hidden prompt does, so the tap sees no keys | `HyperpointProbe.app` with Accessibility |
+| `verify.sh hyper-letters [secure]` | brings the probe's own window forward (with Accessibility when macOS will not) and posts Right Control with the backtick, then Left Control with it. Hyper must reach a ⌘⌃⌥⇧ hotkey and type nothing; Left Control must reach the window as ⌃. `secure` holds secure input in that window. It posts nothing unless its window has the keyboard | `HyperpointProbe.app` with Accessibility |
 | `verify.sh record posted` | 40 s of scroll events Hyperpoint posts: per-frame points, fixed-point value, `NSEvent.scrollingDeltaY`, phase, frame gaps, leaked line events | the user scrolling the MX wheel |
 | `verify.sh record wheel` | 45 s of raw wheel input: sender id, raw detents per event, macOS's accelerated lines | the user scrolling |
 | `verify.sh record senders` | 90 s of pointer event sender ids grouped every 2 s | the user using each pointer device |
@@ -89,7 +90,7 @@ The app's own log says what it attempted. The read-backs say what the device hol
 
 ## Cleanup
 
-- Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to F18 and the MX buttons diverted until the next launch clears them.
+- Quit only through `verify.sh quit` (the app's quit path). It returns every device to neutral, with an empty key map and every MX control native, and records the key maps afterwards as evidence. Never `kill -9` Hyperpoint: a hard kill leaves Caps Lock mapped to Right Control and the MX buttons diverted until the next launch clears them.
 - End every run with `verify.sh restore`, which quits Hyperpoint Dev and opens the user's release again, unless the user asked to keep trying the build under test. They depend on a running Hyperpoint.
   Then `verify.sh unlock`, so the next queued run can start.
 - If a journey changed the MX firmware (SmartShift, hi-res wheel), restore the values from the `state` read-back taken first.

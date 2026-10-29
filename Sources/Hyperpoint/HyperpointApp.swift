@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 model.snapshotSettings(to: URL(fileURLWithPath: directory))
             }
         }
-        // SIGTERM would otherwise skip the quit path and leave Caps Lock mapped to F18.
+        // SIGTERM would otherwise skip the quit path and leave Caps Lock mapped to Right Control.
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler { MainActor.assumeIsolated { NSApp.terminate(nil) } }
