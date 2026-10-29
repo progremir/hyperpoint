@@ -32,8 +32,8 @@ func fail(_ message: String) -> Never {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard (1...2).contains(arguments.count) else { fail("usage: set-up \"<button title>\" [\"<menu item title>\"]") }
 guard AXIsProcessTrusted() else { fail("this shell lacks Accessibility") }
-guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint").first
-else { fail("Hyperpoint is not running") }
+guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.emir.hyperpoint.dev").first
+else { fail("Hyperpoint Dev is not running") }
 let element = AXUIElementCreateApplication(app.processIdentifier)
 
 func settingsWindow() -> AXUIElement? {

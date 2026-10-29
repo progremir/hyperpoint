@@ -4,7 +4,9 @@ set -euo pipefail
 
 SKILL_DIR=${0:A:h}
 REPO=$(git -C "$SKILL_DIR" rev-parse --show-toplevel)
-APP="$HOME/Applications/Hyperpoint.app"
+# Builds from source install as Hyperpoint Dev, a separate app from the release the user runs day to day.
+APP="$HOME/Applications/Hyperpoint Dev.app"
+RELEASE_APP="$HOME/Applications/Hyperpoint.app"
 PROBE_APP="$HOME/Applications/HyperpointProbe.app"
 BIN="$REPO/.verify-bin"
 RUN=${HYPERPOINT_VERIFY_RUN:-$(date +%Y%m%d-%H%M%S)}
@@ -51,18 +53,19 @@ acquire() {
   echo "got the verify lock" >&2
 }
 
-running_pid() { pgrep -f "$APP/Contents/MacOS/Hyperpoint" | head -1 || true; }
+running_pid() { pgrep -f "${1:-$APP}/Contents/MacOS/Hyperpoint" | head -1 || true; }
 
 menu_state() {
   "$LOG" show --last "${1:-2m}" --info --style compact \
-    --predicate 'subsystem == "dev.emir.hyperpoint" && category == "menu"' 2>/dev/null | grep 'state=' | tail -1
+    --predicate 'subsystem == "dev.emir.hyperpoint" && category == "menu"' 2>/dev/null | grep 'state=' | tail -1 || true
 }
 
 wait_ready() {
-  local deadline=$((SECONDS + ${1:-30})) line
+  local deadline=$((SECONDS + ${1:-30})) app=${2:-$APP} line pid
   while (( SECONDS < deadline )); do
     line=$(menu_state 1m)
-    if [[ -n $line && $line == *"Hyperpoint[$(running_pid)"* && $line != *"Applying…"* ]]; then
+    pid=$(running_pid "$app")
+    if [[ -n $pid && $line == *"Hyperpoint[$pid:"* && $line != *"Applying…"* ]]; then
       echo "$line"; return 0
     fi
     sleep 1
@@ -72,8 +75,8 @@ wait_ready() {
 
 quit_app() {
   local pid; pid=$(running_pid)
-  [[ -z $pid ]] && { echo "Hyperpoint not running"; return 0; }
-  osascript -e 'quit app "Hyperpoint"' >/dev/null
+  [[ -z $pid ]] && { echo "Hyperpoint Dev not running"; return 0; }
+  osascript -e 'tell application id "dev.emir.hyperpoint.dev" to quit' >/dev/null
   for _ in {1..20}; do kill -0 "$pid" 2>/dev/null || { echo "quit pid $pid"; return 0; }; sleep 0.5; done
   echo "pid $pid did not exit" >&2; return 1
 }
@@ -123,7 +126,7 @@ probe() {
 }
 
 case ${1:-help} in
-  build|launch|quit|hyper-check|hyper-letters|record|settings-shots|settings-switches|set-up|menu) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
+  build|launch|quit|restore|hyper-check|hyper-letters|record|settings-shots|settings-switches|set-up|menu) acquire "${HYPERPOINT_LOCK_WAIT:-60}" ;;
 esac
 
 case ${1:-help} in
@@ -147,11 +150,19 @@ case ${1:-help} in
     quit_app | tee "$EVIDENCE/quit.txt"
     key_maps > "$EVIDENCE/key-maps-after-quit.txt"
     ;;
+  restore)
+    # Opening Hyperpoint Dev quit the release. Hyperpoint Dev quits through its own path first, so the release sets the
+    # devices up from neutral.
+    [[ -d $RELEASE_APP ]] || { echo "no release at $RELEASE_APP; leaving Hyperpoint Dev running" >&2; exit 1; }
+    quit_app | tee "$EVIDENCE/restore.txt"
+    open "$RELEASE_APP"
+    wait_ready "${HYPERPOINT_READY_SECONDS:-30}" "$RELEASE_APP" | tee -a "$EVIDENCE/restore.txt"
+    ;;
   doctor)
     {
       echo "repo HEAD: $(git -C "$REPO" rev-parse --short HEAD) $(git -C "$REPO" branch --show-current)"
-      echo "app binary: $(stat -f '%Sm' "$APP/Contents/MacOS/Hyperpoint") (newest commit: $(git -C "$REPO" log -1 --format=%cd))"
-      echo "pid: $(running_pid || true)"
+      echo "app binary: $(stat -f '%Sm' "$APP/Contents/MacOS/Hyperpoint" 2>/dev/null || echo "not installed") (newest commit: $(git -C "$REPO" log -1 --format=%cd))"
+      echo "pid: $(running_pid || true) (release: $(running_pid "$RELEASE_APP" || true))"
       echo "verify lock: $(lock_owner || true)${$(lock_owner):+ (idle $(lock_idle)s)}"
       codesign -d -r- "$APP" 2>&1 | grep designated
       codesign -d -r- "$APP" 2>&1 | grep -q cdhash && echo "BAD: designated requirement pins a cdhash; grants reset every build"
@@ -251,12 +262,13 @@ case ${1:-help} in
   help|*)
     cat <<EOF
 verify.sh <command>   (evidence goes to \$REPO/.verify-evidence/\$HYPERPOINT_VERIFY_RUN)
-  lock [1800]        wait up to N s for the verify lock, which build/launch/quit/hyper-check/record/settings-* take
-  unlock             release it at the end of a run, with the build under test running
+  lock [1800]        wait up to N s for the verify lock, which build/launch/quit/restore/hyper-check/record/settings-* take
+  unlock             release it at the end of a run, after restore
   doctor             build, signature, pid, last menu state, conflicting apps
-  build              quit Hyperpoint, scripts/bundle.sh into ~/Applications/Hyperpoint.app
-  launch [args]      open the app and wait for a settled menu state
-  quit               quit through the app's own quit path, then record key maps
+  build              quit Hyperpoint Dev, scripts/bundle.sh into ~/Applications/Hyperpoint Dev.app
+  launch [args]      open Hyperpoint Dev, which quits the release, and wait for a settled menu state
+  quit               quit Hyperpoint Dev through its own quit path, then record key maps
+  restore            quit Hyperpoint Dev and open the release, ~/Applications/Hyperpoint.app, again
   state              hidutil key maps and read-only HID++ state of the MX
   log [10m]          Hyperpoint's unified log
   hyper-check [8] [secure]

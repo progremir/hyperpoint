@@ -74,6 +74,7 @@ class Kit:
     icon_dy: float = 20           # optical drop of the mark inside the tile
     menubar_box: tuple = (36, 36, 184, 184)  # tight square viewBox around the menu-bar cut
     menubar_group: object = None  # lighter cut for the 18 pt menu bar; defaults to the small cut
+    menubar_knockout: bool = False  # the menu-bar mark cut out of a filled rounded square
 
     def svg(self, body, w=256, h=256):
         return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}"><title>{self.brand}</title>'
@@ -120,9 +121,16 @@ class Kit:
                         f'{self.group(p.paper, p.accent)}</g>', 1024, 1024)
 
     def menubar(self):
+        mark = (self.menubar_group or (lambda a, b: self.group(a, b, small=True)))("#000", "#000")
+        if self.menubar_knockout:
+            # One evenodd path, the square and then the mark's contours, so it stays a plain one-colour template.
+            square = "M64 6H192A58 58 0 0 1 250 64V192A58 58 0 0 1 192 250H64A58 58 0 0 1 6 192V64A58 58 0 0 1 64 6Z"
+            contours = "".join(re.findall(r' d="([^"]+)"', mark))
+            return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><title>{self.brand}</title>'
+                    f'<path fill="#000" fill-rule="evenodd" d="{square}{contours}"/></svg>\n')
         x, y, w, h = self.menubar_box
         return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x} {y} {w} {h}"><title>{self.brand}</title>'
-                f'{(self.menubar_group or (lambda a, b: self.group(a, b, small=True)))("#000", "#000")}</svg>\n')
+                f'{mark}</svg>\n')
 
     def write(self, out):
         """SVG masters, PNGs, macOS icons and web icons into `out`."""
@@ -141,18 +149,29 @@ class Kit:
                 continue
             w = "1200" if n.startswith(("horizontal", "wordmark")) else "1024"
             run("rsvg-convert", "-w", w, sv(n), "-o", os.path.join(out, "png", f"{self.slug}-{n}-{w}.png"))
-        iconset = os.path.join(out, "macos/AppIcon.iconset")
-        for s in (16, 32, 128, 256, 512):
-            for scale, suffix in ((1, ""), (2, "@2x")):
-                px = str(s * scale)
-                run("rsvg-convert", "-w", px, "-h", px, sv("app-icon"), "-o", f"{iconset}/icon_{s}x{s}{suffix}.png")
-        run("iconutil", "-c", "icns", iconset, "-o", os.path.join(out, "macos/AppIcon.icns"))
-        for px, suffix in (("18", ""), ("36", "@2x")):
-            run("rsvg-convert", "-w", px, "-h", px, sv("menubar-template"), "-o", os.path.join(out, f"macos/MenuBarTemplate{suffix}.png"))
-        open(os.path.join(out, f"macos/{self.slug}-menubar-template.svg"), "w").write(files["menubar-template"])
+        self.write_macos(out)
         run("python3", EXPORT, sv("symbol-color"), "--name", self.slug, "--title", self.brand, "--only", "square", "favicon",
             "--web-icons", "--icon-bg", self.palette.ink, "--favicon-source", sv("symbol-small"), "--out-dir", os.path.join(out, "web"))
         return files
+
+    def write_macos(self, out, variant=""):
+        """The app icon and the menu-bar template into `out`/macos. A variant ("dev") writes AppIcon-Dev.icns and
+        MenuBarTemplate-Dev.png beside the plain ones, from its own SVGs."""
+        tag, name = (f"-{variant}", f"-{variant.capitalize()}") if variant else ("", "")
+        run = lambda *a: subprocess.run(a, check=True, capture_output=True)
+        icon = os.path.join(out, "svg", f"{self.slug}-app-icon{tag}.svg")
+        menubar = os.path.join(out, f"macos/{self.slug}-menubar-template{tag}.svg")
+        open(icon, "w").write(self.app_icon())
+        open(menubar, "w").write(self.menubar())
+        iconset = os.path.join(out, f"macos/AppIcon{name}.iconset")
+        os.makedirs(iconset, exist_ok=True)
+        for s in (16, 32, 128, 256, 512):
+            for scale, suffix in ((1, ""), (2, "@2x")):
+                px = str(s * scale)
+                run("rsvg-convert", "-w", px, "-h", px, icon, "-o", f"{iconset}/icon_{s}x{s}{suffix}.png")
+        run("iconutil", "-c", "icns", iconset, "-o", os.path.join(out, f"macos/AppIcon{name}.icns"))
+        for px, suffix in (("18", ""), ("36", "@2x")):
+            run("rsvg-convert", "-w", px, "-h", px, menubar, "-o", os.path.join(out, f"macos/MenuBarTemplate{name}{suffix}.png"))
 
     def overview(self, out, png_name):
         """One-page overview of every main asset, the palette and the small sizes."""

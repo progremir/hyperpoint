@@ -4,8 +4,8 @@ import Sparkle
 
 /// Sparkle's updater. It reads https://hyperpoint.progremir.dev/appcast.xml, which `scripts/release.sh` publishes,
 /// once a day after the user allows it, and installs a newer release only when the user agrees or has chosen
-/// automatic installs. Only Developer ID builds carry the feed, so a development build, or one run outside its bundle,
-/// never starts it.
+/// automatic installs. Only Developer ID releases carry the feed, so a development build (Hyperpoint Dev), or one run
+/// outside its bundle, never starts it.
 @MainActor
 @Observable
 final class Updates: NSObject {

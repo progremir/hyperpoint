@@ -5,7 +5,7 @@ pointer. The arrow outline is expanded from a round-joined stroke into one eveno
 at the convex corners and an inner contour mitred there, so the files have no strokes. The bar carries the accent
 colour, like the key's lit LED.
 """
-import math, os
+import dataclasses, math, os
 from kitlib import Kit, Palette, Wordmark, f
 
 INK, GREEN, GREEN_DEEP, PAPER = "#18181D", "#52E07A", "#138A48", "#FFFFFF"
@@ -58,7 +58,7 @@ def to_d(contours, r_of, mapper):
         d += "Z"
     return d
 
-def make_mark(arrow, d_full, d_small, bar, bar_small, angle=0.0, pivot=(128, 128), offset=(0, 0)):
+def make_mark(arrow, d_full, d_small, bar, bar_small, angle=0.0, pivot=(128, 128), offset=(0, 0), solid=False):
     def mapper_for():
         a = math.radians(angle); c, s = math.cos(a), math.sin(a)
         def m(x, y):
@@ -70,15 +70,15 @@ def make_mark(arrow, d_full, d_small, bar, bar_small, angle=0.0, pivot=(128, 128
         bx, by, bw, bh, br = bar_small if small else bar
         outer, inner = outline(arrow, d)
         m = mapper_for()
-        glyph = to_d([outer, inner], [d, d], m)
+        glyph = to_d([outer] if solid else [outer, inner], [d, d], m)
         bar_d = to_d([rounded_rect(bx, by, bw, bh, br)], [br], m)
         return (f'<path fill="{primary}" fill-rule="evenodd" d="{glyph}"/>'
                 f'<path fill="{accent}" d="{bar_d}"/>')
     return group
 
 # Caps pointer: symmetric ⇪ tipped 22 degrees. Small cut: heavier stroke, taller bar.
-CAPS = make_mark([(128, 30), (214, 118), (164, 118), (164, 156), (92, 156), (92, 118), (42, 118)],
-                 11, 15, (80, 182, 96, 26, 8), (78, 184, 100, 32, 10), angle=-22, pivot=(128, 136), offset=(4, 6))
+ARROW = [(128, 30), (214, 118), (164, 118), (164, 156), (92, 156), (92, 118), (42, 118)]
+CAPS = make_mark(ARROW, 11, 15, (80, 182, 96, 26, 8), (78, 184, 100, 32, 10), angle=-22, pivot=(128, 136), offset=(4, 6))
 
 PALETTE = Palette(INK, GREEN, GREEN_DEEP, PAPER, names={
     "ink": ("Ink", "glyph, type"), "accent": ("Caps Green", "the bar, the key's lit LED"),
@@ -87,14 +87,27 @@ WORDMARK = Wordmark(kern={"Hy": -14, "yp": -6, "rp": -8})
 
 # Menu-bar cut: the 18 pt template sits beside SF Symbols, whose strokes are ~1.5 pt. The small cut's 30-unit stroke is
 # ~2.7 pt there and reads bold, so the menu bar gets an 18-unit stroke (~1.6 pt) and a thinner bar.
-CAPS_MENUBAR = make_mark([(128, 30), (214, 118), (164, 118), (164, 156), (92, 156), (92, 118), (42, 118)],
-                         9, 9, (82, 184, 92, 20, 7), (82, 184, 92, 20, 7), angle=-22, pivot=(128, 136), offset=(4, 6))
+CAPS_MENUBAR = make_mark(ARROW, 9, 9, (82, 184, 92, 20, 7), (82, 184, 92, 20, 7), angle=-22, pivot=(128, 136), offset=(4, 6))
 
 KIT = Kit(brand="Hyperpoint", slug="hyperpoint", group=CAPS, palette=PALETTE, wordmark=WORDMARK, mono_name="green",
           tagline="Caps Lock, tipped over into a pointer: the key that becomes hyper, and the cursor it drives.",
           icon_scale=2.5, icon_dy=12, menubar_box=(28, 28, 200, 200), menubar_group=CAPS_MENUBAR)
 
+# Hyperpoint Dev, the app built from source, keeps the mark with the arrow filled in, so it is told apart from the
+# release at a glance. Its app icon has a violet LED (orange already means "needs attention" in the menu bar), and its
+# menu-bar template cuts the arrow out of a filled square, since a template has no colour and a filled arrow alone is
+# too subtle at 18 pt.
+DEV_KIT = dataclasses.replace(
+    KIT,
+    group=make_mark(ARROW, 11, 15, (80, 182, 96, 26, 8), (78, 184, 100, 32, 10), angle=-22, pivot=(128, 136),
+                    offset=(4, 6), solid=True),
+    menubar_group=make_mark(ARROW, 9, 9, (82, 184, 92, 20, 7), (82, 184, 92, 20, 7), angle=-22, pivot=(128, 136),
+                            offset=(4, 6), solid=True),
+    palette=dataclasses.replace(PALETTE, accent="#9B7BFF"),
+    menubar_knockout=True)
+
 if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     KIT.write(here)
+    DEV_KIT.write_macos(here, "dev")
     KIT.overview(here, "hyperpoint-logo-overview.png")
