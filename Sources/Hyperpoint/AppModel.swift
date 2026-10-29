@@ -6,14 +6,16 @@ final class AppModel {
     private let store = ConfigStore()
     private let engine = Engine()
     private let performer = ActionPerformer()
+    let updates = Updates()
     private let settings: SettingsModel
     private lazy var settingsWindow = SettingsWindow(model: settings)
     private var menu: StatusMenu?
     private var engineRun: Task<Void, Never>?
 
-    init() { settings = SettingsModel(store: store, engine: engine) }
+    init() { settings = SettingsModel(store: store, engine: engine, updates: updates) }
 
     func start() {
+        updates.start()
         let menu = StatusMenu(model: self)
         self.menu = menu
         engineRun = Task { [store, engine] in
@@ -52,13 +54,17 @@ final class AppModel {
 
     func openSettings() { settingsWindow.show() }
 
-    func snapshotSettings(to directory: URL) { Task { await settingsWindow.snapshot(to: directory) } }
+    func snapshotSettings(to directory: URL) {
+        Task {
+            await settingsWindow.snapshot(to: directory)
+            await PermissionGuide.shared.snapshot(to: directory)
+        }
+    }
 
     func fix(_ fix: MenuPresentation.Fix) {
         switch fix {
         case .permission(let permission):
-            Permissions.request(permission)
-            NSWorkspace.shared.open(Permissions.settingsURL(for: permission))
+            PermissionGuide.shared.open(permission)
         case .openConfig:
             openConfig()
         case .reapply:

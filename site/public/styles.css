@@ -364,33 +364,31 @@ main { padding-top: calc(80px + env(safe-area-inset-top, 0px)); }
   border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
 }
 
-/* Card: settings come back */
+/* Card: a profile per device */
 .dev-head { display: flex; align-items: center; gap: 8px; color: var(--fg); }
 .dev-head .name { font-weight: 600; flex: 1; min-width: 0; }
-.state { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: var(--muted); }
-.state .dot { position: relative; width: 8px; height: 8px; border-radius: 9999px; background: var(--accent); transition: background-color 400ms var(--e2); }
-.state .dot::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--accent);
-  opacity: 0; transform: scale(1);
-}
-.state.ring .dot::after { animation: ring 2s var(--e2) 1; }
-.state[data-s="off"] .dot { background: var(--faint); }
-.state[data-s="busy"] .dot { background: var(--fg); animation: breathe 1.2s var(--io) infinite; }
-.state-text { transition: opacity 300ms var(--e2), filter 300ms var(--e2); }
-.state-text.swap { opacity: 0; filter: blur(4px); }
-@keyframes ring { 0% { opacity: 0.55; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
+.dev-head .icon, .dev-head .name, .foot .src { transition: opacity 300ms var(--e2), filter 300ms var(--e2); }
+.dev-head .swap, .foot .swap { opacity: 0; filter: blur(4px); }
+.pager { display: inline-flex; gap: 6px; }
+.pager i { width: 6px; height: 6px; border-radius: 9999px; background: var(--line); transition: background-color 400ms var(--e2); }
+.pager i.on { background: var(--fg); }
 @keyframes breathe { 50% { opacity: 0.35; } }
 
 .applied { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; font-size: 14px; line-height: 20px; }
 .applied li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-.applied .chk { color: var(--accent); transition: color 300ms var(--e2), transform 500ms var(--e); }
-.applied .chk.off { color: var(--line); transform: scale(0.85); }
+.applied .chk { color: var(--accent); }
 .applied .lbl { color: var(--fg-2); white-space: nowrap; }
 .applied .det { color: var(--faint); font-size: 12px; line-height: 16px; }
+/* Three rows tall whichever device it shows, so the card never changes height. */
+.profile { min-height: 76px; }
+.profile li {
+  transition: opacity 400ms var(--e2), transform 600ms var(--e), filter 400ms var(--e2);
+  transition-delay: calc(var(--k, 0) * 60ms);
+}
+.profile.out li { opacity: 0; transform: translateY(6px); filter: blur(4px); transition-duration: 250ms; transition-delay: 0ms; }
 .rule { height: 1px; margin: 16px 0 12px; background: var(--line); }
 .foot { font-size: 12px; line-height: 16px; color: var(--muted); }
-.foot time { color: var(--fg); transition: opacity 400ms var(--e2), filter 400ms var(--e2); }
-.foot time.swap { opacity: 0; filter: blur(4px); }
+.foot b { font-weight: 400; color: var(--fg); }
 
 /* Card: hyper key */
 .hyper { display: flex; flex-direction: column; align-items: center; gap: 16px; }

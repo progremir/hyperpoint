@@ -44,6 +44,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             fix.subtitle = notice.detail
             menu.addItem(fix)
         }
+        if let version = model.updates.found {
+            menu.addItem(ActionItem(title: "Update to Hyperpoint \(version)…") { [model] in model.updates.check() })
+        }
         menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Devices"))
         for row in presentation.rows { menu.addItem(info(left: row.name, right: row.detail)) }
@@ -64,6 +67,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(ActionItem(title: "Settings…", key: ",") { [model] in model.openSettings() })
         menu.addItem(ActionItem(title: "Open Config File") { [model] in model.openConfig() })
+        if model.updates.available {
+            let check = ActionItem(title: "Check for Updates…") { [model] in model.updates.check() }
+            check.isEnabled = model.updates.canCheck
+            menu.addItem(check)
+        }
         menu.addItem(.separator())
         menu.addItem(ActionItem(title: "Quit Hyperpoint", key: "q") { NSApp.terminate(nil) })
     }
