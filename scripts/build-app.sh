@@ -15,10 +15,18 @@ BUNDLE_ID="dev.emir.hyperpoint"
 scripts/check-layers.sh
 swift build -c release --product Hyperpoint
 BIN="$(swift build -c release --show-bin-path)/Hyperpoint"
+SPARKLE="$OUT/Contents/Frameworks/Sparkle.framework"
 
 rm -rf "$OUT"
-mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
+mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources" "$OUT/Contents/Frameworks"
 cp "$BIN" "$OUT/Contents/MacOS/Hyperpoint"
+install_name_tool -add_rpath @executable_path/../Frameworks "$OUT/Contents/MacOS/Hyperpoint"
+# Sparkle is thinned to the app's own architectures. Its XPC services are only for sandboxed apps, which Hyperpoint
+# is not, so they are left out. ditto keeps the framework's symlinks, which its signature covers.
+THIN=()
+for arch in $(lipo -archs "$BIN"); do THIN+=(--arch "$arch"); done
+ditto "${THIN[@]}" "${BIN:h}/Sparkle.framework" "$SPARKLE"
+rm -rf "$SPARKLE/XPCServices" "$SPARKLE/Versions/B/XPCServices"
 cp Support/Info.plist "$OUT/Contents/Info.plist"
 if [[ -n "$VERSION" ]]; then
   plutil -replace CFBundleShortVersionString -string "$VERSION" "$OUT/Contents/Info.plist"
@@ -31,6 +39,10 @@ plutil -lint "$OUT/Contents/Info.plist" >/dev/null
 
 TIMESTAMP=(--timestamp=none)
 [[ "${SIGN_TIMESTAMP:-0}" == 1 ]] && TIMESTAMP=(--timestamp)
+# Inside out, as Sparkle documents, and never --deep: the helpers first, then the framework, then the app.
+for code in "$SPARKLE/Versions/B/Autoupdate" "$SPARKLE/Versions/B/Updater.app" "$SPARKLE"; do
+  codesign --force --options runtime "${TIMESTAMP[@]}" --sign "$IDENTITY" "$code"
+done
 codesign --force --options runtime "${TIMESTAMP[@]}" --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$OUT"
 codesign --verify --strict --verbose=2 "$OUT"
 

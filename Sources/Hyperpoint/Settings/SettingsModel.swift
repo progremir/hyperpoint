@@ -90,6 +90,8 @@ final class SettingsModel {
     var mouse: DeviceMatch? { didSet { if mouse != oldValue { stopListening() } } }
 
     let configURL: URL
+    /// Nil in tests, which have no updater.
+    let updates: Updates?
     private let engine: Engine
     private let edits: AsyncStream<SettingsEdit>.Continuation
     private let log = Logger(subsystem: "dev.emir.hyperpoint", category: "settings")
@@ -103,8 +105,9 @@ final class SettingsModel {
     /// The engine leaves ignored devices out of its status, so their names come from when they showed as new.
     @ObservationIgnored private var seenNames: [DeviceMatch: String] = [:]
 
-    init(store: ConfigStore, engine: Engine, defaults: UserDefaults = .standard) {
+    init(store: ConfigStore, engine: Engine, updates: Updates? = nil, defaults: UserDefaults = .standard) {
         configURL = store.url
+        self.updates = updates
         self.engine = engine
         self.defaults = defaults
         tab = defaults.string(forKey: Self.tabKey).flatMap(SettingsTab.init(rawValue:)) ?? .general

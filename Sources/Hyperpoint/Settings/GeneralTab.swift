@@ -36,6 +36,10 @@ struct GeneralTab: View {
             ) {
                 Button("Show Log") { showingLog = true }
             }
+            if let updates = model.updates, updates.available {
+                Divider()
+                UpdatesRow(updates: updates)
+            }
         }
         .sheet(isPresented: $showingLog) { LogSheet() }
         .onAppear { model.refreshLoginItem() }
@@ -93,6 +97,36 @@ private struct Step<Content: View>: View {
             Text("\(number).").monospacedDigit()
             VStack(alignment: .leading, spacing: 5) { content }
         }
+    }
+}
+
+private struct UpdatesRow: View {
+    let updates: Updates
+
+    var body: some View {
+        FormRow(label: "Updates", detail: detail) {
+            Toggle(
+                "Check for updates automatically",
+                isOn: Binding(get: { updates.automaticallyChecks }, set: { updates.setAutomaticallyChecks($0) }))
+            Toggle(
+                "Download and install them automatically",
+                isOn: Binding(get: { updates.automaticallyDownloads }, set: { updates.setAutomaticallyDownloads($0) })
+            )
+            .disabled(!updates.allowsAutomaticDownloads)
+            Toggle("Include beta versions", isOn: Binding(get: { updates.beta }, set: { updates.beta = $0 }))
+            Button("Check Now") { updates.check() }
+                .disabled(!updates.canCheck)
+                .padding(.top, 3)
+        }
+    }
+
+    private var detail: String {
+        let schedule =
+            updates.automaticallyChecks
+            ? "Once a day Hyperpoint asks hyperpoint.progremir.dev for the latest version, and sends nothing else."
+            : "Hyperpoint checks only when you ask."
+        let last = updates.lastCheck.map { " Last checked \($0.formatted(.relative(presentation: .named)))." } ?? ""
+        return "You have version \(Updates.version). \(schedule)\(last)"
     }
 }
 

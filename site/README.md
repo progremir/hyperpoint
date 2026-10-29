@@ -32,10 +32,12 @@ only that folder and the Worker are uploaded.
 `404.html` and `privacy.html` use root paths (`/styles.css`), so they work at any depth.
 
 **Downloads.** The download buttons link to `/download`, which needs no GitHub account or repository access. The
-Worker runs only for `/download` paths and reads the private `hyperpoint-releases` R2 bucket, which
+Worker runs only for `/download` paths and `/appcast.xml`, and reads the private `hyperpoint-releases` R2 bucket, which
 `scripts/release.sh --publish` fills: `/download` redirects to the file its `latest` object names, and
-`/download/Hyperpoint-<version>.dmg` and its `.sha256` serve that release. Any other path, in the bucket or not, gets
-the 404 page. To point `/download` at another release, run in `site/`:
+`/download/Hyperpoint-<version>.dmg` and its `.sha256` serve that release. `/appcast.xml` serves the bucket's
+`appcast.xml`, the signed Sparkle feed that installed copies read to update themselves, which `release.sh` rebuilds on
+each release; it is sent with `Cache-Control: no-cache`. Any other path, in the bucket or not, gets the 404 page.
+To point `/download` at another release, run in `site/`:
 
 ```bash
 npx cf r2 objects put latest --bucket-name hyperpoint-releases --body Hyperpoint-0.1.1.dmg --content-type "text/plain; charset=utf-8"
@@ -49,7 +51,7 @@ npx cf r2 objects put latest --bucket-name hyperpoint-releases --body Hyperpoint
 | `public/404.html`, `public/privacy.html` | The branded 404 and the privacy page |
 | `public/og.png` | Social preview, drawn by `og.py` from the logo kit and Geist |
 | `public/favicon.*`, `icon-*.png`, `site.webmanifest`, `assets/` | Copied from `design/logo/` |
-| `src/index.ts` | The Worker that serves `/download` from R2 |
+| `src/index.ts` | The Worker that serves `/download` and `/appcast.xml` from R2 |
 | `cloudflare.config.ts`, `wrangler.config.ts`, `wrangler.jsonc`, `package.json` | The Cloudflare project; `cf` and Wrangler are pinned in `package-lock.json` |
 
 ## The brief
@@ -66,7 +68,7 @@ nothing to clash with, no account, and every setting back on after a reconnect. 
 says it is notarized, its size and what it runs on.
 
 **Order.** Hero, problem to solution (before and after), tagline reveal, four benefit cards with stories, three
-smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (13 questions with
+smaller features, how it works in three steps, proof (the owner's real config and six facts), FAQ (14 questions with
 FAQ schema), final CTA with risk reversal, footer.
 
 **Benefits.** Settings that survive sleep. A hyper key on Caps Lock. A wheel that glides. Change a button by pressing
@@ -75,7 +77,7 @@ it.
 **Steps.** Install and allow two permissions. Set up each device. Press a button to add a rule.
 
 **Proof without testimonials.** There are no users to quote yet, and invented quotes would be fake. The proof is the
-config file of the Mac Hyperpoint was built on, plus facts taken from the code: notarized releases, no network code,
+config file of the Mac Hyperpoint was built on, plus facts taken from the code: notarized releases, no network request but the update check,
 an invalid file rejected whole, key mappings cleared on quit.
 
 **Risk reversal.** A fresh install changes nothing until a device is set up, and quitting puts the keys back.
@@ -108,5 +110,6 @@ as `FAQPage`.
 
 The card and curve data come from the app: the menu strings from `StatusMenu.swift` and `MenuPresentation.swift`, the
 rules from the MX Master 3 preset, and the curve and measured wheel bands from `SpeedCurve.swift` and
-`CurveGraph.swift`. Update the page when those change. The sizes (1.2 MB download, 3.3 MB installed) are measured from
-the v0.1.1 DMG and the app inside it, so check them on each release.
+`CurveGraph.swift`. Update the page when those change. The sizes (2.3 MB download, 6.5 MB installed) are measured from
+a DMG built by `release.sh` on 29 October 2026, the first with Sparkle, and the app inside it, so check them on each
+release.
