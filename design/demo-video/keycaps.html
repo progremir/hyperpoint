@@ -89,9 +89,9 @@ html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
     <svg class="leaders" id="leaders" width="1920" height="1080" aria-hidden="true">
       <g id="ld1"><line/><circle r="6"/></g><g id="ld2"><line/><circle r="6"/></g><g id="ld3"><line/><circle r="6"/></g>
     </svg>
-    <div class="mpill" id="mp1"><b>Top button</b> → Mission Control</div>
+    <div class="mpill" id="mp1"><b>Right button</b> → Hold and move to scroll</div>
     <div class="mpill" id="mp2"><b>Thumb buttons</b> → Switch Spaces</div>
-    <div class="mpill" id="mp3"><b>Thumb wheel</b> → App Exposé</div>
+    <div class="mpill" id="mp3"><b>Wheel click</b> → Mission Control</div>
     <div class="head" id="shead"><p id="sh1">And a wheel that glides.</p><p id="sh2" class="d">Each notch becomes an eased pulse.</p></div>
     <div class="feeds" id="feeds">
       <div class="feed"><div class="fl">A plain wheel</div><div class="fwin"><div class="flist" id="fl1"></div></div></div>
@@ -133,10 +133,9 @@ function rng(seed) {
 // the sounds placed here.
 const BPM = 120, B = 60 / BPM;
 const SPAWN0 = 1.5, SPAWN1 = 4.7, ASSEMBLE = 5.0, IMPACT = 6.0, SCATTER = 9.0, MOUSE = 10.0, END = 16.0, SWAP = 18.0, TOTAL = 22.0;
-// The mouse's beats: the right button, the side button, then a flick of the wheel that glides to a stop.
 // The mouse's beats: three buttons named, then the wheel flicked twice beside two feeds, one stepping a notch at a
 // time and one gliding.
-const M_TOP = MOUSE + B, M_SIDE = MOUSE + 2 * B, M_THUMB = MOUSE + 3 * B, M_SCROLL = MOUSE + 5 * B;
+const M_RIGHT = MOUSE + B, M_SIDE = MOUSE + 2 * B, M_WHEEL = MOUSE + 3 * B, M_SCROLL = MOUSE + 5 * B;
 const FLICKS = [MOUSE + 6 * B, MOUSE + 8 * B], M_LEAVE = END - 1.0;
 const sfx = [];
 const cue = (t, kind, gain = 1) => sfx.push({ t, kind, gain });
@@ -313,13 +312,26 @@ function legendTexture(units, legend, dark) {
   return t;
 }
 
+// The keycaps' plastic in one of the palette's colors: clearcoat, a speckled surface and fine dark flecks, both read
+// through the uv1 set.
+function capMaterial(tone) {
+  const m = new THREE.MeshPhysicalMaterial({
+    color: PALETTE[tone].color, roughness: 0.34, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 1.35,
+    bumpMap: speckle, bumpScale: 0.3,
+  });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.flecks = { value: flecks };
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D flecks;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), texture2D(flecks, vBumpMapUv * 1.7).rgb, 0.9);");
+  };
+  return m;
+}
+
 function keycap(units, legend, tone) {
   const p = PALETTE[tone];
   const tex = legendTexture(units, legend, p.dark);
-  const m = new THREE.MeshPhysicalMaterial({
-    color: p.color, roughness: 0.34, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 1.35,
-    bumpMap: speckle, bumpScale: 0.3,
-  });
+  const m = capMaterial(tone);
   if (p.dark) {
     m.emissiveMap = tex;
     m.emissive = new THREE.Color(0xd9d6cf);
@@ -327,12 +339,6 @@ function keycap(units, legend, tone) {
   } else {
     m.map = tex;
   }
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.flecks = { value: flecks };
-    sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform sampler2D flecks;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), texture2D(flecks, vBumpMapUv * 1.7).rgb, 0.9);");
-  };
   const mesh = new THREE.Mesh(keycapGeometry(units), m);
   mesh.userData.units = units;
   return mesh;
@@ -457,56 +463,48 @@ keys.forEach((k) => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------
-// The mouse is Logitech's own MX Master 4 model (Space Black, from Sketchfab), kept in models/ and not committed.
-// Its meshes are grouped by material, not by button, so a press shows as a glow on the button; the main wheel is cut
-// out of its mesh so it can spin. Points are in the model's millimetres: front is -z, thumb side -x, top +y.
+// The mouse is "Computer mouse." by kubassa (https://sketchfab.com/3d-models/4a6e2b1cf5d54ed5b97da093ed1e74a4,
+// CC BY), a plain white wireless mouse, in models/mouse.glb. In its own space it is 2 units long with its front at
+// -x, its thumb side at +z and its top at +y; turned a quarter turn it faces the way the scene expects, front -z and
+// thumb side -x. Its scroll wheel is a mesh of its own, so it turns on its axle; a press shows as a glow.
 const mouse = new THREE.Group();
 scene.add(mouse);
-// Without the file (it is not committed, and a page opened from disk cannot fetch it) the film plays without a mouse.
-const mx = await new GLTFLoader().loadAsync("models/mx-master-4.glb").then((g) => g.scene, () => new THREE.Group());
+// Without the file (a page opened from disk cannot fetch it) the film plays without a mouse.
+const mx = await new GLTFLoader().loadAsync("models/mouse.glb").then((g) => g.scene, () => new THREE.Group());
 mx.updateMatrixWorld(true);
-// Centred on its body and scaled to 2 units long, the size the scene was laid out for.
-const MM = (x, y, z) => new THREE.Vector3(x / 1000, y / 1000, z / 1000);
-const BODY = MM(0, -5, -212), FIT = 2 / 0.135;
 const holder = new THREE.Group();
-holder.scale.setScalar(FIT);
-holder.position.copy(BODY).multiplyScalar(-FIT);
+holder.rotation.y = -Math.PI / 2;
 holder.add(mx);
 mouse.add(holder);
-// Darkened to read as Space Black under this scene's key light; Material4 is the metal wheels and the light.
+// Painted like the keycaps: a cream top like the Caps Lock key, a slate strip and thumb buttons, a green wheel, and
+// ink everywhere else. The uv1 set comes from the surface's position in the mouse's own space, at the keycaps' scale.
+const PAINT = { defaultMaterial_16: "cream", defaultMaterial_12: "slate", defaultMaterial_11: "slate", defaultMaterial_15: "green" };
 mx.traverse((o) => {
   if (!o.isMesh) return;
   o.frustumCulled = false;
-  o.material.envMapIntensity = 0.8;
-  if (o.material.name !== "Material4") o.material.color.multiplyScalar(0.5);
-});
-// The main wheel: a disc on an axle along x through (y 7.6, z -244.6), rim at 11 to 13 mm, the slot around it from
-// 17 mm. Every triangle of its mesh inside 15.5 mm of the axle moves to a mesh of its own that turns on the axle.
-const AXLE = MM(9.8, 7.63, -244.61);
-const wheelPivot = new THREE.Group();
-wheelPivot.position.copy(AXLE);
-mx.add(wheelPivot);
-mx.traverse((o) => {
-  if (!o.isMesh || o.material.name !== "Material4") return;
-  const g = o.geometry, pos = g.attributes.position, idx = g.index, v = new THREE.Vector3(), keep = [], spin = [];
-  for (let t = 0; t < idx.count; t += 3) {
-    const tri = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
-    const inside = tri.every((i) => {
-      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
-      return v.x > 0.004 && v.x < 0.0155 && Math.hypot(v.y - AXLE.y, v.z - AXLE.z) < 0.0155;
-    });
-    (inside ? spin : keep).push(...tri);
+  o.material = capMaterial(PAINT[o.name] || "ink");
+  const pos = o.geometry.attributes.position, v = new THREE.Vector3(), uv1 = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+    uv1[i * 2] = v.x * 1.6 + v.z * 0.9;
+    uv1[i * 2 + 1] = v.y * 1.6 + v.z * 1.3;
   }
-  g.setIndex(keep);
-  const wg = new THREE.BufferGeometry();
-  for (const [name, attr] of Object.entries(g.attributes)) wg.setAttribute(name, attr);
-  wg.setIndex(spin);
-  const wheelMesh = new THREE.Mesh(wg, o.material);
-  wheelMesh.frustumCulled = false;
-  wheelMesh.applyMatrix4(o.matrixWorld);
-  wheelMesh.position.sub(AXLE);
-  wheelPivot.add(wheelMesh);
+  o.geometry.setAttribute("uv1", new THREE.BufferAttribute(uv1, 2));
 });
+// Points on the mouse, in its own space. The right button's is found by dropping a ray onto the shell.
+const P = (x, y, z) => new THREE.Vector3(x, y, z);
+const surface = (x, z) => new THREE.Raycaster(P(x, 5, z), P(0, -1, 0)).intersectObject(mx, true)[0]?.point ?? P(x, 0.3, z);
+const ANCHORS = { right: surface(-0.5, -0.27).add(P(0, 0.02, 0)), side: P(-0.3, 0, 0.58), wheel: P(-0.62, 0.11, 0) };
+const wheelPivot = new THREE.Group();
+mx.add(wheelPivot);
+{
+  const wheel = mx.getObjectByName("defaultMaterial_15");
+  if (wheel) {
+    wheelPivot.position.copy(new THREE.Box3().setFromObject(wheel).getCenter(new THREE.Vector3()));
+    mx.updateMatrixWorld(true);
+    wheelPivot.attach(wheel);
+  }
+}
 // A soft green glow for each control, drawn over the model.
 const glowTex = (() => {
   const c = document.createElement("canvas");
@@ -522,20 +520,18 @@ const glowTex = (() => {
 const glow = (at, size) => {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthTest: false, transparent: true, opacity: 0 }));
   sp.position.copy(at);
-  sp.scale.setScalar(size / 1000);
+  sp.scale.setScalar(size);
   sp.renderOrder = 10;
   mx.add(sp);
   return sp;
 };
-const ANCHORS = { top: MM(9.4, 19.5, -218.5), side: MM(-24, 4, -214), thumb: MM(-22, 14, -210), wheel: MM(9.8, 19.5, -244.6) };
-const GLOWS = { top: glow(ANCHORS.top, 18), side: glow(ANCHORS.side, 30), thumb: glow(ANCHORS.thumb, 22), wheel: glow(ANCHORS.wheel, 26) };
+const GLOWS = { right: glow(ANCHORS.right, 0.55), side: glow(ANCHORS.side, 0.42), wheel: glow(ANCHORS.wheel, 0.34) };
+const BODY = P(0, 0, 0);
 const screenOf = (v) => { const w = mx.localToWorld(v.clone()).project(camera); return [(w.x + 1) * 960, (1 - w.y) * 540]; };
-cue(M_TOP, "click", 1.1);
+cue(M_RIGHT, "click", 1.1);
 cue(M_SIDE, "click", 1.0);
 cue(M_SIDE + 0.16, "click", 0.85);
-cue(M_THUMB, "detent", 0.8);
-cue(M_THUMB + 0.09, "detent", 0.7);
-cue(M_THUMB + 0.2, "detent", 0.55);
+cue(M_WHEEL, "click", 0.9);
 
 // Each flick spins the wheel up and lets it glide to a stop; every notch it passes is a tick, a step in the plain
 // feed, and an eased pulse in Hyperpoint's.
@@ -640,16 +636,17 @@ function render(t) {
     mouse.visible = t >= MOUSE - 0.7;
     place(mouse, pos, rot, mix3("s") * (0.4 + 0.6 * rise));
     const flash = (c, len = 1.0) => clamp((t - c) / 0.08) * (1 - clamp((t - c - len) / 0.5));
-    GLOWS.top.material.opacity = flash(M_TOP);
+    GLOWS.right.material.opacity = flash(M_RIGHT);
     GLOWS.side.material.opacity = Math.max(flash(M_SIDE), flash(M_SIDE + 0.16));
-    GLOWS.thumb.material.opacity = flash(M_THUMB);
-    GLOWS.wheel.material.opacity = 0.8 * Math.min(1, FLICKS.reduce((a, f) => a + flash(f, 0.8), 0));
-    wheelPivot.rotation.x = -wheelAngle(t);
+    // Only a hint of glow while it spins, so the turning ridges show.
+    GLOWS.wheel.material.opacity = Math.max(flash(M_WHEEL), 0.35 * Math.min(1, FLICKS.reduce((a, f) => a + flash(f, 0.8), 0)));
+    // The wheel turns on its own axle, z in the model's space, top rolling back toward the palm.
+    wheelPivot.rotation.z = -wheelAngle(t);
     mouse.updateMatrixWorld(true);
     // Callouts: each pill sits to one side, a leader line running to the part it names. From the front the thumb
     // side is on the right of the screen.
     const [cx, cy] = screenOf(BODY);
-    for (const [n, anchor, dir, dy, c] of [[1, ANCHORS.top, -1, -110, M_TOP], [2, ANCHORS.side, 1, 60, M_SIDE], [3, ANCHORS.thumb, 1, -60, M_THUMB]]) {
+    for (const [n, anchor, dir, dy, c] of [[1, ANCHORS.right, -1, -110, M_RIGHT], [2, ANCHORS.side, 1, 60, M_SIDE], [3, ANCHORS.wheel, -1, 10, M_WHEEL]]) {
       const [ax, ay] = screenOf(anchor), el = $(`#mp${n}`), w = el.offsetWidth, h = el.offsetHeight;
       const show = outExpo(clamp((t - c) / 0.5)) * (1 - clamp((t - (M_SCROLL - 0.35)) / 0.35));
       const px = dir > 0 ? cx + 380 : cx - 380 - w, py = cy + dy - h / 2;
