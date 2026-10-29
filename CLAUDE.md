@@ -18,4 +18,4 @@ Design doc (source of truth for scope, phases, risks): https://claude.ai/artifac
 ## Tools
 
 - `tools/taps.swift`: lists system event taps (owner, active/listen-only, enabled, mask). Run with `swift tools/taps.swift`.
-- `open ~/Applications/Hyperpoint.app --args -snapshotSettings <dir>` (with the app quit first): writes a PNG of every settings pane and tab. The app draws its own window, so it needs no Screen Recording grant, but the glass sidebar comes out blank.
+- `open ~/Applications/Hyperpoint.app --args -snapshotSettings <dir>` (with the app quit first): writes a PNG of every settings pane and tab, and of the panel that asks for each permission. The app draws its own window, so it needs no Screen Recording grant, but the glass sidebar comes out blank.

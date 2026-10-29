@@ -54,13 +54,17 @@ final class AppModel {
 
     func openSettings() { settingsWindow.show() }
 
-    func snapshotSettings(to directory: URL) { Task { await settingsWindow.snapshot(to: directory) } }
+    func snapshotSettings(to directory: URL) {
+        Task {
+            await settingsWindow.snapshot(to: directory)
+            await PermissionGuide.shared.snapshot(to: directory)
+        }
+    }
 
     func fix(_ fix: MenuPresentation.Fix) {
         switch fix {
         case .permission(let permission):
-            Permissions.request(permission)
-            NSWorkspace.shared.open(Permissions.settingsURL(for: permission))
+            PermissionGuide.shared.open(permission)
         case .openConfig:
             openConfig()
         case .reapply:
