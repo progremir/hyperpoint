@@ -8,6 +8,7 @@ the cut drawn for 16-40 px.
 import base64, math, os, re, subprocess
 from dataclasses import dataclass, field
 from fontTools.ttLib import TTFont
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 
@@ -28,15 +29,29 @@ class Wordmark:
         self.cap = self.font["OS/2"].sCapHeight
         self.kern, self.track = kern or {}, track
 
-    def path(self, text, cap_px, x0=0, baseline=0):
-        s = cap_px / self.cap; x = 0; parts = []
+    def layout(self, text, cap_px, x0=0, baseline=0):
+        """(glyph, transform) for each character, and the advance width in px."""
+        s = cap_px / self.cap; x = 0; glyphs = []
         for i, ch in enumerate(text):
             g = self.cmap[ord(ch)]
-            pen = SVGPathPen(self.gs)
-            self.gs[g].draw(TransformPen(pen, (s, 0, 0, -s, x0 + x*s, baseline)))
-            parts.append(pen.getCommands())
+            glyphs.append((self.gs[g], (s, 0, 0, -s, x0 + x*s, baseline)))
             x += self.hmtx[g][0] + self.track + (self.kern.get(text[i:i+2], 0) if i + 1 < len(text) else 0)
-        return "".join(parts), x * s
+        return glyphs, x * s
+
+    def path(self, text, cap_px, x0=0, baseline=0):
+        glyphs, w = self.layout(text, cap_px, x0, baseline); parts = []
+        for g, t in glyphs:
+            pen = SVGPathPen(self.gs)
+            g.draw(TransformPen(pen, t))
+            parts.append(pen.getCommands())
+        return "".join(parts), w
+
+    def bounds(self, text, cap_px):
+        """Ink box (x0, y0, x1, y1) with the origin at x 0 on the baseline, y down, so descenders give y1 > 0."""
+        glyphs, _ = self.layout(text, cap_px); pen = BoundsPen(self.gs)
+        for g, t in glyphs:
+            g.draw(TransformPen(pen, t))
+        return pen.bounds
 
 @dataclass
 class Palette:
@@ -90,8 +105,11 @@ class Kit:
             out[f"stacked-{name}"] = self.svg(
                 f'<g transform="translate({f((W2 - 256) / 2)} 0)">{self.group(prim, acc)}</g><path fill="{text}" d="{wd2}"/>',
                 W2, 304)
-            wd3, ww3 = self.wordmark.path(self.brand, 96, x0=8, baseline=112)
-            out[f"wordmark-{name}"] = self.svg(f'<path fill="{text}" d="{wd3}"/>', math.ceil(ww3 + 16), 128)
+            # Wordmark alone: the box is the ink (descenders included) plus 16 units on every side, ink centred.
+            bx0, by0, bx1, by1 = self.wordmark.bounds(self.brand, 96)
+            W3, H3 = math.ceil(bx1 - bx0 + 32), math.ceil(by1 - by0 + 32)
+            wd3, _ = self.wordmark.path(self.brand, 96, x0=(W3 - bx1 - bx0) / 2, baseline=(H3 - by1 - by0) / 2)
+            out[f"wordmark-{name}"] = self.svg(f'<path fill="{text}" d="{wd3}"/>', W3, H3)
         return out
 
     def app_icon(self):
